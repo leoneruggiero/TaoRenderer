@@ -58,7 +58,7 @@ SceneParams sceneParams = SceneParams();
 
 // BBox ============================================================
 using namespace Utils;
-//BoundingBox<glm::vec3> sceneBB = BoundingBox<glm::vec3>(std::vector<glm::vec3>{});
+
 
 // ImGUI ============================================================
 const char* ao_comboBox_items[] = {"SSAO", "HBAO"};
@@ -132,6 +132,18 @@ void ShowImGUIWindow()
 
             ImGui::EndTabItem();
         }
+        if (ImGui::BeginTabItem("PostProcessing"))
+        {
+            if (ImGui::CollapsingHeader("ToneMapping", ImGuiTreeNodeFlags_None))
+            {
+                ImGui::Checkbox("Enable", &sceneParams.postProcessing.ToneMapping);
+                ImGui::DragFloat("Exposure", &sceneParams.postProcessing.Exposure, 0.25f, 0.0f, 5.0f);
+            }
+            
+            ImGui::Checkbox("GammaCorrection", &sceneParams.postProcessing.GammaCorrection);
+
+            ImGui::EndTabItem();
+        }
         if (ImGui::BeginTabItem("Debug"))
         {
             ImGui::Checkbox("Grid", &showGrid);
@@ -150,19 +162,19 @@ void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std
     sceneMeshCollection.AddToCollection(
         std::make_shared<MeshRenderer>(glm::vec3(0, 0, 2), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1),boxMesh, 
             (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::BlackAndWhiteTiles));
+            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::Copper));
     
     
     Mesh coneMesh = Mesh::Cone(0.8, 1.6, 16);
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(1, 2, 1), 1.5, glm::vec3(0, -1, 1), glm::vec3(1, 1, 1), coneMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::BlackAndWhiteTiles));
+        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
     
     
     Mesh cylMesh = Mesh::Cylinder(0.6, 1.6, 16);
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-1, -0.5, 1), 1.1, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), cylMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::BlackAndWhiteTiles));
+        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PlasticGreen));
 
   
     
@@ -177,17 +189,17 @@ void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std
 void LoadScene_NormalMapping(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
 {
     
-    Mesh sphereMesh0 = Mesh::Sphere(1.0, 16);
+    Mesh sphereMesh0 = Mesh::Sphere(1.0, 64);
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(0.0, -1.5, 1.5), 0.0, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), sphereMesh0,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::Cobblestone));
 
-    Mesh sphereMesh1 = Mesh::Sphere(1.0, 16);
+    Mesh sphereMesh1 = Mesh::Sphere(1.0, 64);
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-1.5, 0.0, 1.1), 0.0, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), sphereMesh1,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ClayShingles));
 
-    Mesh sphereMesh2 = Mesh::Sphere(1.0, 16);
+    Mesh sphereMesh2 = Mesh::Sphere(1.0, 64);
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(1.5, 0.0, 1.1), 0.0, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), sphereMesh2,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::WornFactoryFloor));
@@ -625,7 +637,7 @@ void SetupScene(SceneMeshCollection& sceneMeshCollection, std::map<std::string, 
 {
     //LoadPlane(sceneMeshCollection, shadersCollection, 10.0);
     //LoadScene_NormalMapping(sceneMeshCollection, shadersCollection);
-    //LoadScene_TechnoDemon(sceneMeshCollection, shadersCollection);
+    LoadScene_TechnoDemon(sceneMeshCollection, shadersCollection);
     //LoadSceneFromPath("./Assets/Models/suzanne.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ClayShingles);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
@@ -635,7 +647,7 @@ void SetupScene(SceneMeshCollection& sceneMeshCollection, std::map<std::string, 
     //LoadSceneFromPath("./Assets/Models/trees.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/OldBridge.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
-    LoadScene_ALotOfMonkeys(sceneMeshCollection, shadersCollection);
+    //LoadScene_ALotOfMonkeys(sceneMeshCollection, shadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
     //LoadScene_PCSStest(sceneMeshCollection, shadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -788,16 +800,25 @@ std::map<std::string, std::shared_ptr<ShaderBase>> InitializePostProcessingShade
             "CALC_GAUSSIAN_BLUR"
             }
     )) };
+    std::shared_ptr<PostProcessingShader> toneMappingAndGammaCorrection{ std::make_shared<PostProcessingShader>(
+        std::vector<std::string>({/* NO VERTEX_SHADER EXPANSIONS */ }),
+        std::vector<std::string>(
+            {
+            "DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION",
+            "CALC_TONE_MAPPING_AND_GAMMA_CORRECTION"
+            }
+    )) };
 
 
     return std::map<std::string, std::shared_ptr<ShaderBase>>
     {
 
-       { "SSAO",                ssaoShader            },
-       { "HBAO",                hbaoShader            },
-       { "SSAO_VIEWPOS",        ssaoViewPos           },
-       { "BLUR",                blur                  },
-       { "GAUSSIAN_BLUR",       gaussianBlur          },
+       { "SSAO",                                    ssaoShader                      },
+       { "HBAO",                                    hbaoShader                      },
+       { "SSAO_VIEWPOS",                            ssaoViewPos                     },
+       { "BLUR",                                    blur                            },
+       { "GAUSSIAN_BLUR",                           gaussianBlur                    },
+       { "TONE_MAPPING_AND_GAMMA_CORRECTION",       toneMappingAndGammaCorrection   },
     };
 }
 
@@ -1047,6 +1068,12 @@ int main()
     // AmbientOcclusion Map
     FrameBuffer ssaoFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 2, true);
 
+    // Tone-mapping and gamma correction
+    FrameBuffer mainFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, true);
+    sceneParams.postProcessing.ToneMapping = false;
+    sceneParams.postProcessing.Exposure = 1.0f;
+    sceneParams.postProcessing.GammaCorrection = false;
+
     // Post processing unit (ao, blur, bloom, ...)
     PostProcessingUnit postProcessingUnit(SSAO_BLUR_MAX_RADIUS, SSAO_MAX_SAMPLES);
 
@@ -1095,9 +1122,19 @@ int main()
             ssaoFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 2, true);
 
         AmbienOcclusionPass(sceneParams, sceneMeshCollection, sceneUniformBuffers, *Shaders.at("VIEWNORMALS").get(), ssaoFBO, postProcessingUnit);
-        
+
 
         // OPAQUE PASS /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        // Offscreen rendering to enable hdr and gamma correction.
+        if (sceneParams.postProcessing.ToneMapping || sceneParams.postProcessing.GammaCorrection)
+        {
+            // Resize the main framebuffer if needed (window resized).
+            if (mainFBO.Height() != sceneParams.viewportHeight || mainFBO.Width() != sceneParams.viewportWidth)
+                mainFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, true);
+
+            mainFBO.Bind();
+        }
         glViewport(0, 0, sceneParams.viewportWidth, sceneParams.viewportHeight);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -1115,6 +1152,22 @@ int main()
             sceneMeshCollection.at(i).get()->Draw(camera.Position, sceneParams);
         }
         
+        if (sceneParams.postProcessing.ToneMapping || sceneParams.postProcessing.GammaCorrection)
+        {
+            mainFBO.UnBind();
+
+            // Problems when resizind the window:
+            // really don't know why this is needed since DepthTesting is disabled 
+            // when drawing the quad to apply the post effects...
+            // In RenderDoc snapshots everything seems fine but it's not what you get.
+            glClear(GL_DEPTH_BUFFER_BIT); 
+
+            postProcessingUnit.ApplyToneMappingAndGammaCorrection(mainFBO, 0,
+                sceneParams.postProcessing.ToneMapping, sceneParams.postProcessing.Exposure,
+                sceneParams.postProcessing.GammaCorrection, 2.2f);
+        }
+
+
         // DEBUG ////////////////////////////////////////////////////////////////////////////////////////////////////////////
         
         if (showAO)
@@ -1167,6 +1220,7 @@ int main()
     lightMesh.~MeshRenderer();
     ssaoFBO.~FrameBuffer();
     shadowFBO.~FrameBuffer();
+    mainFBO.~FrameBuffer();
     grid.~LinesRenderer();
     lightMesh.~MeshRenderer();
     bbRenderer.~LinesRenderer();

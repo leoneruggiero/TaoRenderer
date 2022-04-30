@@ -70,7 +70,8 @@ enum TextureInternalFormat
 	Rgb_16f = GL_RGB16F,   // Where do those fancy formats come from???
 	Rgba = GL_RGBA,
 	Rgb = GL_RGB,
-	Rgba_32f = GL_RGBA32F
+	Rgba_32f = GL_RGBA32F,
+	Rgba_16f = GL_RGBA16F
 
 };
 
@@ -144,6 +145,14 @@ struct SceneLights
 	DirectionalLight Directional;
 };
 
+struct ScenePostProcessing
+{
+	bool ToneMapping;
+	float Exposure;
+
+	bool GammaCorrection;
+};
+
 struct DrawParams
 {
 	bool doShadows;
@@ -156,7 +165,9 @@ struct SceneParams
 	float cameraNear, cameraFar;
 	int viewportWidth, viewportHeight;
 	SceneLights sceneLights;
+	ScenePostProcessing postProcessing;
 	DrawParams drawParams;
+
 
 	//Utils....where to store them???
 	unsigned int noiseTexId_0, noiseTexId_1, noiseTexId_2;
@@ -168,7 +179,7 @@ struct Texture
 	int height;
 };
 
-constexpr const char* MaterialsFolder = "../../Assets/Materials";
+constexpr const char* MaterialsFolder = "./Assets/Materials";
 
 struct Material
 {

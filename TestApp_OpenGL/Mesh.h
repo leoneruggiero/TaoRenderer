@@ -147,7 +147,7 @@ public:
         std::vector<glm::vec2> textureCoordinates = std::vector<glm::vec2>();
         std::vector<int> triangles = std::vector<int>();
 
-        int stacks = subdivisions * 2;
+        int stacks = subdivisions / 2;
 
         std::vector<glm::vec3> circleVertices = std::vector<glm::vec3>(subdivisions * 2);
         std::vector<glm::vec2> circleTextureCoordinates = std::vector<glm::vec2>(subdivisions * 2);
@@ -861,7 +861,7 @@ public:
         shader->SetMatrices(_modelMatrix);
        
         // Material Properties ===============================================================================================//
-        shader->SetMaterial(_material, _albedo, _normals);
+        shader->SetMaterial(_material, _albedo, _normals, sceneParams);
         
         shader->SetSamplers(sceneParams);
 

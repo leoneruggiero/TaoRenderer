@@ -133,6 +133,40 @@ namespace FragmentSource_Geometry
     uniform Material material;
     uniform sampler2D Albedo;
     uniform sampler2D Normals;
+
+    uniform bool u_doGammaCorrection;
+    uniform float u_gamma;
+)";
+
+    const std::string DEFS_MATERIAL_PBR =
+        R"(
+    struct Material {
+        vec4 Albedo;
+        vec4 Roughness;
+        vec4 Metallic;
+       
+        bool hasAlbedo;
+        bool hasNormals;
+        bool hasRoughness;
+        bool hasMetallic;
+        bool hasAmbientOcclusion;
+    };
+
+    uniform Material material;
+
+    uniform sampler2D Albedo;
+    uniform sampler2D Normals;
+    uniform sampler2D Metallic;
+    uniform sampler2D Roughness;
+    uniform sampler2D AmbientOcclusion;
+    
+    #ifndef PI
+    #define PI 3.14159265358979323846
+    #endif
+
+    
+
+
 )";
     const std::string DEFS_SSAO =
         R"(
@@ -408,6 +442,33 @@ namespace FragmentSource_Geometry
             ? vec4(texture(Albedo, fs_in.textureCoordinates).rgb, 1.0)
             : vec4(material.Diffuse.rgb, 1.0);
 
+        if(u_doGammaCorrection && material.hasAlbedo)
+            baseColor = vec4(pow(baseColor.rgb, vec3(u_gamma)), baseColor.a);        
+
+        vec4 baseSpecular=vec4(material.Specular.rgb, 1.0);
+        vec3 viewDir=normalize(eyeWorldPos - fs_in.fragPosWorld);
+
+        vec3 worldNormal = 
+            material.hasNormals
+            ? fs_in.TBN * (texture(Normals, fs_in.textureCoordinates).rgb*2.0-1.0)
+            : fs_in.worldNormal;
+        
+	    CommonLightData commonData=CommonLightData(baseColor, baseSpecular, viewDir, eyeWorldPos, normalize(worldNormal));
+
+	    // Ambient
+	    ambient=computeLight_Ambient(lights.Ambient, commonData);
+
+	    // Directional
+	    directional=computeLight_Directional(lights.Directional, commonData);
+)";
+
+    const std::string CALC_LIT_MAT_PBR =
+        R"(
+        vec4 baseColor = 
+            material.hasAlbedo 
+            ? vec4(texture(Albedo, fs_in.textureCoordinates).rgb, 1.0)
+            : vec4(material.Diffuse.rgb, 1.0);
+
         vec4 baseSpecular=vec4(material.Specular.rgb, 1.0);
         vec3 viewDir=normalize(eyeWorldPos - fs_in.fragPosWorld);
 
@@ -576,6 +637,20 @@ namespace FragmentSource_PostProcessing
     uniform int u_radius;
     uniform bool u_hor;
 )";
+
+    const std::string DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION =
+        R"(
+    // Tone Mapping
+    uniform sampler2D u_hdrBuffer;
+    uniform bool u_doToneMapping;
+    uniform float u_exposure;
+    
+    // Gamma correction
+    uniform bool u_doGammaCorrection;
+    uniform float u_gamma;
+)";
+
+    
 
     const std::string DEFS_AO =
         R"(
@@ -1058,6 +1133,20 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
 
 )";
 
+    const std::string CALC_TONE_MAPPING_AND_GAMMA_CORRECTION =
+        R"(
+
+    vec4 col = texelFetch(u_hdrBuffer, ivec2(gl_FragCoord.xy - vec2(0.5)), 0).rgba;
+    
+    if(u_doToneMapping)
+        col = vec4(vec3(1.0) - exp(-col.rgb * u_exposure), col.a);
+    
+    if(u_doGammaCorrection)
+        col = vec4(pow(col.rgb, vec3(1.0/u_gamma)), col.a);
+
+    gl_FragColor = col;
+)";
+
     const std::string EXP_FRAGMENT =
         R"(
     #version 330 core
@@ -1066,6 +1155,8 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
     //[DEFS_SSAO]
     //[DEFS_BLUR]
     //[DEFS_GAUSSIAN_BLUR]
+    //[DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION]
+
     void main()
     {
         //[CALC_POSITIONS]
@@ -1073,19 +1164,22 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
         //[CALC_HBAO]
         //[CALC_BLUR]
         //[CALC_GAUSSIAN_BLUR]
+        //[CALC_TONE_MAPPING_AND_GAMMA_CORRECTION]
     }
     )";
 
     static std::map<std::string, std::string> Expansions = {
 
-       { "DEFS_SSAO",           FragmentSource_PostProcessing::DEFS_AO            },
-       { "DEFS_BLUR",           FragmentSource_PostProcessing::DEFS_BLUR            },
-       { "DEFS_GAUSSIAN_BLUR",  FragmentSource_PostProcessing::DEFS_GAUSSIAN_BLUR   },
-       { "CALC_POSITIONS",      FragmentSource_PostProcessing::CALC_POSITIONS       },
-       { "CALC_SSAO",           FragmentSource_PostProcessing::CALC_SSAO            },
-       { "CALC_HBAO",           FragmentSource_PostProcessing::CALC_HBAO            },
-       { "CALC_BLUR",           FragmentSource_PostProcessing::CALC_BLUR            },
-       { "CALC_GAUSSIAN_BLUR",  FragmentSource_PostProcessing::CALC_GAUSSIAN_BLUR   },
+       { "DEFS_SSAO",                                   FragmentSource_PostProcessing::DEFS_AO                                  },
+       { "DEFS_BLUR",                                   FragmentSource_PostProcessing::DEFS_BLUR                                },
+       { "DEFS_GAUSSIAN_BLUR",                          FragmentSource_PostProcessing::DEFS_GAUSSIAN_BLUR                       },
+       { "DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION",      FragmentSource_PostProcessing::DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION   },
+       { "CALC_POSITIONS",                              FragmentSource_PostProcessing::CALC_POSITIONS                           },
+       { "CALC_SSAO",                                   FragmentSource_PostProcessing::CALC_SSAO                                },
+       { "CALC_HBAO",                                   FragmentSource_PostProcessing::CALC_HBAO                                },
+       { "CALC_BLUR",                                   FragmentSource_PostProcessing::CALC_BLUR                                },
+       { "CALC_GAUSSIAN_BLUR",                          FragmentSource_PostProcessing::CALC_GAUSSIAN_BLUR                       },
+       { "CALC_TONE_MAPPING_AND_GAMMA_CORRECTION",      FragmentSource_PostProcessing::CALC_TONE_MAPPING_AND_GAMMA_CORRECTION   },
 
     };
 
@@ -1887,6 +1981,7 @@ private:
 
     void Init(int level, TextureInternalFormat internalFormat, int width, int height, GLenum format, GLenum type, const void* data)
     {
+       
         Bind();
 
         glTexImage2D(GL_TEXTURE_2D, level, internalFormat,
@@ -1936,7 +2031,8 @@ private:
     {
         switch (internal)
         {
-        case(TextureInternalFormat::Rgba_32f):
+        case(TextureInternalFormat::Rgba_32f): 
+        case(TextureInternalFormat::Rgba_16f):
             return GL_RGBA;
             break;
         case(TextureInternalFormat::Rgb_16f):
@@ -1952,7 +2048,7 @@ private:
     }
 
 public:
-    OGLTexture2D(int width, int height, TextureInternalFormat internalFormat)
+    OGLTexture2D(int width, int height, TextureInternalFormat internalFormat) : _width(width), _height(height)
     {
         OGLResource::Create(OGLResourceType::TEXTURE);
 
@@ -2070,7 +2166,8 @@ private:
     int
         _width, _height;
 
-    void Initialize(int width, int height, bool depth, bool color, int colorAttachments)
+
+    void Initialize(int width, int height, bool depth, bool color, int colorAttachments, TextureInternalFormat colorTextureFormat)
     {
 
         if (depth)
@@ -2079,7 +2176,7 @@ private:
         if (color)
         {
             for (int i = 0; i < colorAttachments; i++)
-                _colorTextures.push_back(OGLTexture2D(width, height, TextureInternalFormat::Rgba_32f));
+                _colorTextures.push_back(OGLTexture2D(width, height, colorTextureFormat));
         }
 
         Bind();
@@ -2115,7 +2212,15 @@ public:
     {
         OGLResource::Create(OGLResourceType::FRAMEBUFFER);
 
-        Initialize(_width, _height, depth, color, colorAttachments);
+        Initialize(_width, _height, depth, color, colorAttachments, TextureInternalFormat::Rgba_32f);
+    }
+
+    FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth, TextureInternalFormat colorTextureFormat)
+        :_width(width), _height(height)
+    {
+        OGLResource::Create(OGLResourceType::FRAMEBUFFER);
+
+        Initialize(_width, _height, depth, color, colorAttachments, colorTextureFormat);
     }
 
     FrameBuffer(FrameBuffer&& other) noexcept : OGLResource(std::move(other))
@@ -2304,7 +2409,7 @@ public:
 
     }
 
-    void SetMaterial(const Material& mat, const std::optional<OGLTexture2D>& albedoTexture, const std::optional<OGLTexture2D>& normalsTexture) const
+    void SetMaterial(const Material& mat, const std::optional<OGLTexture2D>& albedoTexture, const std::optional<OGLTexture2D>& normalsTexture, const SceneParams& sceneParams) const
     {
         // TODO: uniform block?
         glUniform4fv(UniformLocation("material.Diffuse"), 1, glm::value_ptr(mat.Diffuse));
@@ -2316,6 +2421,11 @@ public:
         if (albedoTexture.has_value())
         {
             glUniform1ui(UniformLocation("material.hasAlbedo"), true);
+
+            
+            glUniform1ui(UniformLocation("u_doGammaCorrection"), sceneParams.postProcessing.GammaCorrection);
+            glUniform1f(UniformLocation("u_gamma"), 2.2f);
+            
 
             glActiveTexture(GL_TEXTURE0 + TextureBinding::Albedo);
             albedoTexture.value().Bind();
@@ -2429,7 +2539,7 @@ class PostProcessingUnit
  
 private:
     PostProcessingShader 
-        _blurShader, _viewFromDepthShader, _ssaoShader, _hbaoShader;
+        _blurShader, _viewFromDepthShader, _ssaoShader, _hbaoShader, _toneMappingAndGammaCorrection;
 
     std::optional<OGLTexture2D> 
         _gaussianBlurValuesTexture, _aoNoiseTexture;
@@ -2509,6 +2619,9 @@ public:
         _viewFromDepthShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO","CALC_POSITIONS"}),
         _ssaoShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_SSAO"}),
         _hbaoShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_HBAO"}),
+        _toneMappingAndGammaCorrection(
+            std::vector<std::string>{},
+            std::vector<std::string>{"DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION", "CALC_TONE_MAPPING_AND_GAMMA_CORRECTION"}),
         _gaussianBlurValuesTexture(),
         _vbo(VertexBufferObject::VBOType::StaticDraw),
         _vao()
@@ -2557,6 +2670,31 @@ public:
         glDepthMask(GL_TRUE);
 
         fbo.CopyFromOtherFbo(nullptr, true, attachment, false, glm::vec2(0.0, 0.0), glm::vec2(width, height));
+
+    }
+
+    void ApplyToneMappingAndGammaCorrection(const FrameBuffer& fbo, int attachment, bool toneMapping, float exposure, bool gammaCorrection, float gamma) const
+    {
+
+        glDepthMask(GL_FALSE);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, fbo.ColorTextureId(attachment));
+      
+        _toneMappingAndGammaCorrection.SetCurrent();
+
+        glUniform1i(_toneMappingAndGammaCorrection.UniformLocation(" u_hdrBuffer"), 0);
+        glUniform1i(_toneMappingAndGammaCorrection.UniformLocation("u_doToneMapping"), toneMapping);
+        glUniform1i(_toneMappingAndGammaCorrection.UniformLocation("u_doGammaCorrection"), gammaCorrection);
+        glUniform1f(_toneMappingAndGammaCorrection.UniformLocation("u_exposure"), exposure);
+        glUniform1f(_toneMappingAndGammaCorrection.UniformLocation("u_gamma"), gamma);
+
+        DrawQuad();
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, 0);
+
+        glDepthMask(GL_TRUE);
 
     }
 
