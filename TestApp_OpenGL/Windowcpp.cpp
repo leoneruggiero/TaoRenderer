@@ -176,6 +176,11 @@ void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PlasticGreen));
 
+    Mesh sphereMesh = Mesh::Sphere(1.0, 32);
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-1, -1.5, 1.2),0.0, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), sphereMesh,
+        (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
+        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PlasticGreen));
+
   
     
     Mesh planeMesh = Mesh::Box(1, 1, 1);
@@ -193,7 +198,7 @@ void LoadScene_NormalMapping(SceneMeshCollection& sceneMeshCollection, std::map<
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(0.0, -1.5, 1.5), 0.0, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), sphereMesh0,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::Cobblestone));
-
+    
     Mesh sphereMesh1 = Mesh::Sphere(1.0, 64);
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-1.5, 0.0, 1.1), 0.0, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), sphereMesh1,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
@@ -554,7 +559,7 @@ void LoadSceneFromPath(const char* path, SceneMeshCollection& sceneMeshCollectio
     {
         Mesh mesh = reader.Meshes()[i];
         sceneMeshCollection.AddToCollection(
-            std::make_shared<MeshRenderer>(glm::vec3(0, 0, 0), glm::pi<float>() * 0, glm::vec3(1, 0, 0), glm::vec3(0.6, 0.6, 0.6),
+            std::make_shared<MeshRenderer>(glm::vec3(0, 0, 0), glm::pi<float>() * 0, glm::vec3(1, 0, 0), glm::vec3(1.0, 1.0, 1.0),
                mesh, shadersCollection->at("LIT_WITH_SHADOWS_SSAO").get(), shadersCollection->at("LIT_WITH_SSAO").get(), material));
         
         sceneMeshCollection.at(sceneMeshCollection.size()-1).get()->SetTransformation(reader.Transformations().at(i));
@@ -635,9 +640,10 @@ void LoadScene_TechnoDemon(SceneMeshCollection& sceneMeshCollection, std::map<st
 
 void SetupScene(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>> *shadersCollection)
 {
-    //LoadPlane(sceneMeshCollection, shadersCollection, 10.0);
+    LoadPlane(sceneMeshCollection, shadersCollection, 2.0);
+    LoadSceneFromPath("./Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, shadersCollection);
-    LoadScene_TechnoDemon(sceneMeshCollection, shadersCollection);
+    //LoadScene_TechnoDemon(sceneMeshCollection, shadersCollection);
     //LoadSceneFromPath("./Assets/Models/suzanne.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ClayShingles);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
@@ -1072,7 +1078,7 @@ int main()
     FrameBuffer mainFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, true);
     sceneParams.postProcessing.ToneMapping = false;
     sceneParams.postProcessing.Exposure = 1.0f;
-    sceneParams.postProcessing.GammaCorrection = false;
+    sceneParams.postProcessing.GammaCorrection = true;
 
     // Post processing unit (ao, blur, bloom, ...)
     PostProcessingUnit postProcessingUnit(SSAO_BLUR_MAX_RADIUS, SSAO_MAX_SAMPLES);
@@ -1085,7 +1091,7 @@ int main()
     BindUBOs(sceneUniformBuffers);
 
     glEnable(GL_DEPTH_TEST);
-
+    glDisable(GL_FRAMEBUFFER_SRGB);
     // Render Loop
     while (!glfwWindowShouldClose(window))
     {

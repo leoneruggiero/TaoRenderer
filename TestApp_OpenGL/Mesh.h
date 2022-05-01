@@ -707,7 +707,9 @@ public:
         _meshes = std::vector<Mesh>();
         _transformations = std::vector<glm::mat4>();
 
-        ProcessNode(scene->mRootNode, scene, glm::mat4(1.0));
+        glm::mat4 transf = glm::mat4(1.0);
+        
+        ProcessNode(scene->mRootNode, scene, transf);
     }
 
     std::vector<Mesh> Meshes()

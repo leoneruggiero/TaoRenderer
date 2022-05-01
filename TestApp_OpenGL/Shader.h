@@ -120,7 +120,7 @@ layout (std140) uniform blk_PerFrameData_Shadows
 namespace FragmentSource_Geometry
 {
     
-    const std::string DEFS_MATERIAL =
+    const std::string DEFS_MATERIAL_OLD =
         R"(
     struct Material {
         vec4 Diffuse;
@@ -138,7 +138,7 @@ namespace FragmentSource_Geometry
     uniform float u_gamma;
 )";
 
-    const std::string DEFS_MATERIAL_PBR =
+    const std::string DEFS_MATERIAL =
         R"(
     struct Material {
         vec4 Albedo;
@@ -164,8 +164,51 @@ namespace FragmentSource_Geometry
     #define PI 3.14159265358979323846
     #endif
 
-    
+    #define F0_DIELECTRIC 0.04
 
+    // Schlick's approximation
+    // ---------------------------------------------------
+    vec3 Fresnel(float cosTheta, vec3 F0)
+    {
+        // F0 + (1 - F0)(1 - (h*v))^5
+        return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+    }
+    // ---------------------------------------------------
+
+    // Trowbridge - Reitz GGX normal distribution function
+    // ---------------------------------------------------
+    float NDF_GGXTR(vec3 n, vec3 h, float roughness)
+    {   
+        float cosTheta = max(0.0, dot(n, h));
+        float a = roughness*roughness;
+        float a2 = a*a;
+        float d = ((cosTheta*cosTheta) * (a2 - 1.0)) + 1.0;
+        d = PI * d*d;
+        
+        return a2 / d ;
+    }
+    // ---------------------------------------------------
+
+    // Schlick GGX geometry function
+    // ---------------------------------------------------
+    float G_GGXS(vec3 n, vec3 v, float roughness)
+    {   
+        float k = (roughness + 1.0);
+        k = (k*k) / 8.0;     
+        float dot = max(0.0, dot(n, v));
+
+        return dot / (dot * (1.0 - k) + k);
+    }
+    // ---------------------------------------------------
+
+    // Complete geometry function, product of occlusion-probability
+    // from light and from view directions
+    // ---------------------------------------------------
+    float G_GGXS(vec3 n, vec3 l, vec3 v, float roughness)
+    {
+       return G_GGXS(n, v, roughness) * G_GGXS(n, l, roughness);    
+    }
+    // ---------------------------------------------------
 
 )";
     const std::string DEFS_SSAO =
@@ -386,7 +429,7 @@ namespace FragmentSource_Geometry
     
 )";
 
-    const std::string DEFS_LIGHTS =
+    const std::string DEFS_LIGHTS_OLD =
         R"(
     struct DirectionalLight
     {
@@ -435,7 +478,34 @@ namespace FragmentSource_Geometry
     }
 )";
 
-    const std::string CALC_LIT_MAT =
+    const std::string DEFS_LIGHTS =
+        R"(
+    struct DirectionalLight
+    {
+	    vec3 Direction; // 16 byte
+	    vec4 Diffuse;   // 16 byte
+	    vec4 Specular;  // 16 byte
+                        // => 48 byte
+    };
+
+    struct SceneLights
+    {
+        DirectionalLight Directional;    // 48 byte
+	    vec4 Ambient;                    // 16 byte
+                                         // => 64 byte      
+    };
+
+   
+    layout(std140) uniform blk_PerFrameData_Lights
+    {
+        uniform SceneLights lights;     // 64 byte
+        uniform vec3 eyeWorldPos;       // 16 byte
+                                        // => 80 byte
+    };
+
+)";
+
+    const std::string CALC_LIT_MAT_OLD =
         R"(
         vec4 baseColor = 
             material.hasAlbedo 
@@ -462,33 +532,56 @@ namespace FragmentSource_Geometry
 	    directional=computeLight_Directional(lights.Directional, commonData);
 )";
 
-    const std::string CALC_LIT_MAT_PBR =
+    const std::string CALC_LIT_MAT =
         R"(
-        vec4 baseColor = 
+        vec4 diffuseColor = 
             material.hasAlbedo 
             ? vec4(texture(Albedo, fs_in.textureCoordinates).rgb, 1.0)
-            : vec4(material.Diffuse.rgb, 1.0);
+            : vec4(material.Albedo.rgb, 1.0);
 
-        vec4 baseSpecular=vec4(material.Specular.rgb, 1.0);
+        vec4 roughness = vec4(material.Roughness.rgb, 1.0);
         vec3 viewDir=normalize(eyeWorldPos - fs_in.fragPosWorld);
 
         vec3 worldNormal = 
             material.hasNormals
-            ? fs_in.TBN * (texture(Normals, fs_in.textureCoordinates).rgb*2.0-1.0)
-            : fs_in.worldNormal;
+            ? normalize(fs_in.TBN * (texture(Normals, fs_in.textureCoordinates).rgb*2.0-1.0))
+            : normalize (fs_in.worldNormal);
         
-	    CommonLightData commonData=CommonLightData(baseColor, baseSpecular, viewDir, eyeWorldPos, normalize(worldNormal));
+        // Halfway vector
+	    vec3 h = normalize(viewDir - normalize(lights.Directional.Direction));
+        float cosTheta = max(0.0, dot(h, viewDir));
 
-	    // Ambient
-	    ambient=computeLight_Ambient(lights.Ambient, commonData);
+        float r = 0.7;
+        vec3 color = vec3(1.0, 0.0, 0.0);
+        
+        
+        vec3 F = Fresnel(cosTheta, vec3(F0_DIELECTRIC));
+        float D = NDF_GGXTR(worldNormal, h, r);
+        float G = G_GGXS(worldNormal,  normalize(-lights.Directional.Direction), viewDir, r);
+        
+        vec3 ks = F ;
+        vec3 kd = vec3(1.0) - ks; /* TODO: Metallic */
+    
+        float NdotL = max(0.0, dot(worldNormal, normalize(-lights.Directional.Direction)));
+        float NdotV = max(0.0, dot(viewDir, worldNormal));
 
-	    // Directional
-	    directional=computeLight_Directional(lights.Directional, commonData);
+        vec3 Li = lights.Directional.Diffuse.rgb *  lights.Directional.Diffuse.a;
+        
+        vec3 diffuse = (kd  * color / PI) * Li * NdotL;
+        vec3 reflected = ((F * D * G) / (4.0 * NdotL * NdotV + 0.0001)) * Li * NdotL ;
+        vec3 amb = lights.Ambient.rgb * lights.Ambient.a;
+        finalColor = vec4( diffuse + reflected , 1.0);
+        
 )";
 
-    const std::string CALC_UNLIT_MAT =
+    const std::string CALC_UNLIT_MAT_OLD =
         R"(
         vec4 baseColor=vec4(material.Diffuse.rgb, 1.0);
+        finalColor=baseColor;
+)";
+    const std::string CALC_UNLIT_MAT =
+        R"(
+        vec4 baseColor=vec4(material.Albedo.rgb, 1.0);
         finalColor=baseColor;
 )";
 
