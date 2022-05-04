@@ -29,7 +29,9 @@ enum TextureBinding
 	NoiseMap1 = 3,
 	NoiseMap2 = 4,
 	Albedo = 5,
-	Normals = 6
+	Normals = 6,
+	Roughness = 7,
+	Metallic = 8
 };
 
 enum VertexInputType
@@ -183,10 +185,9 @@ constexpr const char* MaterialsFolder = "./Assets/Materials";
 
 struct Material
 {
-	glm::vec4 Diffuse;
-	glm::vec4 Specular;
-
-	float Shininess;
+	glm::vec4 Albedo;
+	float Roughness;
+	float Metallic;
 
 	const char* Textures;
 };
@@ -206,16 +207,16 @@ struct MaterialsCollection
 	static const Material BlackAndWhiteTiles;
 };
 
-const Material MaterialsCollection::NullMaterial = Material{ glm::vec4(1, 0, 1, 1), glm::vec4(1, 0, 1, 1), 64 };
-const Material MaterialsCollection::ShinyRed = Material{ glm::vec4(1, 0, 0, 1), glm::vec4(1, 1, 1, 1), 256 };
-const Material MaterialsCollection::PlasticGreen = Material{ glm::vec4(0, 0.8, 0, 1), glm::vec4(0.8, 0.8, 0.8, 1), 32 };
-const Material MaterialsCollection::Copper = Material{ glm::vec4(0.8, 0.3, 0, 1), glm::vec4(0.8, 0.3, 0, 1), 128 };
-const Material MaterialsCollection::PureWhite = Material{ glm::vec4(0.9, 0.9, 0.9, 1), glm::vec4(0.8, 0.3, 0, 1), 128 };
-const Material MaterialsCollection::MatteGray = Material{ glm::vec4(0.5, 0.5, 0.5, 1), glm::vec4(0.5, 0.5, 0.5, 1), 64 };
-const Material MaterialsCollection::ClayShingles = Material{ glm::vec4(0.5, 0.5, 0.5, 1), glm::vec4(0.5, 0.5, 0.5, 1), 16, "Shingles"};
-const Material MaterialsCollection::WornFactoryFloor = Material{ glm::vec4(0.5, 0.5, 0.5, 1), glm::vec4(0.5, 0.5, 0.5, 1), 16, "WornFactoryFloor" };
-const Material MaterialsCollection::WoodPlanks = Material{ glm::vec4(0.5, 0.5, 0.5, 1), glm::vec4(0.5, 0.5, 0.5, 1), 256, "WoodPlanks" };
-const Material MaterialsCollection::Cobblestone = Material{ glm::vec4(0.5, 0.5, 0.5, 1), glm::vec4(0.5, 0.5, 0.5, 1), 128, "Cobblestone" };
-const Material MaterialsCollection::BlackAndWhiteTiles = Material{ glm::vec4(0.5, 0.5, 0.5, 1), glm::vec4(0.5, 0.5, 0.5, 1), 128, "BlackAndWhiteTiles" };
+const Material MaterialsCollection::NullMaterial = Material{ glm::vec4(1, 0, 1, 1), 0.0, 0.0 };
+const Material MaterialsCollection::ShinyRed = Material{ glm::vec4(1, 0, 0, 1), 0.9, 0.0 };
+const Material MaterialsCollection::PlasticGreen = Material{ glm::vec4(0, 0.8, 0, 1), 0.4, 0.0 };
+const Material MaterialsCollection::Copper = Material{ glm::vec4(0.8, 0.3, 0, 1),  0.8, 1.0 };
+const Material MaterialsCollection::PureWhite = Material{ glm::vec4(0.9, 0.9, 0.9, 1),0.5, 0.0 };
+const Material MaterialsCollection::MatteGray = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.8 , 0.0 };
+const Material MaterialsCollection::ClayShingles = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.3, 0.0, "Shingles"};
+const Material MaterialsCollection::WornFactoryFloor = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0, "WornFactoryFloor" };
+const Material MaterialsCollection::WoodPlanks = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0,  "WoodPlanks" };
+const Material MaterialsCollection::Cobblestone = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.3, 0.0, "Cobblestone" };
+const Material MaterialsCollection::BlackAndWhiteTiles = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.6, 0.0,  "BlackAndWhiteTiles" };
 
 #endif

@@ -142,14 +142,14 @@ namespace FragmentSource_Geometry
         R"(
     struct Material {
         vec4 Albedo;
-        vec4 Roughness;
-        vec4 Metallic;
+        float Roughness;
+        float Metallic;
        
-        bool hasAlbedo;
-        bool hasNormals;
-        bool hasRoughness;
-        bool hasMetallic;
-        bool hasAmbientOcclusion;
+        bool hasAlbedo           ;
+        bool hasNormals          ;
+        bool hasRoughness        ;
+        bool hasMetallic         ;
+        bool hasAmbientOcclusion ;
     };
 
     uniform Material material;
@@ -539,7 +539,16 @@ namespace FragmentSource_Geometry
             ? vec4(texture(Albedo, fs_in.textureCoordinates).rgb, 1.0)
             : vec4(material.Albedo.rgb, 1.0);
 
-        vec4 roughness = vec4(material.Roughness.rgb, 1.0);
+        float roughness = 
+            material.hasRoughness
+            ? texture(Roughness, fs_in.textureCoordinates).r
+            : material.Roughness;
+
+        float metallic = 
+            material.hasMetallic
+            ? texture(Metallic, fs_in.textureCoordinates).r
+            : material.Metallic;
+
         vec3 viewDir=normalize(eyeWorldPos - fs_in.fragPosWorld);
 
         vec3 worldNormal = 
@@ -551,26 +560,24 @@ namespace FragmentSource_Geometry
 	    vec3 h = normalize(viewDir - normalize(lights.Directional.Direction));
         float cosTheta = max(0.0, dot(h, viewDir));
 
-        float r = 0.7;
-        vec3 color = vec3(1.0, 0.0, 0.0);
-        
-        
         vec3 F = Fresnel(cosTheta, vec3(F0_DIELECTRIC));
-        float D = NDF_GGXTR(worldNormal, h, r);
-        float G = G_GGXS(worldNormal,  normalize(-lights.Directional.Direction), viewDir, r);
+        F = mix(F, diffuseColor.rgb, metallic);
+
+        float D = NDF_GGXTR(worldNormal, h, roughness);
+        float G = G_GGXS(worldNormal,  normalize(-lights.Directional.Direction), viewDir, roughness);
         
         vec3 ks = F ;
-        vec3 kd = vec3(1.0) - ks; /* TODO: Metallic */
+        vec3 kd = 1.0 - ks; 
     
         float NdotL = max(0.0, dot(worldNormal, normalize(-lights.Directional.Direction)));
         float NdotV = max(0.0, dot(viewDir, worldNormal));
 
         vec3 Li = lights.Directional.Diffuse.rgb *  lights.Directional.Diffuse.a;
         
-        vec3 diffuse = (kd  * color / PI) * Li * NdotL;
-        vec3 reflected = ((F * D * G) / (4.0 * NdotL * NdotV + 0.0001)) * Li * NdotL ;
-        vec3 amb = lights.Ambient.rgb * lights.Ambient.a;
-        finalColor = vec4( diffuse + reflected , 1.0);
+        vec3 diffuse = (kd  * diffuseColor.rgb / PI);
+        vec3 reflected = ((F * D * G) / (4.0 * NdotL * NdotV + 0.0001));
+        
+        finalColor = vec4( (diffuse + reflected) * NdotL * Li , 1.0);
         
 )";
 
@@ -2502,24 +2509,27 @@ public:
 
     }
 
-    void SetMaterial(const Material& mat, const std::optional<OGLTexture2D>& albedoTexture, const std::optional<OGLTexture2D>& normalsTexture, const SceneParams& sceneParams) const
+    void SetMaterial(const Material& mat, 
+        const std::optional<OGLTexture2D>& albedoTexture, 
+        const std::optional<OGLTexture2D>& normalsTexture,
+        const std::optional<OGLTexture2D>& roughnessTexture,
+        const std::optional<OGLTexture2D>& metallicTexture,
+        const SceneParams& sceneParams) const
     {
         // TODO: uniform block?
-        glUniform4fv(UniformLocation("material.Diffuse"), 1, glm::value_ptr(mat.Diffuse));
-        glUniform4fv(UniformLocation("material.Specular"), 1, glm::value_ptr(mat.Specular));
-        glUniform1f (UniformLocation("material.Shininess"), mat.Shininess);
+        glUniform4fv(UniformLocation("material.Albedo"), 1, glm::value_ptr(mat.Albedo));
+        glUniform1f(UniformLocation("material.Roughness"), mat.Roughness);
+        glUniform1f (UniformLocation("material.Metallic"), mat.Metallic);
 
-        // ***  Albedo color texture *** //
+        // ***  ALBEDO color texture *** //
         // ----------------------------- //
         if (albedoTexture.has_value())
         {
             glUniform1ui(UniformLocation("material.hasAlbedo"), true);
 
-            
             glUniform1ui(UniformLocation("u_doGammaCorrection"), sceneParams.postProcessing.GammaCorrection);
             glUniform1f(UniformLocation("u_gamma"), 2.2f);
             
-
             glActiveTexture(GL_TEXTURE0 + TextureBinding::Albedo);
             albedoTexture.value().Bind();
             glUniform1i(UniformLocation("Albedo"), TextureBinding::Albedo);
@@ -2529,8 +2539,7 @@ public:
         // ----------------------------- //
 
 
-
-        // ***  Normal map texture *** //
+        // ***  NORMAL map texture *** //
         // --------------------------- //
         if (normalsTexture.has_value())
         {
@@ -2543,6 +2552,34 @@ public:
         else
             glUniform1ui(UniformLocation("material.hasNormals"), false);
         // --------------------------- //
+
+        // ***  ROUGHNESS map texture *** //
+        // ------------------------------ //
+        if (roughnessTexture.has_value())
+        {
+            glUniform1ui(UniformLocation("material.hasRoughness"), true);
+
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Roughness);
+            roughnessTexture.value().Bind();
+            glUniform1i(UniformLocation("Roughness"), TextureBinding::Roughness);
+        }
+        else
+            glUniform1ui(UniformLocation("material.hasRoughness"), false);
+        // ------------------------------ //
+
+        // ***  METALLIC map texture *** //
+        // ----------------------------- //
+        if (metallicTexture.has_value())
+        {
+            glUniform1ui(UniformLocation("material.hasMetallic"), true);
+
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Metallic);
+            metallicTexture.value().Bind();
+            glUniform1i(UniformLocation("Metallic"), TextureBinding::Metallic);
+        }
+        else
+            glUniform1ui(UniformLocation("material.hasMetallic"), false);
+        // ----------------------------- //
     }
 
     void SetMaterial(const glm::vec4& diffuse, const glm::vec4& specular, float shininess) const

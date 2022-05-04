@@ -739,6 +739,8 @@ private:
     IndexBufferObject _ebo;
     std::optional<OGLTexture2D> _albedo;
     std::optional<OGLTexture2D> _normals;
+    std::optional<OGLTexture2D> _roughness;
+    std::optional<OGLTexture2D> _metallic;
 
     glm::mat4 _modelMatrix;
 
@@ -849,6 +851,11 @@ public:
         SetMaterial(mat);
     }
 
+    MeshRenderer(Mesh mesh, MeshShader* shader, MeshShader* shaderNoShadows)
+        : MeshRenderer(glm::vec3(0.0, 0.0, 0.0), 0, glm::vec3(1.0, 0.0, 0.0), glm::vec3(1.0, 1.0, 1.0), mesh, shader, shaderNoShadows)
+    {
+
+    }
 
 
 public:
@@ -863,7 +870,7 @@ public:
         shader->SetMatrices(_modelMatrix);
        
         // Material Properties ===============================================================================================//
-        shader->SetMaterial(_material, _albedo, _normals, sceneParams);
+        shader->SetMaterial(_material, _albedo, _normals, _roughness, _metallic, sceneParams);
         
         shader->SetSamplers(sceneParams);
 
@@ -901,6 +908,8 @@ public:
         {
             std::string path = std::string(MaterialsFolder) + "/" + _material.Textures;
             _albedo = OGLTexture2D((path + "/Albedo.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+            _roughness = OGLTexture2D((path + "/Roughness.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+            _metallic = OGLTexture2D((path + "/Metallic.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
             _normals = OGLTexture2D((path + "/Normals.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
         }
     }

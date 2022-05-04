@@ -191,6 +191,33 @@ void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std
     
 }
 
+void LoadScene_PbrTextSpheres(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
+{
+    
+    Mesh sphereMesh = Mesh::Sphere(1.0, 32);
+    
+    for (int i = 0; i < 5; i++)
+    {
+        for (int j = 0; j < 5; j++)
+        {
+            MeshRenderer mr
+            {
+                sphereMesh,
+                (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
+                (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()
+            };
+
+            glm::mat4 t = glm::mat4(1.0);
+            t = glm::translate(t, glm::vec3(2.0 * i, 2.0 * j, 0.0));
+
+            mr.SetTransformation(t);
+            mr.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0, 1.0), (i+1) / 5.0f, (j+1) / 5.0f });
+
+            sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(mr)));
+        }
+    }
+}
+
 void LoadScene_NormalMapping(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
 {
     
@@ -626,8 +653,8 @@ void LoadScene_TechnoDemon(SceneMeshCollection& sceneMeshCollection, std::map<st
     // ---------------------- //
 
     
-    Material matBody = Material{ glm::vec4(1.0), glm::vec4(1.0), 64, "TechnoDemon_Body" };
-    Material matArm = Material{ glm::vec4(1.0), glm::vec4(1.0), 2, "TechnoDemon_Arm" };
+    Material matBody = Material{ glm::vec4(1.0),0.4, 0.0, "TechnoDemon_Body" };
+    Material matArm = Material{ glm::vec4(1.0),0.6, 0.0, "TechnoDemon_Arm" };
   
     sceneMeshCollection.at(5).get()->SetMaterial(matBody);
     sceneMeshCollection.at(6).get()->SetMaterial(matArm);
@@ -640,8 +667,9 @@ void LoadScene_TechnoDemon(SceneMeshCollection& sceneMeshCollection, std::map<st
 
 void SetupScene(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>> *shadersCollection)
 {
-    LoadPlane(sceneMeshCollection, shadersCollection, 2.0);
-    LoadSceneFromPath("./Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
+    //LoadPlane(sceneMeshCollection, shadersCollection, 2.0);
+    LoadScene_PbrTextSpheres(sceneMeshCollection, shadersCollection);
+    //LoadSceneFromPath("./Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, shadersCollection);
     //LoadScene_TechnoDemon(sceneMeshCollection, shadersCollection);
     //LoadSceneFromPath("./Assets/Models/suzanne.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ClayShingles);
