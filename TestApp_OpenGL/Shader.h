@@ -15,6 +15,79 @@
 #include "GeometryHelper.h"
 #include "stb_image.h"
 
+namespace VertexSource_Environment
+{
+    const std::string EXP_VERTEX =
+        R"(
+    #version 330 core
+
+    #ifndef SQRT_TWO
+    #define SQRT_TWO 1.41421356237;
+    #endif
+
+    layout(location = 0) in vec3 position;
+    
+    out vec3 fragPosWorld;
+
+    uniform mat4 u_projection;
+    uniform mat4 u_model;
+    uniform bool u_hasEnvironmentMap;
+    uniform vec3 u_equator_color;
+    uniform vec3 u_south_color; 
+    uniform vec3 u_north_color;
+
+    uniform samplerCube EnvironmentMap;
+
+    void main()
+    {
+    
+        fragPosWorld = normalize(position);
+
+        gl_Position = (u_projection * u_model * vec4(position.xyz , 1.0)).xyww;
+    }
+    )";
+}
+namespace FragmentSource_Environment
+{
+    const std::string EXP_FRAGMENT =
+        R"(
+    #version 330 core
+
+    in vec3 fragPosWorld;
+
+    uniform bool u_hasEnvironmentMap;
+    uniform vec3 u_equator_color;
+    uniform vec3 u_south_color; 
+    uniform vec3 u_north_color;
+
+    uniform samplerCube EnvironmentMap;
+
+    #ifndef PI
+    #define PI 3.14159265358979323846
+    #endif
+    
+    #ifndef PI_2
+    #define PI_2 1.57079632679
+    #endif
+
+    void main()
+    {
+        vec3 fpwN = normalize(fragPosWorld);
+        float f = fpwN.y;
+
+        vec3 poleColor = f > 0.0 ? u_north_color : u_south_color;
+
+        vec3 col = 
+            u_hasEnvironmentMap
+                ? texture(EnvironmentMap, (fpwN * vec3(1.0, -1.0, -1.0))).rgb
+                : mix(u_equator_color, poleColor, abs(f));
+        
+        gl_FragColor = vec4(col, 1.0);
+       
+    }
+    )";
+}
+
 namespace VertexSource_Geometry
 {
     const std::string EXP_VERTEX =
@@ -159,6 +232,9 @@ namespace FragmentSource_Geometry
     uniform sampler2D Metallic;
     uniform sampler2D Roughness;
     uniform sampler2D AmbientOcclusion;
+
+    uniform bool u_doGammaCorrection;
+    uniform float u_gamma;
     
     #ifndef PI
     #define PI 3.14159265358979323846
@@ -548,6 +624,10 @@ namespace FragmentSource_Geometry
             material.hasMetallic
             ? texture(Metallic, fs_in.textureCoordinates).r
             : material.Metallic;
+
+
+        if(u_doGammaCorrection && material.hasAlbedo)
+                    diffuseColor = vec4(pow(diffuseColor.rgb, vec3(u_gamma)), diffuseColor.a);
 
         vec3 viewDir=normalize(eyeWorldPos - fs_in.fragPosWorld);
 
@@ -2073,23 +2153,25 @@ public:
 };
 
 
-class OGLTexture2D : public OGLResource
+namespace OGLTextureUtils
 {
-private:
-    int
-        _width, _height;
-
-    void Init(int level, TextureInternalFormat internalFormat, int width, int height, GLenum format, GLenum type, const void* data)
+    
+    void Init(unsigned int texture, TextureType textureType, GLenum target, int level, TextureInternalFormat internalFormat, int width, int height, GLenum format, GLenum type, const void* data)
     {
-       
-        Bind();
 
-        glTexImage2D(GL_TEXTURE_2D, level, internalFormat,
+        glBindTexture(textureType, texture);
+
+        glTexImage2D(target, level, internalFormat,
             width, height, 0, format, type, data);
 
         OGLUtils::CheckOGLErrors();
 
-        UnBind();
+        glBindTexture(textureType, 0);
+    }
+
+    void Init(unsigned int texture, TextureType textureType, int level, TextureInternalFormat internalFormat, int width, int height, GLenum format, GLenum type, const void* data)
+    {
+        Init(texture, textureType, textureType, level, internalFormat, width, height, format, type, data);
     }
 
     bool NeedsMips(TextureFiltering filter)
@@ -2109,29 +2191,29 @@ private:
         }
     }
 
-    void SetParameters(TextureFiltering minfilter, TextureFiltering magfilter, TextureWrap wrapS, TextureWrap wrapT)
+    void SetParameters(unsigned int texture, TextureType textureType, TextureFiltering minfilter, TextureFiltering magfilter, TextureWrap wrapS, TextureWrap wrapT)
     {
-        Bind();
+        glBindTexture(textureType, texture);
 
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minfilter);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magfilter);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS);
-        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT);
+        glTexParameteri(textureType, GL_TEXTURE_MIN_FILTER, minfilter);
+        glTexParameteri(textureType, GL_TEXTURE_MAG_FILTER, magfilter);
+        glTexParameteri(textureType, GL_TEXTURE_WRAP_S, wrapS);
+        glTexParameteri(textureType, GL_TEXTURE_WRAP_T, wrapT);
 
 
         if (NeedsMips(minfilter) || NeedsMips(magfilter))
-            glGenerateMipmap(GL_TEXTURE_2D);
+            glGenerateMipmap(textureType);
 
         OGLUtils::CheckOGLErrors();
 
-        UnBind();
+        glBindTexture(textureType, 0);
     }
 
     GLenum ResolveFormat(TextureInternalFormat internal)
     {
         switch (internal)
         {
-        case(TextureInternalFormat::Rgba_32f): 
+        case(TextureInternalFormat::Rgba_32f):
         case(TextureInternalFormat::Rgba_16f):
             return GL_RGBA;
             break;
@@ -2146,15 +2228,29 @@ private:
             break;
         }
     }
+}
+
+
+class OGLTexture2D : public OGLResource
+{
+
+private:
+    int
+        _width, _height;
+
+    static const TextureType _textureType = TextureType::Texture2D;
 
 public:
     OGLTexture2D(int width, int height, TextureInternalFormat internalFormat) : _width(width), _height(height)
     {
         OGLResource::Create(OGLResourceType::TEXTURE);
 
-        Init(0, internalFormat, width, height, ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, NULL);
+        OGLTextureUtils::Init(
+            OGLResource::ID(), _textureType,
+            0, internalFormat, width, height, OGLTextureUtils:: ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, NULL);
 
-        SetParameters(
+        OGLTextureUtils::SetParameters(
+            OGLResource::ID(), _textureType,
             TextureFiltering::Nearest, TextureFiltering::Nearest,
             TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
 
@@ -2181,17 +2277,21 @@ public:
         TextureInternalFormat internalFormat;
         switch (nrChannels)
         {
+            case(1): internalFormat = TextureInternalFormat::R; break;
             case(3): internalFormat = TextureInternalFormat::Rgb; break;
             case(4): internalFormat = TextureInternalFormat::Rgba; break;
             default:
                 throw "Unsupported texture format."; break;
         }
 
-        Init(0, internalFormat, width, height, ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, data);
+        OGLTextureUtils::Init(
+            OGLResource::ID(), _textureType,
+            0, internalFormat, width, height, OGLTextureUtils::ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, data);
 
         OGLUtils::CheckOGLErrors();
 
-        SetParameters(
+        OGLTextureUtils::SetParameters(
+            OGLResource::ID(), _textureType,
             minFilter, magFilter,
             TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
 
@@ -2204,9 +2304,12 @@ public:
     {
         OGLResource::Create(OGLResourceType::TEXTURE);
 
-        Init(0, internalFormat, width, height, dataFormat, type, data);
+        OGLTextureUtils::Init(
+            OGLResource::ID(), _textureType,
+            0, internalFormat, width, height, dataFormat, type, data);
 
-        SetParameters(
+        OGLTextureUtils::SetParameters(
+            OGLResource::ID(), _textureType,
             TextureFiltering::Nearest, TextureFiltering::Nearest,
             TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
 
@@ -2218,9 +2321,13 @@ public:
     {
         OGLResource::Create(OGLResourceType::TEXTURE);
 
-        Init(0, internalFormat, width, height, dataFormat, type, data);
+        OGLTextureUtils::Init(
+            OGLResource::ID(), _textureType,
+            0, internalFormat, width, height, dataFormat, type, data);
 
-        SetParameters(minFilter, magFilter, wrapS, wrapT);
+        OGLTextureUtils::SetParameters(
+            OGLResource::ID(), _textureType,
+            minFilter, magFilter, wrapS, wrapT);
 
         OGLUtils::CheckOGLErrors();
     }
@@ -2253,6 +2360,120 @@ public:
     };
 
     ~OGLTexture2D()
+    {
+        OGLResource::Destroy();
+    }
+
+};
+
+
+class OGLTextureCubemap : public OGLResource
+{
+
+private:
+    int
+        _width, _height;
+
+    static const TextureType _textureType = TextureType::CubeMap;
+
+public:
+   
+    OGLTextureCubemap(const char* folderPath, TextureFiltering minFilter, TextureFiltering magFilter)
+    {
+
+        
+        //stbi_set_flip_vertically_on_load(true);
+        
+        OGLResource::Create(OGLResourceType::TEXTURE);
+
+        OGLUtils::CheckOGLErrors();
+
+        TextureInternalFormat internalFormat;
+        
+
+        std::string path(folderPath);
+
+        for (int i = 0; i < 6; i++)
+        {
+            std::string suffix;
+            switch (i)
+            {
+            case(0): suffix = "/right.jpg";break;
+            case(1): suffix = "/left.jpg"; break;
+            case(2): suffix = "/top.jpg"; break;
+            case(3): suffix = "/bottom.jpg"; break;
+            case(4): suffix = "/front.jpg"; break;
+            case(5): suffix = "/back.jpg"; break;
+            default: throw "no...."; break;
+            }
+
+            int width, height, nrChannels;
+
+            unsigned char*
+                data = stbi_load((path + suffix).c_str(), &width, &height, &nrChannels, 0);
+
+            
+            if (!data)
+            {
+                std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << path << "\n" << std::endl;;
+                throw "Texture data loading failed";
+            }
+
+            switch (nrChannels)
+            {
+            case(1): internalFormat = TextureInternalFormat::R; break;
+            case(3): internalFormat = TextureInternalFormat::Rgb; break;
+            case(4): internalFormat = TextureInternalFormat::Rgba; break;
+            default:
+                std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: "<< path<< "\n" << std::endl;
+                throw "Unsupported texture format."; break;
+            }
+
+            OGLTextureUtils::Init(
+                OGLResource::ID(), _textureType, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                0, internalFormat, width, height, OGLTextureUtils::ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, data);
+
+            stbi_image_free(data);
+        }
+        
+        OGLTextureUtils::SetParameters(
+            OGLResource::ID(), _textureType,
+            minFilter, magFilter,
+            TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
+
+        OGLUtils::CheckOGLErrors();
+
+    }
+
+   
+    OGLTextureCubemap(OGLTextureCubemap&& other) noexcept : OGLResource(std::move(other))
+    {
+        _width = other._width;
+        _height = other._height;
+    };
+
+    void Bind() const
+    {
+        glBindTexture(_textureType, OGLResource::ID());
+    }
+
+    void UnBind() const
+    {
+        glBindTexture(_textureType, 0);
+    }
+
+    OGLTextureCubemap& operator=(OGLTextureCubemap&& other) noexcept
+    {
+        if (this != &other)
+        {
+            OGLResource::operator=(std::move(other));
+            _height = other._height;
+            _width = other._width;
+        }
+        return *this;
+    };
+
+    ~OGLTextureCubemap()
     {
         OGLResource::Destroy();
     }

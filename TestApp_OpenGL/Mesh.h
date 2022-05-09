@@ -17,6 +17,7 @@
 #include "Assimp/postprocess.h"
 #include "GeometryHelper.h"
 #include "stb_image.h"
+#include "FileUtils.h"
 
 class Mesh : public RenderableBasic
 {
@@ -902,15 +903,22 @@ public:
     {
         _material = mat;
 
-
         // Load Texture data if any
         if (_material.Textures != nullptr)
         {
             std::string path = std::string(MaterialsFolder) + "/" + _material.Textures;
-            _albedo = OGLTexture2D((path + "/Albedo.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
-            _roughness = OGLTexture2D((path + "/Roughness.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
-            _metallic = OGLTexture2D((path + "/Metallic.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
-            _normals = OGLTexture2D((path + "/Normals.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+
+            if(exists((path + "/Albedo.png").c_str()))
+                _albedo = OGLTexture2D((path + "/Albedo.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+
+            if (exists((path + "/Roughness.png").c_str()))
+                _roughness = OGLTexture2D((path + "/Roughness.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+
+            if (exists((path + "/Metallic.png").c_str()))
+                _metallic = OGLTexture2D((path + "/Metallic.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+
+            if (exists((path + "/Normals.png").c_str()))
+                _normals = OGLTexture2D((path + "/Normals.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
         }
     }
 

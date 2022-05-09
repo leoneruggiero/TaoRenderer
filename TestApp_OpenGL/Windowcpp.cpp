@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <filesystem>
 
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_glfw.h"
@@ -86,7 +87,23 @@ void ShowImGUIWindow()
         {
             ImGui::Checkbox("Perspective", &perspective);
             ImGui::SliderFloat("FOV", &fov, 10.0f, 100.0f);
+            
+            if (ImGui::CollapsingHeader("Sky", ImGuiTreeNodeFlags_None))
+            {
+                ImGuiColorEditFlags f =
+                    ImGuiColorEditFlags_DisplayHSV |
+                    ImGuiColorEditFlags_PickerHueWheel |
+                    ImGuiColorEditFlags_NoSidePreview;
+
+                ImGui::Checkbox("Image Texture", &sceneParams.environment.useTexture);
+                ImGui::ColorPicker3("North", &sceneParams.environment.NorthColor[0], f);
+                ImGui::ColorPicker3("Equator", &sceneParams.environment.EquatorColor[0], f);
+                ImGui::ColorPicker3("South", &sceneParams.environment.SouthColor[0], f);
+            }
+
             ImGui::EndTabItem();
+
+            
         }
         if (ImGui::BeginTabItem("Lights"))
         {
@@ -118,8 +135,9 @@ void ShowImGUIWindow()
             if (ImGui::CollapsingHeader("Directional", ImGuiTreeNodeFlags_None))
             {
                 ImGui::DragFloat3("Direction", (float*)&(sceneParams.sceneLights.Directional.Direction), 0.05f, -1.0f, 1.0f);
-                ImGui::ColorEdit4("Diffuse", (float*)&(sceneParams.sceneLights.Directional.Diffuse));
-                ImGui::ColorEdit4("Specular", (float*)&(sceneParams.sceneLights.Directional.Specular));
+                ImGui::ColorEdit3("Diffuse", (float*)&(sceneParams.sceneLights.Directional.Diffuse));
+                ImGui::DragFloat("Intensity", (float*)&(sceneParams.sceneLights.Directional.Diffuse.a), 0.1, 0.0, 5.0);
+                //ImGui::ColorEdit4("Specular", (float*)&(sceneParams.sceneLights.Directional.Specular));
 
                 if (ImGui::CollapsingHeader("Shadows", ImGuiTreeNodeFlags_None))
                 {
@@ -193,7 +211,7 @@ void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std
 
 void LoadScene_PbrTextSpheres(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
 {
-    
+     
     Mesh sphereMesh = Mesh::Sphere(1.0, 32);
     
     for (int i = 0; i < 5; i++)
@@ -904,6 +922,56 @@ void UpdateAoUBO(UniformBufferObject& ubo, SceneLights& lights)
     ubo.SetSubData(0, 1, &lights.Ambient.aoStrength);
 }
 
+void DrawEnvironment(
+    const Camera& camera, const SceneParams& sceneParams, const VertexAttribArray& unitCubeVAO,  const ShaderBase& environmentShader, const OGLTextureCubemap& environmentMap)
+{
+   
+    glm::mat4 transf = glm::mat4(1.0);
+
+    transf[0] =  sceneParams.viewMatrix[0];
+    transf[1] =  -sceneParams.viewMatrix[2];
+    transf[2] =  sceneParams.viewMatrix[1];
+    
+    glm::mat4 proj = glm::perspective(
+        glm::radians(90.0f),
+        sceneParams.viewportWidth / (float)sceneParams.viewportHeight,
+        sceneParams.cameraNear, sceneParams.cameraFar);
+
+    environmentShader.SetCurrent();
+
+    glUniformMatrix4fv(environmentShader.UniformLocation("u_model"), 1, GL_FALSE, glm::value_ptr(transf));
+    glUniformMatrix4fv(environmentShader.UniformLocation("u_projection"), 1, GL_FALSE, glm::value_ptr(proj));
+
+    if (sceneParams.environment.useTexture)
+    {
+        glActiveTexture(GL_TEXTURE0);
+        environmentMap.Bind();
+        glUniform1i(environmentShader.UniformLocation("EnvironmentMap"), 0);
+        glUniform1i(environmentShader.UniformLocation("u_hasEnvironmentMap"), true);
+    }
+    else
+        glUniform1i(environmentShader.UniformLocation("u_hasEnvironmentMap"), false);
+
+    glUniform3fv(environmentShader.UniformLocation("u_equator_color"), 1,  glm::value_ptr(sceneParams.environment.EquatorColor));
+    glUniform3fv(environmentShader.UniformLocation("u_north_color"), 1, glm::value_ptr(sceneParams.environment.NorthColor));
+    glUniform3fv(environmentShader.UniformLocation("u_south_color"), 1, glm::value_ptr(sceneParams.environment.SouthColor));
+
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_FRONT);
+    glDepthFunc(GL_LEQUAL);
+
+    unitCubeVAO.Bind();
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    unitCubeVAO.UnBind();
+
+    if (sceneParams.environment.useTexture)
+        environmentMap.UnBind();
+
+    glDepthFunc(GL_LESS);
+    glCullFace(GL_BACK);
+    glDisable(GL_CULL_FACE);
+}
+
 void ShadowPass(
     SceneParams& sceneParams, const SceneMeshCollection& sceneMeshCollection, 
     std::vector<UniformBufferObject>& sceneUniformBuffers, const MeshShader& shaderForShadows, const FrameBuffer& shadowFBO)
@@ -1014,6 +1082,60 @@ int main()
     // Shaders Collections 
     static std::map<std::string, std::shared_ptr<MeshShader>> Shaders = InitializeShaders();
     static std::map<std::string, std::shared_ptr<ShaderBase>> PostProcessingShaders = InitializePostProcessingShaders();
+
+    // Environment
+    std::string currPath = std::filesystem::current_path().string();
+
+    OGLTextureCubemap environmentCubemap = 
+        OGLTextureCubemap("../../Assets/Environments/Sky", TextureFiltering::Linear, TextureFiltering::Linear);
+
+    float l = 2.0;
+    std::vector<glm::vec3> vertices =
+        std::vector<glm::vec3>{
+
+        glm::vec3(-l, -l, -l),
+        glm::vec3( l, -l, -l),
+        glm::vec3( l, -l,  l),
+        glm::vec3(-l, -l,  l),
+
+        glm::vec3(-l,  l, -l),
+        glm::vec3( l,  l, -l),
+        glm::vec3( l,  l,  l),
+        glm::vec3(-l,  l,  l),
+    };
+   
+    std::vector<int> indices =
+        std::vector<int>{
+
+        0, 1, 2,
+        0, 2, 3,
+
+        1, 6, 2,
+        1, 5, 6, 
+
+        0, 3, 7, 
+        0, 7, 4, 
+
+        3, 2, 6, 
+        3, 6, 7, 
+
+        5, 1, 0, 
+        5, 0, 4,
+
+        5, 7, 6, 
+        5, 4, 7,
+    };
+
+    VertexBufferObject envCube_vbo = VertexBufferObject(VertexBufferObject::VBOType::StaticDraw);
+    IndexBufferObject envCube_ebo = IndexBufferObject(IndexBufferObject::EBOType::StaticDraw);
+    VertexAttribArray envCube_vao = VertexAttribArray();
+    envCube_vbo.SetData(24, flatten3(vertices).data());
+    envCube_ebo.SetData(36, indices.data());
+    envCube_vao.SetAndEnableAttrib(envCube_vbo.ID(), 0, 3, false, 0, 0);
+    envCube_vao.SetIndexBuffer(envCube_ebo.ID());
+
+    ShaderBase environmentShader = ShaderBase(VertexSource_Environment::EXP_VERTEX, FragmentSource_Environment::EXP_FRAGMENT);
+    
 
     // Setup Scene
     
@@ -1186,6 +1308,10 @@ int main()
             sceneMeshCollection.at(i).get()->Draw(camera.Position, sceneParams);
         }
         
+        // ENVIRONMENT //////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        DrawEnvironment(camera, sceneParams, envCube_vao, environmentShader, environmentCubemap);
+
         if (sceneParams.postProcessing.ToneMapping || sceneParams.postProcessing.GammaCorrection)
         {
             mainFBO.UnBind();
@@ -1258,6 +1384,11 @@ int main()
     grid.~LinesRenderer();
     lightMesh.~MeshRenderer();
     bbRenderer.~LinesRenderer();
+    environmentShader.~ShaderBase();
+    envCube_ebo.~IndexBufferObject();
+    envCube_vbo.~VertexBufferObject();
+    envCube_vao.~VertexAttribArray();
+    environmentCubemap.~OGLTextureCubemap();
     //gaussianKernelValuesTexture.~OGLTexture2D();
     postProcessingUnit.~PostProcessingUnit();
     FreeUBOs(sceneUniformBuffers);
