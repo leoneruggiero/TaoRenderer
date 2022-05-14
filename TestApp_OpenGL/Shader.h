@@ -73,7 +73,7 @@ namespace FragmentSource_Environment
     void main()
     {
         vec3 fpwN = normalize(fragPosWorld);
-        float f = fpwN.y;
+        float f = asin(-fpwN.y) / PI_2;
 
         vec3 poleColor = f > 0.0 ? u_north_color : u_south_color;
 
@@ -3051,6 +3051,9 @@ public:
 
     void ComputeAO(AOType aoType, const FrameBuffer& fbo, const SceneParams& sceneParams, int width, int height) const
     {
+        if (aoType == AOType::NONE)
+            return;
+
         // Extract view positions from depth
         // the fbo should contain relevant depth information
         // at the end the fbo contains the same depth information + not blurred ao map in COLOR_ATTACHMENT0

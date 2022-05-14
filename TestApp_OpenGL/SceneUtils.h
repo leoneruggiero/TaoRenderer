@@ -8,7 +8,8 @@
 enum class AOType
 {
 	SSAO,
-	HBAO
+	HBAO,
+	NONE
 };
 
 enum UBOBinding

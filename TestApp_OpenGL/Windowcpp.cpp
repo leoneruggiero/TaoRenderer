@@ -62,8 +62,8 @@ using namespace Utils;
 
 
 // ImGUI ============================================================
-const char* ao_comboBox_items[] = {"SSAO", "HBAO"};
-static const char* ao_comboBox_current_item = "SSAO";
+const char* ao_comboBox_items[] = {"SSAO", "HBAO", "NONE"};
+static const char* ao_comboBox_current_item = "NONE";
 
 AOType AOShaderFromItem(const char* item)
 {
@@ -73,7 +73,7 @@ AOType AOShaderFromItem(const char* item)
     else if (!strcmp("HBAO", item))
         return AOType::HBAO;
 
-    else return AOType::SSAO;
+    else return AOType::NONE;
 }
 
 void ShowImGUIWindow()
@@ -1136,9 +1136,13 @@ int main()
 
     ShaderBase environmentShader = ShaderBase(VertexSource_Environment::EXP_VERTEX, FragmentSource_Environment::EXP_FRAGMENT);
     
+    // Initial skybox default params
+    sceneParams.environment.NorthColor = glm::vec3(0.2, 0.2, 0.2);
+    sceneParams.environment.EquatorColor = glm::vec3(0.2, 0.2, 0.2);
+    sceneParams.environment.SouthColor = glm::vec3(0.2, 0.2, 0.2);
+
 
     // Setup Scene
-    
     SceneMeshCollection sceneMeshCollection;
 
     SetupScene(sceneMeshCollection, &Shaders);
