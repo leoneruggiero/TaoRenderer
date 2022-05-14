@@ -144,7 +144,7 @@ void ShowImGUIWindow()
                     ImGui::Checkbox("Enable", &sceneParams.drawParams.doShadows);
                     ImGui::DragFloat("Bias", &sceneParams.sceneLights.Directional.Bias, 0.001f, 0.0f, 0.05f);
                     ImGui::DragFloat("SlopeBias", &sceneParams.sceneLights.Directional.SlopeBias, 0.001f, 0.0f, 0.05f);
-                    ImGui::DragFloat("Softness", &sceneParams.sceneLights.Directional.Softness, 0.00005f, 0.0f, 0.01f);
+                    ImGui::DragFloat("Softness", &sceneParams.sceneLights.Directional.Softness, 0.00005f, 0.0f, 0.05f);
                 }
             }
 
@@ -685,19 +685,19 @@ void LoadScene_TechnoDemon(SceneMeshCollection& sceneMeshCollection, std::map<st
 
 void SetupScene(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>> *shadersCollection)
 {
-    //LoadPlane(sceneMeshCollection, shadersCollection, 2.0);
-    LoadScene_PbrTextSpheres(sceneMeshCollection, shadersCollection);
-    //LoadSceneFromPath("./Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
+    //LoadPlane(sceneMeshCollection, shadersCollection, 4.0);
+    //LoadScene_PbrTextSpheres(sceneMeshCollection, shadersCollection);
+    //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, shadersCollection);
     //LoadScene_TechnoDemon(sceneMeshCollection, shadersCollection);
     //LoadSceneFromPath("./Assets/Models/suzanne.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ClayShingles);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
-    //LoadSceneFromPath("./Assets/Models/TestPCSS.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
+    //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
     //LoadSceneFromPath("./Assets/Models/Dragon.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("./Assets/Models/Knob.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("./Assets/Models/trees.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::MatteGray);
-    //LoadSceneFromPath("./Assets/Models/OldBridge.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
+    LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, shadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);

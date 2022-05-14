@@ -116,7 +116,7 @@ struct DirectionalLight
 	float ShadowMapToWorld;
 	float Bias=0.002f;
 	float SlopeBias=0.025f;
-	float Softness = 0.0015;
+	float Softness = 0.0;
 };
 
 struct AmbientLight
