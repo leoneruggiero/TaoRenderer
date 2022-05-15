@@ -338,6 +338,9 @@ namespace FragmentSource_Geometry
                                                 // => 80 byte
     };
 
+#ifndef UTILITY
+#define UTILITY
+
     // *** UTILITY ***//
     // --------------------------------------------------------- //
 
@@ -405,6 +408,7 @@ namespace FragmentSource_Geometry
     }
     
     // --------------------------------------------------------- //
+#endif
 
     float SearchWidth(float uvLightSize, float receiverDistance)
     {
@@ -418,7 +422,7 @@ namespace FragmentSource_Geometry
    
     float SlopeBiasForMultisampling(float angle, float offsetMagnitude, float screenToWorldFactor)
     {
-        return    offsetMagnitude /** screenToWorldFactor*/ * tan(angle);
+        return    offsetMagnitude * screenToWorldFactor * sin(angle);
     }
 
     float FindBlockerDistance_DirectionalLight(vec3 shadowCoords, sampler2D shadowMap, float uvLightSize)
@@ -428,16 +432,16 @@ namespace FragmentSource_Geometry
         float dAngle = 2.0*PI / BLOCKER_SEARCH_SAMPLES;
 
         float noise = RandomValue(gl_FragCoord.xy) * PI;
-
 	    float searchWidth = SearchWidth(uvLightSize, shadowCoords.z);
-	         
+
+        vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
+	    float angle = acos(abs(dot(worldNormal_normalized, normalize(lights.Directional.Direction))));
+
         for(int i = 0 ; i< BLOCKER_SEARCH_SAMPLES; i++)
         {
             vec2 sampleOffset  = PoissonSample(i);
             sampleOffset = Rotate2D(sampleOffset, noise);
 		    float z=texture(shadowMap, shadowCoords.xy + (sampleOffset * searchWidth)).r;
-            vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
-            float angle = acos(abs(dot(worldNormal_normalized, normalize(lights.Directional.Direction))));
             float bias =  ShadowBias(angle) + SlopeBiasForMultisampling(angle, length(sampleOffset) * searchWidth, shadowMapToWorldFactor);
 
             if (z + bias <= shadowCoords.z )
@@ -457,16 +461,15 @@ namespace FragmentSource_Geometry
     {
         float dAngle = 2.0*PI / PCF_SAMPLES;     
         float noise = RandomValue(gl_FragCoord.xy);     
+        vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
+        float angle = acos(abs(dot(worldNormal_normalized, normalize(lights.Directional.Direction))));
 
         float sum = 0;
         for (int i = 0; i < PCF_SAMPLES; i++)
         {
                 vec2 sampleOffset = PoissonSample(i)* uvRadius;
                 sampleOffset = Rotate2D(sampleOffset, noise * PI);
-
 		        float closestDepth=texture(shadowMap, shadowCoords.xy + sampleOffset).r;
-                vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
-                float angle = acos(abs(dot(worldNormal_normalized, normalize(lights.Directional.Direction))));
 
                 sum+= 
                     (closestDepth + ShadowBias(angle) + SlopeBiasForMultisampling(angle, length(sampleOffset) * uvRadius, shadowMapToWorldFactor)) <= shadowCoords.z 
@@ -869,6 +872,79 @@ namespace FragmentSource_PostProcessing
         vec2( COS_PI4,-COS_PI4),
         vec2( 0.0,-1.0)
         ); 
+
+
+#ifndef UTILITY
+#define UTILITY
+
+    // *** UTILITY ***//
+    // --------------------------------------------------------- //
+
+     vec2 poissonDisk[16] = vec2[](
+     vec2( -0.94201624, -0.39906216 ),
+     vec2( 0.94558609, -0.76890725 ),
+     vec2( -0.094184101, -0.92938870 ),
+     vec2( 0.34495938, 0.29387760 ),
+     vec2( -0.91588581, 0.45771432 ),
+     vec2( -0.81544232, -0.87912464 ),
+     vec2( -0.38277543, 0.27676845 ),
+     vec2( 0.97484398, 0.75648379 ),
+     vec2( 0.44323325, -0.97511554 ),
+     vec2( 0.53742981, -0.47373420 ),
+     vec2( -0.26496911, -0.41893023 ),
+     vec2( 0.79197514, 0.19090188 ),
+     vec2( -0.24188840, 0.99706507 ),
+     vec2( -0.81409955, 0.91437590 ),
+     vec2( 0.19984126, 0.78641367 ),
+     vec2( 0.14383161, -0.14100790 )
+    ); 
+
+
+    float RandomValue()
+    {
+        // Using 3 textures with convenient resolution (like 9x9, 10x10, 11x11) to get a non repeating (almost) noise pattern 
+        // across a large region of the window (9x10x11 ^ 2)
+        ivec2 noiseSize_0 = textureSize(noiseTex_0, 0);
+        ivec2 noiseSize_1 = textureSize(noiseTex_1, 0);
+        ivec2 noiseSize_2 = textureSize(noiseTex_2, 0);
+
+        float noise0 = texelFetch(noiseTex_0, ivec2(mod(gl_FragCoord.xy,noiseSize_0.xy)), 0).r;
+        float noise1 = texelFetch(noiseTex_1, ivec2(mod(gl_FragCoord.xy,noiseSize_1.xy)), 0).r;
+        float noise2 = texelFetch(noiseTex_2, ivec2(mod(gl_FragCoord.xy,noiseSize_2.xy)), 0).r;
+
+        return (noise0 + noise1 + noise2) / 3.0;
+    }
+
+    float RandomValue(vec2 fragCoord)
+    {
+        // Using 3 textures with convenient resolution (like 9x9, 10x10, 11x11) to get a non repeating (almost) noise pattern 
+        // across a large region of the window (9x10x11 ^ 2)
+        ivec2 noiseSize_0 = textureSize(noiseTex_0, 0);
+        ivec2 noiseSize_1 = textureSize(noiseTex_1, 0);
+        ivec2 noiseSize_2 = textureSize(noiseTex_2, 0);
+
+        float noise0 = texelFetch(noiseTex_0, ivec2(mod(fragCoord.xy,noiseSize_0.xy)), 0).r;
+        float noise1 = texelFetch(noiseTex_1, ivec2(mod(fragCoord.xy,noiseSize_1.xy)), 0).r;
+        float noise2 = texelFetch(noiseTex_2, ivec2(mod(fragCoord.xy,noiseSize_2.xy)), 0).r;
+
+        return (noise0 + noise1 + noise2) / 3.0;
+    }
+
+    vec2 PoissonSample(int i)
+    {
+        return poissonDisk[i];
+    }
+
+    vec2 Rotate2D(vec2 direction, float angle)
+    {
+        float sina = sin(angle);
+        float cosa = cos(angle);
+        mat2 rotation = mat2 ( cosa, sina, -sina, cosa);
+        return rotation * direction;
+    }
+    
+    // --------------------------------------------------------- //
+#endif
 
     float EyeDepth(float depthValue, float near, float far)
 {

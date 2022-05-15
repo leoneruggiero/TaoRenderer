@@ -265,41 +265,44 @@ void LoadScene_NormalMapping(SceneMeshCollection& sceneMeshCollection, std::map<
 
 void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
 {
-    Mesh pillar_0 = Mesh::Box(1, 1, 4);
-    sceneMeshCollection.AddToCollection(
-        std::make_shared<MeshRenderer>(glm::vec3(0, 0, 1), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), pillar_0,
-            (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
+    Mesh planeMesh = Mesh::Box(5, 5, 0.5);
 
-    Mesh pillar_1 = Mesh::Box(0.25, 0.25, 4.5);
-    sceneMeshCollection.AddToCollection(
-        std::make_shared<MeshRenderer>(glm::vec3(1.5, 0, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), pillar_1,
-            (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
+    FileReader reader = FileReader("../../Assets/Models/Teapot.obj");
+    reader.Load();
+    Mesh teapotMesh = reader.Meshes()[0];
 
-    Mesh pillar_2 = Mesh::Box(0.1, 0.1, 5);
-    sceneMeshCollection.AddToCollection(
-        std::make_shared<MeshRenderer>(glm::vec3(3.0, 0, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), pillar_2,
-            (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
+    MeshRenderer plane = MeshRenderer(planeMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get());
+    plane.SetMaterial(MaterialsCollection::MatteGray);
+    plane.SetTransformation(glm::vec3(-2.5, -2.5, -0.5), 0, glm::vec3(1.0, 0, 0), glm::vec3(1, 1, 1));
+    
+    
+    MeshRenderer
+        teapot1 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()),
+        teapot2 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()),
+        teapot3 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()),
+        teapot4 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()),
+        teapot5 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get());
+
+    teapot1.Transform(glm::vec3(-1, 1, 1), 1.5, glm::vec3(1, -0.5, 0.6), glm::vec3(1, 1, 1));
+    teapot2.Transform(glm::vec3(0, 0.6, 3), 0.5, glm::vec3(0, -0.5, 0.6), glm::vec3(1, 1, 1));
+    teapot3.Transform(glm::vec3(0, -1.5, 0.6), 3.2, glm::vec3(1, -0, 0.6), glm::vec3(1, 1, 1));
+    teapot4.Transform(glm::vec3(-0.5, -0.6, 2.3), 1.4, glm::vec3(1, -0.5, 1.6), glm::vec3(1, 1, 1));
+    teapot5.Transform(glm::vec3(1.6, 0.8, 0.5), 0.6, glm::vec3(1,1.0,2.0), glm::vec3(1, 1, 1));
+
+    teapot1.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.3, 0.0 });
+    teapot2.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.1, 0.0 });
+    teapot3.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.5, 0.0 });
+    teapot4.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.2, 0.0 });
+    teapot5.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.6, 0.0 });
 
 
-    /*Mesh coneMesh = Mesh::Cone(0.8, 1.6, 16);
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(1, 2, 1), 1.5, glm::vec3(0, -1, 1), glm::vec3(1, 1, 1), &coneMesh,
-        (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PlasticGreen));
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(plane)));
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(teapot1)));
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(teapot2)));
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(teapot3)));
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(teapot4)));
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(teapot5)));
 
-
-    Mesh cylMesh = Mesh::Cylinder(0.6, 1.6, 16);
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-1, -0.5, 1), 1.1, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), &cylMesh,
-        (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::Copper));*/
-
-
-    Mesh planeMesh = Mesh::Box(1, 1, 1);
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-5, -5, -0.25), 0.0, glm::vec3(0, 0, 1), glm::vec3(10, 10, 0.25), planeMesh,
-        (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
 
 
 }
@@ -697,11 +700,11 @@ void SetupScene(SceneMeshCollection& sceneMeshCollection, std::map<std::string, 
     //LoadSceneFromPath("./Assets/Models/Dragon.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("./Assets/Models/Knob.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("./Assets/Models/trees.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::MatteGray);
-    LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::MatteGray);
+    //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, shadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    //LoadScene_PCSStest(sceneMeshCollection, shadersCollection);
+    LoadScene_PCSStest(sceneMeshCollection, shadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
