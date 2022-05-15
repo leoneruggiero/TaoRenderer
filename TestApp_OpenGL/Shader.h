@@ -2738,6 +2738,29 @@ private:
     std::string _vertexCode;
     std::string _fragmentCode;
 
+protected:
+    void SetUBOBindings()
+    {
+
+        unsigned int blkIndex = -1;
+
+        constexpr static const char* uboNames[] =
+        {
+            "blk_PerFrameData",
+            "blk_PerFrameData_Lights",
+            "blk_PerFrameData_Shadows",
+            "blk_PerFrameData_Ao"
+        };
+
+        for (int i = 0; i <= UBOBinding::AmbientOcclusion; i++)
+        {
+            if ((blkIndex = glGetUniformBlockIndex(ShaderBase::ShaderProgramId(), uboNames[i])) != GL_INVALID_INDEX)
+                glUniformBlockBinding(ShaderBase::ShaderProgramId(), blkIndex, i);
+        };
+
+        OGLUtils::CheckOGLErrors();
+
+    }
     
 public:
   
@@ -2753,6 +2776,37 @@ public:
     int UniformLocation(std::string name) const { return glGetUniformLocation(_shaderProgram.ID(), name.c_str()); };
 
     unsigned int ShaderProgramId() { return _shaderProgram.ID(); };
+
+    virtual void SetMatrices(glm::mat4 modelMatrix) const {};
+};
+
+class WiresShader : public ShaderBase
+{
+
+public:
+    WiresShader(std::vector<std::string> vertexExpansions, std::vector<std::string> fragmentExpansions) :
+        ShaderBase(
+
+            VertexSource_Geometry::Expand(
+                VertexSource_Geometry::EXP_VERTEX,
+                vertexExpansions),
+
+            FragmentSource_Geometry::Expand(
+                FragmentSource_Geometry::EXP_FRAGMENT,
+                fragmentExpansions))
+    {
+        ShaderBase::SetUBOBindings();
+    };
+
+    void SetColor(glm::vec4 color)
+    {
+        glUniform4fv(UniformLocation("material.Albedo"), 1, glm::value_ptr(color));
+    }
+
+    void SetMatrices(glm::mat4 modelMatrix) const override
+    {
+        glUniformMatrix4fv(UniformLocation("model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+    }
 };
 
 class MeshShader : public ShaderBase
@@ -2770,7 +2824,7 @@ public:
                 FragmentSource_Geometry::EXP_FRAGMENT,
                 fragmentExpansions)) 
     {
-        SetUBOBindings();
+        ShaderBase::SetUBOBindings();
     };
     
     void SetMatrices(glm::mat4 modelMatrix) const
@@ -2893,29 +2947,6 @@ public:
         }
     }
     
-private:
-    void SetUBOBindings()
-    {
-        OGLUtils::CheckOGLErrors();
-
-        unsigned int blkIndex = -1;
-
-        constexpr static const char* uboNames[] =
-        {
-            "blk_PerFrameData",
-            "blk_PerFrameData_Lights",
-            "blk_PerFrameData_Shadows",
-            "blk_PerFrameData_Ao"
-        };
-
-        for (int i = 0; i <= UBOBinding::AmbientOcclusion; i++)
-        {
-            if ((blkIndex = glGetUniformBlockIndex(ShaderBase::ShaderProgramId(), uboNames[i])) != GL_INVALID_INDEX)
-                glUniformBlockBinding(ShaderBase::ShaderProgramId(), blkIndex, i);
-        };
-
-    }
-
 };
 
 class PostProcessingShader : public ShaderBase

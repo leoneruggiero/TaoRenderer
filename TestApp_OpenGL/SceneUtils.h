@@ -5,6 +5,12 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+enum class WireNature
+{
+	POINTS = 0,
+	LINES = 1
+};
+
 enum class AOType
 {
 	SSAO,

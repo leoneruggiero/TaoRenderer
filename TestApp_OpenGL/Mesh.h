@@ -535,18 +535,20 @@ public:
     }
 };
 
-class Wire
+class Wire : public RenderableBasic
 {
 private:
     std::vector<glm::vec3> _points;
-
+    WireNature _nature;
 public:
-    Wire(const std::vector<glm::vec3> points) : _points{ points } {};
-    std::vector<glm::vec3> GetPositions() { return std::vector<glm::vec3>(_points); };
-    int NumPoints() { return _points.size(); };
+    Wire(const std::vector<glm::vec3> points, WireNature nature) : _points{ points }, _nature(nature) {};
+    std::vector<glm::vec3> GetPositions() override { return std::vector<glm::vec3>(_points); };
+    WireNature GetNature() const { return _nature; };
+    int NumPoints() const { return _points.size(); };
 
     static Wire Grid(glm::vec2 min, glm::vec2 max, int step)
     {
+       
         int numLinesX = ((max.x - min.x) / step) + 1;
         int numLinesY = ((max.y - min.y) / step) + 1;
 
@@ -575,8 +577,29 @@ public:
             points.push_back(glm::vec3(max.x , min.y + j * step, 0.0f));
         }
 
-        return Wire(points);
+        return Wire(points, WireNature::LINES);
     }
+    static Wire Circle(int subdivisions, float radius)
+    {
+        std::vector<glm::vec3> points{};
+        points.reserve(subdivisions+1);
+        
+        float da = glm::pi<float>() * 2.0f / subdivisions;
+        for (int i = 0; i < subdivisions; i++)
+
+            points.push_back(glm::vec3(
+                glm::cos(da * i),
+                glm::sin(da * i),
+                0.0f));
+        
+        points.push_back(glm::vec3(
+            glm::cos(da * subdivisions),
+            glm::sin(da * subdivisions),
+            0.0f));
+
+        return Wire(points, WireNature::LINES);
+    }
+    
 };
 
 class FileReader
@@ -725,8 +748,67 @@ public:
 };
 
 
+class Renderer
+{
+public:
 
-class MeshRenderer
+    // Returns the list of points according to the object's transform
+    // --------------------------------------------------------------
+    virtual std::vector<glm::vec3> GetTransformedPoints() = 0;
+
+    // Draw with the associated shader and material
+    // --------------------------------------------------------------
+    virtual void Draw(glm::vec3 eye, const SceneParams& sceneParams) const = 0;
+
+    // Draw with a custom shader
+    // --------------------------------------------------------------
+    virtual void DrawCustom(ShaderBase* shader) const = 0;
+
+
+    virtual void SetMaterial(Material mat) = 0;
+
+    // Overrides the old transformation with the one provided
+    // --------------------------------------------------------------
+    virtual void SetTransformation(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale) 
+    {
+        glm::mat4 model = glm::mat4(1.0f);
+
+        model = glm::translate(model, position);
+        model = glm::rotate(model, rotation, rotationAxis);
+        model = glm::scale(model, scale);
+
+        SetTransformation(model);
+    }
+
+    virtual void SetTransformation(glm::vec3 position)
+    {
+        glm::mat4 model = glm::mat4(1.0f);
+
+        model = glm::translate(model, position);
+       
+        SetTransformation(model);
+    }
+
+    virtual void SetTransformation(glm::mat4 transformation) = 0;
+
+   
+    // Transforms the object 
+    // --------------------------------------------------------------
+    virtual void Transform(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale)
+    {
+        glm::mat4 model = glm::mat4(1.0f);
+
+        model = glm::translate(model, position);
+        model = glm::rotate(model, rotation, rotationAxis);
+        model = glm::scale(model, scale);
+        Transform(model);
+    }
+
+    virtual void Transform(glm::mat4 transformation) = 0;
+    
+};
+
+class MeshRenderer : public Renderer
 {
 
 private:
@@ -778,7 +860,7 @@ public:
         _mesh = mesh;
 
         // Compute Model Transform Matrix ====================================================================================================== //
-        SetTransformation(position, rotation, rotationAxis, scale);
+        Renderer::SetTransformation(position, rotation, rotationAxis, scale);
 
         // Generate Graphics Data ============================================================================================================= //
         
@@ -858,9 +940,7 @@ public:
 
     }
 
-
-public:
-    void Draw(glm::vec3 eye, const SceneParams& sceneParams) const
+    void Draw(glm::vec3 eye, const SceneParams& sceneParams) const override
     {
 
         MeshShader* shader = sceneParams.drawParams.doShadows ? _shader : _shader_noShadows;
@@ -883,13 +963,13 @@ public:
         OGLUtils::CheckOGLErrors();
     }
 
-    void DrawCustom(const MeshShader& shader) const
+    void DrawCustom(ShaderBase* shader) const override
     {
 
-        shader.SetCurrent();
+        shader->SetCurrent();
 
         // Model + NormalMatrix ==============================================================================================//
-        shader.SetMatrices(_modelMatrix);
+        shader->SetMatrices(_modelMatrix);
         
         // Draw Call =========================================================================================================//
         _vao.Bind();
@@ -899,7 +979,7 @@ public:
         OGLUtils::CheckOGLErrors();
     }
 
-    void SetMaterial(Material mat)
+    void SetMaterial(Material mat) override
     {
         _material = mat;
 
@@ -922,39 +1002,11 @@ public:
         }
     }
 
-    void SetTransformation(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale)
-    {
-        glm::mat4 model = glm::mat4(1.0f);
+    void SetTransformation(glm::mat4 transformation) override { _modelMatrix = transformation; };
 
-        model = glm::translate(model, position);
-        model = glm::rotate(model, rotation, rotationAxis);
-        model = glm::scale(model, scale);
+    void Transform(glm::mat4 transformation) override { _modelMatrix = transformation * _modelMatrix; };
 
-        _modelMatrix = model;
-    }
-
-    void SetTransformation(glm::mat4 transformation)
-    {
-        _modelMatrix = transformation;
-    }
-
-    void Transform(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale)
-    {
-        glm::mat4 model = glm::mat4(1.0f);
-
-        model = glm::translate(model, position);  
-        model = glm::rotate(model, rotation, rotationAxis);
-        model = glm::scale(model, scale);
-
-        _modelMatrix = model* _modelMatrix;
-    }
-
-    void Transform(glm::mat4 transformation)
-    {
-       _modelMatrix = transformation * _modelMatrix;
-    }
-
-    std::vector<glm::vec3> GetTransformedPoints()
+    std::vector<glm::vec3> GetTransformedPoints() override
     {
         std::vector<glm::vec3> transformed = _mesh.GetPositions();
 
@@ -967,11 +1019,11 @@ public:
     }
 };
 
-class LinesRenderer
+class WiresRenderer : public Renderer
 {
 
 private:
-    MeshShader* _shader;
+    WiresShader* _shader;
     Wire _wire;
     glm::vec4 _color;
     VertexAttribArray _vao;
@@ -989,8 +1041,11 @@ private:
 
     }
 
+
+
+
 public:
-    LinesRenderer(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale, Wire wire, MeshShader* shader, glm::vec4 color)
+    WiresRenderer(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale, Wire wire, WiresShader* shader, glm::vec4 color)
         :
         _shader(shader), _wire(wire), _color(color), _vao(), _vbo(VertexBufferObject::VBOType::StaticDraw)
     {
@@ -999,9 +1054,7 @@ public:
         glm::mat4 model = glm::mat4(1.0f);
 
         model = glm::translate(model, position);
-
         model = glm::rotate(model, rotation, rotationAxis);
-
         model = glm::scale(model, scale);
 
         _modelMatrix = model;
@@ -1013,69 +1066,110 @@ public:
 
         std::vector<std::pair<unsigned int, std::string>> vIns{ std::move(shader->GetVertexInput()) };
 
-        bool hasPositions = false;
-        for (auto& vIn : vIns)
-        {
-            std::vector<float> dataVec;
+        _vao.SetAndEnableAttrib(_vbo.ID(), VertexInputType::Position, 3, false, 0, 0);
 
-            if (ResolveVertexInput(vIn.second) == VertexInputType::Position)
-            {
-                hasPositions = true;
-                _vao.SetAndEnableAttrib(_vbo.ID(), vIn.first, 3, false, 0, 0);
-            }
-        }
-        if (!hasPositions)
-            throw "No vertex position data provided to the LinesRenderer.";
+        OGLUtils::CheckOGLErrors();
+    }
+
+    WiresRenderer(Wire wire, WiresShader* shader)
+        :
+        _shader(shader), _wire(wire), _vao(), _vbo(VertexBufferObject::VBOType::StaticDraw)
+    {
+
+        // Setting some defaults:
+        // ---------------------------------------
+
+        // Model => Identity matrix
+        _modelMatrix = glm::mat4(1.0f);
+
+        // Color => Magenta
+        _color = glm::vec4(1.0, 0.0, 1.0, 1.0);
+        // ---------------------------------------
+
+        // Generationg graphics data 
+        // ---------------------------------------
+        _numVertices = wire.GetPositions().size();
+        std::vector<float> positionsFloatArray = Utils::flatten3(wire.GetPositions());
+        _vbo.SetData(positionsFloatArray.size(), positionsFloatArray.data());
+        _vao.SetAndEnableAttrib(_vbo.ID(), VertexInputType::Position, 3, false, 0, 0);
+
+        // ---------------------------------------
 
         OGLUtils::CheckOGLErrors();
     }
 
 
-
-public:
-    void Draw(glm::mat4 view, glm::mat4 proj, glm::vec3 eye, SceneLights lights)
+    void Draw(glm::vec3 eye, const SceneParams& sceneParams) const override
     {
+        bool isLines = _wire.GetNature() == WireNature::LINES;
 
         _shader->SetCurrent();
-
-        // ModelViewProjection + NormalMatrix =========================================================================================================//
         _shader->SetMatrices(_modelMatrix);
+        _shader->SetColor(_color);
+
         
-        // Material Properties =========================================================================================================//
-        _shader->SetMaterial(_color, _color, 0.0f);
-        
-        // Draw Call =========================================================================================================//
         _vao.Bind();
-        glDrawArrays(GL_LINES, 0, _numVertices);
+
+        if (!isLines)
+        {
+            glEnable(GL_PROGRAM_POINT_SIZE);
+            glPointSize(4.0f);
+        }
+
+        glDrawArrays(
+            isLines
+            ? GL_LINE_STRIP
+            : GL_POINTS
+            , 0, _numVertices);
+
+        if (!isLines)
+            glDisable(GL_PROGRAM_POINT_SIZE);
+
         _vao.UnBind();
 
-        CheckOGLErrors();
+        OGLUtils::CheckOGLErrors();
     }
 
-    void Transform(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale)
+    void DrawCustom(ShaderBase* shader) const override
     {
-        glm::mat4 model = glm::mat4(1.0f);
+        shader->SetCurrent();
 
-        model = glm::translate(model, position);
-        model = glm::rotate(model, rotation, rotationAxis);
-        model = glm::scale(model, scale);
+        // ModelViewProjection + NormalMatrix =========================================================================================================//
+        shader->SetMatrices(_modelMatrix);
 
-        _modelMatrix = model;
+        // Draw Call =========================================================================================================//
+        _vao.Bind();
+        glDrawArrays(
+            _wire.GetNature() == WireNature::LINES
+            ? GL_LINES
+            : GL_POINTS
+            , 0, _numVertices);
 
+        _vao.UnBind();
+
+        OGLUtils::CheckOGLErrors();
     }
-private:
-    void CheckOGLErrors()
+
+    void SetMaterial(Material mat) override { _color = mat.Albedo; };
+
+    void SetColor(glm::vec4 color)  { _color = color; };
+
+    void SetTransformation(glm::mat4 transformation) override { _modelMatrix = transformation; };
+
+    void Transform(glm::mat4 transformation) override { _modelMatrix = transformation * _modelMatrix; };
+
+    std::vector<glm::vec3> GetTransformedPoints() override
     {
-        GLenum error = 0;
-        std::string log = "";
-        while ((error = glGetError()) != GL_NO_ERROR)
+        std::vector<glm::vec3> transformed = _wire.GetPositions();
+
+        for (int i = 0; i < transformed.size(); i++)
         {
-            log += error;
-            log += ' ,';
+            transformed.at(i) = (glm::vec3)(_modelMatrix * glm::vec4(transformed.at(i), 1.0f));
         }
-        if (!log.empty())
-            throw log;
+
+        return transformed;
     }
+
 };
 
 

@@ -263,6 +263,51 @@ void LoadScene_NormalMapping(SceneMeshCollection& sceneMeshCollection, std::map<
 
 }
 
+void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<WiresShader>>* shadersCollection)
+{
+   
+    Wire circleWire = Wire::Circle(32, 1.0f);
+    
+    WiresRenderer
+        circle1 = WiresRenderer(circleWire, shadersCollection->at("UNLIT").get()),
+        circle2 = WiresRenderer(circleWire, shadersCollection->at("UNLIT").get()),
+        circle3 = WiresRenderer(circleWire, shadersCollection->at("UNLIT").get()),
+        circle4 = WiresRenderer(circleWire, shadersCollection->at("UNLIT").get());
+
+    circle1.Renderer::SetTransformation(glm::vec3(0.0, 0.0, 0.0));
+    circle1.SetColor(glm::vec4(1.0, 0.0, 0.0, 1.0));
+
+    circle2.Renderer::SetTransformation(glm::vec3(2.5, 0.0, 0.0));
+    circle2.SetColor(glm::vec4(1.0, 0.5, 0.0, 1.0));
+
+    circle3.Renderer::SetTransformation(glm::vec3(5.0, 0.0, 0.0));
+    circle3.SetColor(glm::vec4(1.0, 1.0, 0.0, 1.0));
+
+    circle4.Renderer::SetTransformation(glm::vec3(7.5, 0.0, 0.0));
+    circle4.SetColor(glm::vec4(0.5, 1.0, 0.0, 1.0));
+
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(circle1)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(circle2)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(circle3)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(circle4)));
+
+
+    std::vector<glm::vec3> pts
+    {
+        glm::vec3(0.0, 0.5, 0.0),
+        glm::vec3(0.2, 0.4, 0.0),
+        glm::vec3(0.3, 0.3, 0.0),
+        glm::vec3(0.4, 0.2, 0.0),
+        glm::vec3(0.5, 0.1, 0.0),
+    };
+
+    Wire pointsWire = Wire(pts, WireNature::POINTS);
+    WiresRenderer points = WiresRenderer(pointsWire, shadersCollection->at("UNLIT").get());
+    points.SetColor(glm::vec4(0.0, 0.0, 1.0, 1.0));
+
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(points)));
+}
+
 void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
 {
     Mesh planeMesh = Mesh::Box(5, 5, 0.5);
@@ -273,7 +318,7 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
 
     MeshRenderer plane = MeshRenderer(planeMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get());
     plane.SetMaterial(MaterialsCollection::MatteGray);
-    plane.SetTransformation(glm::vec3(-2.5, -2.5, -0.5), 0, glm::vec3(1.0, 0, 0), glm::vec3(1, 1, 1));
+    plane.Renderer::SetTransformation(glm::vec3(-2.5, -2.5, -0.5), 0, glm::vec3(1.0, 0, 0), glm::vec3(1, 1, 1));
     
     
     MeshRenderer
@@ -283,11 +328,11 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
         teapot4 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()),
         teapot5 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get());
 
-    teapot1.Transform(glm::vec3(-1, 1, 1), 1.5, glm::vec3(1, -0.5, 0.6), glm::vec3(1, 1, 1));
-    teapot2.Transform(glm::vec3(0, 0.6, 3), 0.5, glm::vec3(0, -0.5, 0.6), glm::vec3(1, 1, 1));
-    teapot3.Transform(glm::vec3(0, -1.5, 0.6), 3.2, glm::vec3(1, -0, 0.6), glm::vec3(1, 1, 1));
-    teapot4.Transform(glm::vec3(-0.5, -0.6, 2.3), 1.4, glm::vec3(1, -0.5, 1.6), glm::vec3(1, 1, 1));
-    teapot5.Transform(glm::vec3(1.6, 0.8, 0.5), 0.6, glm::vec3(1,1.0,2.0), glm::vec3(1, 1, 1));
+    teapot1.Renderer::Transform(glm::vec3(-1, 1, 1), 1.5, glm::vec3(1, -0.5, 0.6), glm::vec3(1, 1, 1));
+    teapot2.Renderer::Transform(glm::vec3(0, 0.6, 3), 0.5, glm::vec3(0, -0.5, 0.6), glm::vec3(1, 1, 1));
+    teapot3.Renderer::Transform(glm::vec3(0, -1.5, 0.6), 3.2, glm::vec3(1, -0, 0.6), glm::vec3(1, 1, 1));
+    teapot4.Renderer::Transform(glm::vec3(-0.5, -0.6, 2.3), 1.4, glm::vec3(1, -0.5, 1.6), glm::vec3(1, 1, 1));
+    teapot5.Renderer::Transform(glm::vec3(1.6, 0.8, 0.5), 0.6, glm::vec3(1,1.0,2.0), glm::vec3(1, 1, 1));
 
     teapot1.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.3, 0.0 });
     teapot2.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.1, 0.0 });
@@ -352,43 +397,43 @@ void LoadScene_Monkeys(std::vector<MeshRenderer>* sceneMeshCollection, std::map<
     }
 }
 
-void LoadScene_ALotOfMonkeys(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
-{
-    Mesh planeMesh = Mesh::Box(1, 1, 1);
-    MeshRenderer plane =
-        MeshRenderer(glm::vec3(-4, -4, -0.25), 0.0, glm::vec3(0, 0, 1), glm::vec3(8, 8, 0.25),
-            planeMesh, shadersCollection->at("LIT_WITH_SHADOWS_SSAO").get(), shadersCollection->at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray);
-
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(plane)));
-
-    FileReader reader = FileReader("Assets/Models/suzanne.obj");
-    reader.Load();
-    Mesh monkeyMesh = reader.Meshes()[0];
-    MeshRenderer monkey1 =
-        MeshRenderer(glm::vec3(-1.0, -1.0, 0.4), 0.9, glm::vec3(1, 0, 0), glm::vec3(1, 1, 1),
-            monkeyMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed);
-    monkey1.Transform(glm::vec3(0, 0, 0), glm::pi<float>() / 4.0, glm::vec3(0, 0.0, -1.0), glm::vec3(1.0, 1.0, 1.0));
-
-    MeshRenderer monkey2 =
-        MeshRenderer(glm::vec3(-1.0, 1.0, 0.4), 0.9, glm::vec3(1, 0, 0), glm::vec3(1, 1, 1),
-            monkeyMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PlasticGreen);
-    monkey2.Transform(glm::vec3(-1.5, 1.5, 0), 3.0 * glm::pi<float>() / 4.0, glm::vec3(0, 0.0, -1.0), glm::vec3(1.0, 1.0, 1.0));
-
-    MeshRenderer monkey3 =
-        MeshRenderer(glm::vec3(0.0, 0.5, 1.0), 1.2, glm::vec3(1, 0, 0), glm::vec3(1, 1, 1),
-            monkeyMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::Copper);
-    //monkey3.Transform(glm::vec3(0, 0, 0), 3.0 * glm::pi<float>() / 4.0, glm::vec3(0, 0.0, 1.0), glm::vec3(1.0, 1.0, 1.0));
-
-    MeshRenderer monkey4 =
-        MeshRenderer(glm::vec3(1.0, -1.0, 0.4), 0.9, glm::vec3(1, 0, 0), glm::vec3(1, 1, 1),
-            monkeyMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PureWhite);
-    monkey4.Transform(glm::vec3(0, 0, 0), glm::pi<float>() / 4.0, glm::vec3(0, 0.0, 1.0), glm::vec3(1.0, 1.0, 1.0));
-
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(monkey1)));
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(monkey2)));
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(monkey3)));
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(monkey4)));
-}
+//void LoadScene_ALotOfMonkeys(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
+//{
+//    Mesh planeMesh = Mesh::Box(1, 1, 1);
+//    MeshRenderer plane =
+//        MeshRenderer(glm::vec3(-4, -4, -0.25), 0.0, glm::vec3(0, 0, 1), glm::vec3(8, 8, 0.25),
+//            planeMesh, shadersCollection->at("LIT_WITH_SHADOWS_SSAO").get(), shadersCollection->at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray);
+//
+//    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(plane)));
+//
+//    FileReader reader = FileReader("Assets/Models/suzanne.obj");
+//    reader.Load();
+//    Mesh monkeyMesh = reader.Meshes()[0];
+//    MeshRenderer monkey1 =
+//        MeshRenderer(glm::vec3(-1.0, -1.0, 0.4), 0.9, glm::vec3(1, 0, 0), glm::vec3(1, 1, 1),
+//            monkeyMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed);
+//    monkey1.Transform(glm::vec3(0, 0, 0), glm::pi<float>() / 4.0, glm::vec3(0, 0.0, -1.0), glm::vec3(1.0, 1.0, 1.0));
+//
+//    MeshRenderer monkey2 =
+//        MeshRenderer(glm::vec3(-1.0, 1.0, 0.4), 0.9, glm::vec3(1, 0, 0), glm::vec3(1, 1, 1),
+//            monkeyMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PlasticGreen);
+//    monkey2.Transform(glm::vec3(-1.5, 1.5, 0), 3.0 * glm::pi<float>() / 4.0, glm::vec3(0, 0.0, -1.0), glm::vec3(1.0, 1.0, 1.0));
+//
+//    MeshRenderer monkey3 =
+//        MeshRenderer(glm::vec3(0.0, 0.5, 1.0), 1.2, glm::vec3(1, 0, 0), glm::vec3(1, 1, 1),
+//            monkeyMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::Copper);
+//    //monkey3.Transform(glm::vec3(0, 0, 0), 3.0 * glm::pi<float>() / 4.0, glm::vec3(0, 0.0, 1.0), glm::vec3(1.0, 1.0, 1.0));
+//
+//    MeshRenderer monkey4 =
+//        MeshRenderer(glm::vec3(1.0, -1.0, 0.4), 0.9, glm::vec3(1, 0, 0), glm::vec3(1, 1, 1),
+//            monkeyMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PureWhite);
+//    monkey4.Transform(glm::vec3(0, 0, 0), glm::pi<float>() / 4.0, glm::vec3(0, 0.0, 1.0), glm::vec3(1.0, 1.0, 1.0));
+//
+//    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(monkey1)));
+//    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(monkey2)));
+//    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(monkey3)));
+//    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(monkey4)));
+//}
 //
 //void LoadScene_Cadillac(std::vector<MeshRenderer>* sceneMeshCollection, std::map<std::string, ShaderBase>* shadersCollection, BoundingBox<glm::vec3>* sceneBoundingBox)
 //{
@@ -686,8 +731,13 @@ void LoadScene_TechnoDemon(SceneMeshCollection& sceneMeshCollection, std::map<st
     LoadPlane(sceneMeshCollection, shadersCollection, 5.0);
 }
 
-void SetupScene(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>> *shadersCollection)
+void SetupScene(
+    SceneMeshCollection& sceneMeshCollection, 
+    std::map<std::string, std::shared_ptr<MeshShader>> *meshShadersCollection,
+    std::map<std::string, std::shared_ptr<WiresShader>>* wiresShadersCollection
+)
 {
+    LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
     //LoadPlane(sceneMeshCollection, shadersCollection, 4.0);
     //LoadScene_PbrTextSpheres(sceneMeshCollection, shadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
@@ -704,7 +754,7 @@ void SetupScene(SceneMeshCollection& sceneMeshCollection, std::map<std::string, 
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, shadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    LoadScene_PCSStest(sceneMeshCollection, shadersCollection);
+    //LoadScene_PCSStest(sceneMeshCollection, shadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -717,7 +767,24 @@ void SetupScene(SceneMeshCollection& sceneMeshCollection, std::map<std::string, 
 
 }
 
-std::map<std::string, std::shared_ptr<MeshShader>> InitializeShaders()
+std::map<std::string, std::shared_ptr<WiresShader>> InitializeWiresShaders()
+{
+    std::shared_ptr<WiresShader> basicUnlit{ std::make_shared<WiresShader>(
+        std::vector<std::string>({/* NO VERTEX_SHADER EXPANSIONS */ }),
+        std::vector<std::string>(
+            {
+            "DEFS_MATERIAL",
+            "CALC_UNLIT_MAT"
+            }
+    )) };
+
+    return std::map<std::string, std::shared_ptr<WiresShader>>
+    {
+        { "UNLIT", basicUnlit }
+    };
+}
+
+std::map<std::string, std::shared_ptr<MeshShader>> InitializeMeshShaders()
 {
     std::shared_ptr<MeshShader> basicLit{ std::make_shared<MeshShader>(
         std::vector<std::string>({/* NO VERTEX_SHADER EXPANSIONS */ }),
@@ -999,7 +1066,7 @@ void ShadowPass(
 
     for (int i = 0; i < sceneMeshCollection.size(); i++)
     {
-        sceneMeshCollection.at(i).get()->DrawCustom(shaderForShadows);
+        sceneMeshCollection.at(i).get()->DrawCustom((ShaderBase *)&shaderForShadows);
     }
 
     sceneParams.sceneLights.Directional.ShadowMapId = shadowFBO.DepthTextureId();
@@ -1029,7 +1096,7 @@ void AmbienOcclusionPass(
 
     for (int i = 0 ; i < sceneMeshCollection.size() ; i++)
     {
-        sceneMeshCollection.at(i).get()->DrawCustom(shaderForDepthPass);
+        sceneMeshCollection.at(i).get()->DrawCustom((ShaderBase *)&shaderForDepthPass);
     }
 
     glDrawBuffer(GL_COLOR_ATTACHMENT0);
@@ -1083,7 +1150,8 @@ int main()
     sceneParams.projectionMatrix = glm::perspective(glm::radians(45.0f), sceneParams.viewportHeight / (float)sceneParams.viewportWidth, sceneParams.cameraNear, sceneParams.cameraFar);
 
     // Shaders Collections 
-    static std::map<std::string, std::shared_ptr<MeshShader>> Shaders = InitializeShaders();
+    static std::map<std::string, std::shared_ptr<MeshShader>> MeshShaders = InitializeMeshShaders();
+    static std::map<std::string, std::shared_ptr<WiresShader>> WiresShaders = InitializeWiresShaders();
     static std::map<std::string, std::shared_ptr<ShaderBase>> PostProcessingShaders = InitializePostProcessingShaders();
 
     // Environment
@@ -1148,27 +1216,36 @@ int main()
     // Setup Scene
     SceneMeshCollection sceneMeshCollection;
 
-    SetupScene(sceneMeshCollection, &Shaders);
+    SetupScene(sceneMeshCollection, &MeshShaders, &WiresShaders);
 
     camera.CameraOrigin = sceneMeshCollection.GetSceneBBCenter();
     camera.ProcessMouseMovement(0, 0); //TODO: camera.Update()
 
     // DEBUG
+    WiresShader wiresShader = WiresShader{
+        std::vector<std::string>({/* NO VERTEX_SHADER EXPANSIONS */ }),
+        std::vector<std::string>
+        ({
+            "DEFS_MATERIAL",
+            "CALC_UNLIT_MAT"
+         })
+    };
+
     Mesh lightArrow{ Mesh::Arrow(0.3, 1, 0.5, 0.5, 16) };
     MeshRenderer lightMesh =
         MeshRenderer(glm::vec3(0, 0, 0), 0, glm::vec3(0, 1, 1), glm::vec3(0.3, 0.3, 0.3),
-            lightArrow, Shaders.at("UNLIT").get(), Shaders.at("UNLIT").get(), MaterialsCollection::PureWhite);
+            lightArrow, MeshShaders.at("UNLIT").get(), MeshShaders.at("UNLIT").get(), MaterialsCollection::PureWhite);
 
-    LinesRenderer grid =
-        LinesRenderer(glm::vec3(0, 0, 0), 0.0f, glm::vec3(1, 1, 1), glm::vec3(1, 1, 1), Wire::Grid(glm::vec2(-5, -5), glm::vec2(5, 5), 1.0f),
-            Shaders.at("UNLIT").get(), glm::vec4(0.5, 0.5, 0.5, 1.0));
+    WiresRenderer grid =
+        WiresRenderer(glm::vec3(0, 0, 0), 0.0f, glm::vec3(1, 1, 1), glm::vec3(1, 1, 1), Wire::Grid(glm::vec2(-5, -5), glm::vec2(5, 5), 1.0f),
+            &wiresShader, glm::vec4(0.5, 0.5, 0.5, 1.0));
 
 
     std::vector<glm::vec3> bboxLines = sceneMeshCollection.GetSceneBBLines();
-    Wire bbWire = Wire(bboxLines);
-    LinesRenderer bbRenderer =
-        LinesRenderer(glm::vec3(0, 0, 0), 0.0f, glm::vec3(1, 1, 1), glm::vec3(1, 1, 1), bbWire,
-            Shaders.at("UNLIT").get(), glm::vec4(1.0, 0.0, 1.0, 1.0));
+    Wire bbWire = Wire(bboxLines, WireNature::LINES);
+    WiresRenderer bbRenderer =
+        WiresRenderer(glm::vec3(0, 0, 0), 0.0f, glm::vec3(1, 1, 1), glm::vec3(1, 1, 1), bbWire,
+            &wiresShader, glm::vec4(1.0, 0.0, 1.0, 1.0));
 
     bool showWindow = true;
 
@@ -1275,7 +1352,7 @@ int main()
             sceneMeshCollection.GetSceneBBCenter() - (glm::normalize(sceneParams.sceneLights.Directional.Direction) * sceneMeshCollection.GetSceneBBSize() * 0.5f);
 
         if (sceneParams.drawParams.doShadows)
-            ShadowPass(sceneParams, sceneMeshCollection, sceneUniformBuffers, *Shaders.at("UNLIT").get(), shadowFBO);
+            ShadowPass(sceneParams, sceneMeshCollection, sceneUniformBuffers, *MeshShaders.at("UNLIT").get(), shadowFBO);
         
 
         // AO PASS ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1284,7 +1361,7 @@ int main()
         if (ssaoFBO.Height() != sceneParams.viewportHeight || ssaoFBO.Width() != sceneParams.viewportWidth)
             ssaoFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 2, true);
 
-        AmbienOcclusionPass(sceneParams, sceneMeshCollection, sceneUniformBuffers, *Shaders.at("VIEWNORMALS").get(), ssaoFBO, postProcessingUnit);
+        AmbienOcclusionPass(sceneParams, sceneMeshCollection, sceneUniformBuffers, *MeshShaders.at("VIEWNORMALS").get(), ssaoFBO, postProcessingUnit);
 
 
         // OPAQUE PASS /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1343,13 +1420,13 @@ int main()
         if (showLights)
         {
             glm::quat orientation = glm::quatLookAt(-normalize(sceneParams.sceneLights.Directional.Direction), glm::vec3(0, 0, 1));
-            lightMesh.SetTransformation(sceneParams.sceneLights.Directional.Position, glm::angle(orientation), glm::axis(orientation), glm::vec3(0.3, 0.3, 0.3));
+            lightMesh.Renderer::SetTransformation(sceneParams.sceneLights.Directional.Position, glm::angle(orientation), glm::axis(orientation), glm::vec3(0.3, 0.3, 0.3));
             lightMesh.Draw(camera.Position, sceneParams);
         }
         if (showGrid)
-            grid.Draw(camera.GetViewMatrix(), sceneParams.projectionMatrix, camera.Position, sceneParams.sceneLights);
+            grid.Draw(camera.Position, sceneParams);
         if (showBoundingBox)
-            bbRenderer.Draw(camera.GetViewMatrix(), sceneParams.projectionMatrix, camera.Position, sceneParams.sceneLights);
+            bbRenderer.Draw(camera.Position, sceneParams);
 
 
         // WINDOW /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1380,7 +1457,8 @@ int main()
 
     // BIG TODO HERE: How to manage those resources????
     // explicitly call the destructor here is not good?
-    Shaders.clear();
+    MeshShaders.clear();
+    WiresShaders.clear();
     PostProcessingShaders.clear();
     noiseTextures.clear();
     sceneMeshCollection.~SceneMeshCollection();
@@ -1388,9 +1466,10 @@ int main()
     ssaoFBO.~FrameBuffer();
     shadowFBO.~FrameBuffer();
     mainFBO.~FrameBuffer();
-    grid.~LinesRenderer();
+    grid.~WiresRenderer();
     lightMesh.~MeshRenderer();
-    bbRenderer.~LinesRenderer();
+    wiresShader.~WiresShader();
+    bbRenderer.~WiresRenderer();
     environmentShader.~ShaderBase();
     envCube_ebo.~IndexBufferObject();
     envCube_vbo.~VertexBufferObject();

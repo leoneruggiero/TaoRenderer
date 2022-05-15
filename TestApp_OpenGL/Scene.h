@@ -8,7 +8,7 @@
 class SceneMeshCollection /* TODO : public std::vector<std::shared_ptr<MeshRenderer>>::iterator*/
 {
 private:
-	std::vector<std::shared_ptr<MeshRenderer>> _meshRendererCollection;
+	std::vector<std::shared_ptr<Renderer>> _meshRendererCollection;
 	Utils::BoundingBox<glm::vec3> _sceneAABBox;
 
 public:
@@ -18,7 +18,7 @@ public:
 	}
 
 	
-	void AddToCollection(std::shared_ptr<MeshRenderer> meshRenderer)
+	void AddToCollection(std::shared_ptr<Renderer> meshRenderer)
 	{
 		_meshRendererCollection.push_back(meshRenderer);
 		_sceneAABBox.Update(meshRenderer.get()->GetTransformedPoints());
@@ -31,7 +31,7 @@ public:
 			_sceneAABBox.Update(m.get()->GetTransformedPoints());
 	}
 
-	const std::shared_ptr<MeshRenderer>& at(const size_t Pos) const { return _meshRendererCollection.at(Pos); }
+	const std::shared_ptr<Renderer>& at(const size_t Pos) const { return _meshRendererCollection.at(Pos); }
 
 	size_t size() const { return _meshRendererCollection.size(); }
 
