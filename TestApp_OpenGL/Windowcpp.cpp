@@ -266,18 +266,18 @@ void LoadScene_NormalMapping(SceneMeshCollection& sceneMeshCollection, std::map<
 void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<WiresShader>>* shadersCollection)
 {
    
-    Wire circleWire = Wire::Circle(32, 1.0f);
+    Wire circleWire = Wire::Circle(16, 1.0f);
     
     WiresRenderer
-        circle1 = WiresRenderer(circleWire, shadersCollection->at("UNLIT").get()),
-        circle2 = WiresRenderer(circleWire, shadersCollection->at("UNLIT").get()),
-        circle3 = WiresRenderer(circleWire, shadersCollection->at("UNLIT").get()),
-        circle4 = WiresRenderer(circleWire, shadersCollection->at("UNLIT").get());
+        circle1 = WiresRenderer(circleWire, shadersCollection->at("LINES").get()),
+        circle2 = WiresRenderer(circleWire, shadersCollection->at("LINES").get()),
+        circle3 = WiresRenderer(circleWire, shadersCollection->at("LINES").get()),
+        circle4 = WiresRenderer(circleWire, shadersCollection->at("LINES").get());
 
     circle1.Renderer::SetTransformation(glm::vec3(0.0, 0.0, 0.0));
     circle1.SetColor(glm::vec4(1.0, 0.0, 0.0, 1.0));
 
-    circle2.Renderer::SetTransformation(glm::vec3(2.5, 0.0, 0.0));
+    circle2.Renderer::SetTransformation(glm::vec3(2.5, 0.0, 0.0), 0.8, glm::vec3(1, 0, 0), glm::vec3(1));
     circle2.SetColor(glm::vec4(1.0, 0.5, 0.0, 1.0));
 
     circle3.Renderer::SetTransformation(glm::vec3(5.0, 0.0, 0.0));
@@ -302,7 +302,7 @@ void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std
     };
 
     Wire pointsWire = Wire(pts, WireNature::POINTS);
-    WiresRenderer points = WiresRenderer(pointsWire, shadersCollection->at("UNLIT").get());
+    WiresRenderer points = WiresRenderer(pointsWire, shadersCollection->at("POINTS").get());
     points.SetColor(glm::vec4(0.0, 0.0, 1.0, 1.0));
 
     sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(points)));
@@ -769,18 +769,30 @@ void SetupScene(
 
 std::map<std::string, std::shared_ptr<WiresShader>> InitializeWiresShaders()
 {
-    std::shared_ptr<WiresShader> basicUnlit{ std::make_shared<WiresShader>(
+    std::shared_ptr<WiresShader> points{ std::make_shared<WiresShader>(
         std::vector<std::string>({/* NO VERTEX_SHADER EXPANSIONS */ }),
         std::vector<std::string>(
             {
             "DEFS_MATERIAL",
             "CALC_UNLIT_MAT"
-            }
-    )) };
+            }),
+            true
+    ) };
+
+    std::shared_ptr<WiresShader> lines{ std::make_shared<WiresShader>(
+        std::vector<std::string>({/* NO VERTEX_SHADER EXPANSIONS */ }),
+        std::vector<std::string>(
+            {
+            "DEFS_MATERIAL",
+            "CALC_UNLIT_MAT"
+            }),
+            false
+    ) };
 
     return std::map<std::string, std::shared_ptr<WiresShader>>
     {
-        { "UNLIT", basicUnlit }
+        { "POINTS", points },
+        { "LINES",  lines }
     };
 }
 
@@ -1118,7 +1130,7 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
-    GLFWwindow* window = glfwCreateWindow(1000, 1000, "TestApp_OpenGL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(800, 800, "TestApp_OpenGL", NULL, NULL);
 
     if (window == NULL)
     {
@@ -1141,7 +1153,8 @@ int main()
     glfwSetScrollCallback(window, mouse_scroll_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
 
-    sceneParams.viewportWidth = sceneParams.viewportHeight = 800;
+    sceneParams.viewportWidth = 200;
+    sceneParams.viewportHeight = 800;
     glViewport(0, 0, sceneParams.viewportWidth, sceneParams.viewportHeight);
 
     // Scene View and Projection matrices
@@ -1222,14 +1235,6 @@ int main()
     camera.ProcessMouseMovement(0, 0); //TODO: camera.Update()
 
     // DEBUG
-    WiresShader wiresShader = WiresShader{
-        std::vector<std::string>({/* NO VERTEX_SHADER EXPANSIONS */ }),
-        std::vector<std::string>
-        ({
-            "DEFS_MATERIAL",
-            "CALC_UNLIT_MAT"
-         })
-    };
 
     Mesh lightArrow{ Mesh::Arrow(0.3, 1, 0.5, 0.5, 16) };
     MeshRenderer lightMesh =
@@ -1238,14 +1243,14 @@ int main()
 
     WiresRenderer grid =
         WiresRenderer(glm::vec3(0, 0, 0), 0.0f, glm::vec3(1, 1, 1), glm::vec3(1, 1, 1), Wire::Grid(glm::vec2(-5, -5), glm::vec2(5, 5), 1.0f),
-            &wiresShader, glm::vec4(0.5, 0.5, 0.5, 1.0));
+            WiresShaders.at("LINES").get(), glm::vec4(0.5, 0.5, 0.5, 1.0));
 
 
     std::vector<glm::vec3> bboxLines = sceneMeshCollection.GetSceneBBLines();
     Wire bbWire = Wire(bboxLines, WireNature::LINES);
     WiresRenderer bbRenderer =
         WiresRenderer(glm::vec3(0, 0, 0), 0.0f, glm::vec3(1, 1, 1), glm::vec3(1, 1, 1), bbWire,
-            &wiresShader, glm::vec4(1.0, 0.0, 1.0, 1.0));
+            WiresShaders.at("LINES").get(), glm::vec4(1.0, 0.0, 1.0, 1.0));
 
     bool showWindow = true;
 
@@ -1468,7 +1473,6 @@ int main()
     mainFBO.~FrameBuffer();
     grid.~WiresRenderer();
     lightMesh.~MeshRenderer();
-    wiresShader.~WiresShader();
     bbRenderer.~WiresRenderer();
     environmentShader.~ShaderBase();
     envCube_ebo.~IndexBufferObject();

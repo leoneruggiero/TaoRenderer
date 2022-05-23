@@ -195,6 +195,8 @@ struct SceneParams
 	ScenePostProcessing postProcessing;
 	DrawParams drawParams;
 	Environment environment;
+	int pointWidth = 10;
+	int lineWidth = 10;
 
 	//Utils....where to store them???
 	unsigned int noiseTexId_0, noiseTexId_1, noiseTexId_2;

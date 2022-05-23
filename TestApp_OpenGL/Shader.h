@@ -88,6 +88,126 @@ namespace FragmentSource_Environment
     )";
 }
 
+namespace GeometrySource_Geometry
+{
+    const std::string THICK_POINTS =
+        R"(
+
+    #version 330 core
+
+    layout(points) in;
+    layout(triangle_strip, max_vertices = 4) out;
+
+    // 1.0 / screen size 
+    uniform vec2 u_screenToWorld;
+    uniform float u_near;
+    uniform uint u_thickness;
+
+    void main() {
+
+        float f = u_thickness;
+        f *= gl_in[0].gl_Position.w;        
+
+        // Top - Right
+        gl_Position = gl_in[0].gl_Position + f * vec4(u_screenToWorld, 0.0, 0.0);
+        EmitVertex();
+
+        // Bottom - Right
+        gl_Position = gl_in[0].gl_Position + f * vec4(u_screenToWorld.x, - u_screenToWorld.y, 0.0, 0.0);
+        EmitVertex();
+
+        // Top - Left
+        gl_Position = gl_in[0].gl_Position + f * vec4(-u_screenToWorld.x, u_screenToWorld.y, 0.0, 0.0);
+        EmitVertex();
+
+        // Bottom - Left          
+        gl_Position = gl_in[0].gl_Position + f * vec4(-u_screenToWorld, 0.0, 0.0);
+        EmitVertex();
+
+        EndPrimitive();
+    }
+    )";
+
+    const std::string THICK_LINES =
+        R"(
+
+    #version 330 core
+
+    layout(lines_adjacency) in;
+    layout(triangle_strip, max_vertices = 4) out;
+
+    // 1.0 / screen size 
+    uniform vec2 u_screenToWorld;
+    uniform float u_near;
+    uniform uint u_thickness;
+
+    void main() {
+
+        float f = u_thickness * gl_in[1].gl_Position.w;
+        
+        // Normal to the previous segment (adj)
+        vec2 n0_ss = 
+                    (gl_in[1].gl_Position.xy/gl_in[1].gl_Position.w) - 
+                    (gl_in[0].gl_Position.xy/gl_in[0].gl_Position.w);
+
+        n0_ss = normalize((n0_ss.xy / u_screenToWorld.xy));
+        n0_ss = vec2(-n0_ss.y, n0_ss.x);
+
+        // Normal to the segment
+        vec2 n1_ss = 
+                    (gl_in[2].gl_Position.xy/gl_in[2].gl_Position.w) - 
+                    (gl_in[1].gl_Position.xy/gl_in[1].gl_Position.w);
+
+        n1_ss = normalize((n1_ss.xy / u_screenToWorld.xy));
+        n1_ss = vec2(-n1_ss.y, n1_ss.x);
+
+        // Normal to the next segment (adj)
+        vec2 n2_ss = 
+                    (gl_in[3].gl_Position.xy/gl_in[3].gl_Position.w) - 
+                    (gl_in[2].gl_Position.xy/gl_in[2].gl_Position.w);
+
+        n2_ss = normalize((n2_ss.xy / u_screenToWorld.xy));
+        n2_ss = vec2(-n2_ss.y, n2_ss.x);
+
+        // miter screen space
+        vec2 m0_ss = normalize(n0_ss + n1_ss);
+        vec2 m1_ss = normalize(n1_ss + n2_ss);
+
+        float l1_ss = u_thickness/max(dot(m0_ss, n0_ss), 0.2);
+        float l2_ss = u_thickness/max(dot(m1_ss, n1_ss), 0.2);
+
+
+        vec4 m0_ndc = gl_in[1].gl_Position + l1_ss * (vec4(m0_ss * u_screenToWorld, 0, 0) * gl_in[1].gl_Position.w);
+        vec4 m1_ndc = gl_in[1].gl_Position - l1_ss * (vec4(m0_ss * u_screenToWorld, 0, 0) * gl_in[1].gl_Position.w);
+        vec4 m2_ndc = gl_in[2].gl_Position + l2_ss * (vec4(m1_ss * u_screenToWorld, 0, 0) * gl_in[2].gl_Position.w);
+        vec4 m3_ndc = gl_in[2].gl_Position - l2_ss * (vec4(m1_ss * u_screenToWorld, 0, 0) * gl_in[2].gl_Position.w);
+
+        gl_Position = l1_ss > 0
+                        ? m0_ndc
+                        : m1_ndc;
+        EmitVertex();
+
+        gl_Position = l1_ss > 0
+                        ? m1_ndc
+                        : m0_ndc;
+        EmitVertex();
+        
+        gl_Position = l2_ss > 0
+                        ? m2_ndc
+                        : m3_ndc;
+        EmitVertex();
+   
+        gl_Position = l2_ss > 0
+                        ? m3_ndc
+                        : m2_ndc;
+        EmitVertex();
+
+        EndPrimitive();
+    }
+    )";
+}
+
+
 namespace VertexSource_Geometry
 {
     const std::string EXP_VERTEX =
@@ -1434,6 +1554,7 @@ enum class OGLResourceType
     UNDEFINED,
     VERTEX_SHADER,
     FRAGMENT_SHADER,
+    GEOMETRY_SHADER,
     SHADER_PROGRAM,
     VERTEX_BUFFER_OBJECT,
     VERTEX_ATTRIB_ARRAY,
@@ -1571,6 +1692,16 @@ private:
             }
             break;
 
+        case (OGLResourceType::GEOMETRY_SHADER):
+            if (!destroy)
+                _id = glCreateShader(GL_GEOMETRY_SHADER);
+            else
+            {
+                glDeleteShader(_id);
+                _id = 0;
+            }
+            break;
+
         case (OGLResourceType::SHADER_PROGRAM):
             if (!destroy)
                 _id = glCreateProgram();
@@ -1656,6 +1787,10 @@ protected:
 
         case (OGLResourceType::FRAGMENT_SHADER):
             return "FRAGMENT_SHADER";
+            break;
+
+        case (OGLResourceType::GEOMETRY_SHADER):
+            return "GEOMETRY_SHADER";
             break;
 
         case (OGLResourceType::SHADER_PROGRAM):
@@ -2095,6 +2230,44 @@ class OGLFragmentShader : public OGLResource
         }
 };
 
+class OGLGeometryShader : public OGLResource
+{
+private:
+    std::string _source;
+
+public:
+    OGLGeometryShader(std::string source) : _source{ source }
+    {
+        OGLResource::Create(OGLResourceType::GEOMETRY_SHADER);
+
+        const char* gsc = source.data();
+        glShaderSource(OGLResource::ID(), 1, &gsc, NULL);
+        glCompileShader(OGLResource::ID());
+        OGLUtils::CheckCompileErrors(OGLResource::ID(), ResourceType());
+        OGLUtils::CheckOGLErrors();
+    }
+
+    OGLGeometryShader(OGLGeometryShader&& other) noexcept : OGLResource(std::move(other))
+    {
+        _source = std::move(other._source);
+    };
+
+    OGLGeometryShader& operator=(OGLGeometryShader&& other) noexcept
+    {
+        if (this != &other)
+        {
+            OGLResource::operator=(std::move(other));
+            _source = std::move(other._source);
+        }
+        return *this;
+    };
+
+    ~OGLGeometryShader()
+    {
+        OGLResource::Destroy();
+    }
+};
+
 class OGLVertexShader : public OGLResource
 {
 private:
@@ -2140,7 +2313,7 @@ class ShaderProgram : public OGLResource
 public:
     // constructor generates the shader on the fly
     // ------------------------------------------------------------------------
-    ShaderProgram(const std::string vShaderCode, std::string fShaderCode)
+    ShaderProgram(const std::string vShaderCode, std::string fShaderCode, std::string gShaderCode)
     {
 
         OGLVertexShader vertex(vShaderCode);
@@ -2151,12 +2324,23 @@ public:
         glAttachShader(OGLResource::ID(), vertex.ID());
         glAttachShader(OGLResource::ID(), fragment.ID());
 
+        if (!gShaderCode.empty())
+        {
+            OGLGeometryShader geometry(gShaderCode);
+            glAttachShader(OGLResource::ID(), geometry.ID());
+        }
+
         glLinkProgram(OGLResource::ID());
         OGLUtils::CheckLinkErrors(OGLResource::ID(), ResourceType());
 
         OGLUtils::CheckOGLErrors();
     }
-    
+
+    ShaderProgram(const std::string vShaderCode, std::string fShaderCode) : ShaderProgram(vShaderCode, fShaderCode, "")
+    {
+       
+    }
+   
     ShaderProgram(OGLVertexShader&& other) : OGLResource(std::move(other)) {};
 
     ShaderProgram& operator=(ShaderProgram&& other) noexcept
@@ -2736,6 +2920,7 @@ class ShaderBase
 private:
     ShaderProgram _shaderProgram;
     std::string _vertexCode;
+    std::string _geometryCode;
     std::string _fragmentCode;
 
 protected:
@@ -2769,6 +2954,11 @@ public:
     {
     }
 
+    ShaderBase(std::string vertexSource, std::string geometrySource, std::string fragmentSource) :
+        _vertexCode(vertexSource), _fragmentCode(fragmentSource),_geometryCode(geometrySource), _shaderProgram(vertexSource, fragmentSource, geometrySource)
+    {
+    }
+
     void SetCurrent() const { _shaderProgram.Enable(); }
 
     std::vector<std::pair<unsigned int, std::string>> GetVertexInput() { return _shaderProgram.GetInput(); }
@@ -2784,12 +2974,15 @@ class WiresShader : public ShaderBase
 {
 
 public:
-    WiresShader(std::vector<std::string> vertexExpansions, std::vector<std::string> fragmentExpansions) :
+    WiresShader(std::vector<std::string> vertexExpansions, std::vector<std::string> fragmentExpansions, bool points) :
         ShaderBase(
 
             VertexSource_Geometry::Expand(
                 VertexSource_Geometry::EXP_VERTEX,
                 vertexExpansions),
+            points
+            ? GeometrySource_Geometry::THICK_POINTS
+            : GeometrySource_Geometry::THICK_LINES,
 
             FragmentSource_Geometry::Expand(
                 FragmentSource_Geometry::EXP_FRAGMENT,

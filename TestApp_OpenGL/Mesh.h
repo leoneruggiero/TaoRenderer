@@ -1046,38 +1046,24 @@ private:
 
 public:
     WiresRenderer(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale, Wire wire, WiresShader* shader, glm::vec4 color)
-        :
-        _shader(shader), _wire(wire), _color(color), _vao(), _vbo(VertexBufferObject::VBOType::StaticDraw)
+        : WiresRenderer(wire, shader)
     {
 
-        // Compute Model Transform Matrix ====================================================================================================== //
         glm::mat4 model = glm::mat4(1.0f);
 
         model = glm::translate(model, position);
         model = glm::rotate(model, rotation, rotationAxis);
         model = glm::scale(model, scale);
 
-        _modelMatrix = model;
+        SetTransformation(model);
 
-        // Generate Graphics Data ============================================================================================================= //
-        _numVertices = wire.GetPositions().size();
-        std::vector<float> positionsFloatArray = Utils::flatten3(wire.GetPositions());
-        _vbo.SetData(positionsFloatArray.size(), positionsFloatArray.data());
-
-        std::vector<std::pair<unsigned int, std::string>> vIns{ std::move(shader->GetVertexInput()) };
-
-        _vao.SetAndEnableAttrib(_vbo.ID(), VertexInputType::Position, 3, false, 0, 0);
-
-        OGLUtils::CheckOGLErrors();
+        SetColor(color);
     }
 
     WiresRenderer(Wire wire, WiresShader* shader)
         :
         _shader(shader), _wire(wire), _vao(), _vbo(VertexBufferObject::VBOType::StaticDraw)
     {
-
-        // Setting some defaults:
-        // ---------------------------------------
 
         // Model => Identity matrix
         _modelMatrix = glm::mat4(1.0f);
@@ -1089,16 +1075,52 @@ public:
         // Generationg graphics data 
         // ---------------------------------------
         _numVertices = wire.GetPositions().size();
-        std::vector<float> positionsFloatArray = Utils::flatten3(wire.GetPositions());
+        std::vector<glm::vec3> positions = wire.GetPositions();
+
+        if (positions.size() < 2)
+            throw ("2 vertices needed for a line.");
+
+        glm::vec3
+            start = positions[0],
+            end = positions[positions.size() - 1];
+
+        // Happily naive....tolerances are not fun
+        bool isClosed = glm::all(glm::equal(start, end, 0.1f));
+
+        // If closed fill adj data rotating the array
+        if (isClosed)
+        {
+            start = positions[positions.size() - 2],
+            end = positions[1];
+        }
+        else
+        {
+            start = positions[0] + positions[0] - positions[1],
+            end = positions[positions.size() - 1] + positions[positions.size() - 1] - positions[positions.size() - 2];
+        }
+
+        // lines with adjacency data
+        if (_wire.GetNature() == WireNature::LINES)
+        {
+            positions.insert(positions.end(), end);
+            positions.insert(positions.begin(), start);
+            _numVertices += 2;
+        }
+
+        std::vector<float> positionsFloatArray = Utils::flatten3(positions);
+
         _vbo.SetData(positionsFloatArray.size(), positionsFloatArray.data());
+
         _vao.SetAndEnableAttrib(_vbo.ID(), VertexInputType::Position, 3, false, 0, 0);
+
+        OGLUtils::CheckOGLErrors();
 
         // ---------------------------------------
 
         OGLUtils::CheckOGLErrors();
     }
 
-
+    
     void Draw(glm::vec3 eye, const SceneParams& sceneParams) const override
     {
         bool isLines = _wire.GetNature() == WireNature::LINES;
@@ -1107,23 +1129,22 @@ public:
         _shader->SetMatrices(_modelMatrix);
         _shader->SetColor(_color);
 
-        
-        _vao.Bind();
+        glm::vec2 screenToWorldFactor = glm::vec2(1.0 / sceneParams.viewportWidth, 1.0 / sceneParams.viewportHeight);
 
-        if (!isLines)
-        {
-            glEnable(GL_PROGRAM_POINT_SIZE);
-            glPointSize(4.0f);
-        }
+        glUniform2fv(_shader->UniformLocation("u_screenToWorld"), 1, glm::value_ptr(screenToWorldFactor));
+        glUniform1ui(_shader->UniformLocation("u_thickness"),
+            isLines
+            ? sceneParams.lineWidth
+            : sceneParams.pointWidth);
+        glUniform1f(_shader->UniformLocation("u_near"), sceneParams.cameraNear);
+
+        _vao.Bind();
 
         glDrawArrays(
             isLines
-            ? GL_LINE_STRIP
+            ? GL_LINE_STRIP_ADJACENCY
             : GL_POINTS
             , 0, _numVertices);
-
-        if (!isLines)
-            glDisable(GL_PROGRAM_POINT_SIZE);
 
         _vao.UnBind();
 
