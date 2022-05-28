@@ -141,21 +141,18 @@ namespace Utils
 		return  pow(1.0f - (d / (2.0 * rMax)), alpha);
 	}
 
-	std::vector<glm::vec2> GetPoissonDiskSamples2D(int samplesCount, Domain2D domain)
+	std::pair<std::vector<glm::vec2>, std::vector<glm::vec2>>
+		WeightedSampleElimination(const std::vector<glm::vec2>& initialDistribution, int samplesCount, Domain2D domain)
 	{
 		// Based on http://www.cemyuksel.com/research/sampleelimination/
 
 		// Constants
 		// ----------------------
-		int M = samplesCount * 15;
 		float
 			beta = 0.65f,
 			gamma = 1.5f;
 
-		std::vector<glm::vec2> uDistr = GetUniformDistributedSamples2D(
-			M, // More initial samples than target count (see reference).
-			domain
-		);
+		int M = initialDistribution.size();
 
 		std::vector<WeightedSample> weightedSamples{};
 		weightedSamples.reserve(M);
@@ -174,22 +171,25 @@ namespace Utils
 			{
 				if (i == j) continue;
 
-				w += GetWeightContribution(uDistr[i], uDistr[j], rMin, rMax);
+				w += GetWeightContribution(initialDistribution[i], initialDistribution[j], rMin, rMax);
 			}
 
-			weightedSamples.push_back(WeightedSample{ uDistr[i], w });
+			weightedSamples.push_back(WeightedSample{ initialDistribution[i], w });
 		}
-		
+
 		// 2. Build a heap for si using weights wi
 		// ---------------------------------------
 		std::make_heap(
 			weightedSamples.begin(), weightedSamples.end(),
 			[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; }
 		);
-		
+
 		// 3. while number of samples > desired 
 		//    pull from heap, update weight, update heap
 		// ---------------------------------------------
+		std::vector<glm::vec2> removedSamples{};
+		removedSamples.reserve(M - samplesCount);
+
 		while (weightedSamples.size() > samplesCount)
 		{
 			std::pop_heap(weightedSamples.begin(), weightedSamples.end(),
@@ -197,6 +197,7 @@ namespace Utils
 			);
 
 			WeightedSample removed = weightedSamples[weightedSamples.size() - 1];
+			removedSamples.push_back(removed.sample);
 			weightedSamples.pop_back();
 
 			for (auto& s : weightedSamples)
@@ -211,30 +212,44 @@ namespace Utils
 		std::vector<glm::vec2> res{};
 		res.reserve(samplesCount);
 
-		while (weightedSamples.size() > 0)
+		for (const auto& s : weightedSamples)
+			res.push_back(s.sample);
+
+		return std::make_pair(res, removedSamples);
+	}
+
+	std::vector<glm::vec2> GetPoissonDiskSamples2D(int samplesCount, Domain2D domain)
+	{
+		int M = samplesCount * 15;
+
+		std::vector<glm::vec2> uDistr = GetUniformDistributedSamples2D(
+			M, // More initial samples than target count.
+			domain
+		);
+
+		std::vector<glm::vec2> samples = WeightedSampleElimination(uDistr, samplesCount, domain).first;
+
+		// Progessive Sampling
+		// ----------------------
+		std::vector<glm::vec2> res{};
+		res.reserve(samplesCount);
+
+		for (int i = 1, targetCount = samplesCount / 2; targetCount >= 1; i++, targetCount/=2 )
 		{
-			rMax = sqrt(domain.Area() / (2.0f * sqrt(3.0f) * weightedSamples.size()));
-			rMin = rMax * beta * (1.0f - pow(weightedSamples.size() / M, gamma));
+			auto iterationRes = WeightedSampleElimination(samples, targetCount, domain);
+			std::vector<glm::vec2> removedSamples = iterationRes.second;
+			samples = iterationRes.first;
 
-			std::pop_heap(weightedSamples.begin(), weightedSamples.end(),
-				[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; }
-			);
-
-			WeightedSample removed = weightedSamples[weightedSamples.size() - 1];
-			weightedSamples.pop_back();
-
-			for (auto& s : weightedSamples)
-				s.weight -= GetWeightContribution(s.sample, removed.sample, rMin, rMax);
-
-			std::make_heap(weightedSamples.begin(), weightedSamples.end(),
-				[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; });
-
-			res.insert(res.begin(), removed.sample);
+			res.insert(res.begin(), removedSamples.begin(), removedSamples.end());
 		}
+
+		if (samples.size() > 1)
+			throw "";
+
+		res.push_back(samples[0]);
 
 		return res;
 	}
-
 
 
 	template<typename T>
