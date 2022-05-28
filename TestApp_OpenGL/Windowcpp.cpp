@@ -13,7 +13,6 @@
 #include "ImGui/imgui_impl_glfw.h"
 #include "ImGui/imgui_impl_opengl3.h"
 #include "Shader.h"
-#include "Mesh.h"
 #include "stb_image.h"
 #include "Camera.h"
 #include "Mesh.h"
@@ -266,9 +265,41 @@ void LoadScene_NormalMapping(SceneMeshCollection& sceneMeshCollection, std::map<
 void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<WiresShader>>* shadersCollection)
 {
    
-    Wire circleWire = Wire::Circle(16, 1.0f);
+    Wire circleWire = Wire::Circle(32, 1.0f);
+    Wire squareWire = Wire::Square(sqrt(2.0f));
     
-    WiresRenderer
+    WiresRenderer square = WiresRenderer(squareWire, shadersCollection->at("LINES").get());
+    ((Renderer*)&square)->Translate(1.5f, 1.5f, 0.0f);
+    square.SetColor(glm::vec4(0.9, 0.5, 0.0, 1.0));
+
+    WiresRenderer circle = WiresRenderer(circleWire, shadersCollection->at("LINES").get());
+    circle.SetColor(glm::vec4(0.0, 0.5, 0.5, 1.0));
+
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(square)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(circle)));
+
+    std::vector<glm::vec3> circleSamplesPts{};
+    for (auto& s : GetUniformDistributedSamples2D(64, Domain2D(DomainType2D::Disk, 1.0f)))
+        circleSamplesPts.push_back(glm::vec3(s, 0.01f));
+    
+    std::vector<glm::vec3> squareSamplesPts{};
+    for (auto& s : GetUniformDistributedSamples2D(64, Domain2D(DomainType2D::Square, sqrt(2.0f))))
+        squareSamplesPts.push_back(glm::vec3(s, 0.01f));
+    
+    Wire circleSamplesWire = Wire(circleSamplesPts, WireNature::POINTS);
+    WiresRenderer circleSamples = WiresRenderer(circleSamplesWire, shadersCollection->at("POINTS").get());
+    circleSamples.SetColor(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+
+    Wire squareSamplesWire = Wire(squareSamplesPts, WireNature::POINTS);
+    WiresRenderer squareSamples = WiresRenderer(squareSamplesWire, shadersCollection->at("POINTS").get());
+    ((Renderer*)&squareSamples)->Translate(1.5f, 1.5f, 0.0f);
+    squareSamples.SetColor(glm::vec4(0.0f, 0.0f, 1.0f, 1.0f));
+
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(circleSamples)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(squareSamples)));
+
+    
+    /*WiresRenderer
         circle1 = WiresRenderer(circleWire, shadersCollection->at("LINES").get()),
         circle2 = WiresRenderer(circleWire, shadersCollection->at("LINES").get()),
         circle3 = WiresRenderer(circleWire, shadersCollection->at("LINES").get()),
@@ -277,7 +308,7 @@ void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std
     circle1.Renderer::SetTransformation(glm::vec3(0.0, 0.0, 0.0));
     circle1.SetColor(glm::vec4(1.0, 0.0, 0.0, 1.0));
 
-    circle2.Renderer::SetTransformation(glm::vec3(2.5, 0.0, 0.0), 0.8, glm::vec3(1, 0, 0), glm::vec3(1));
+    circle2.Renderer::SetTransformation(glm::vec3(2.5, 0.0, 0.0));
     circle2.SetColor(glm::vec4(1.0, 0.5, 0.0, 1.0));
 
     circle3.Renderer::SetTransformation(glm::vec3(5.0, 0.0, 0.0));
@@ -294,18 +325,21 @@ void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std
 
     std::vector<glm::vec3> pts
     {
-        glm::vec3(0.0, 0.5, 0.0),
-        glm::vec3(0.2, 0.4, 0.0),
-        glm::vec3(0.3, 0.3, 0.0),
-        glm::vec3(0.4, 0.2, 0.0),
-        glm::vec3(0.5, 0.1, 0.0),
+        glm::vec3(-1.0, -1.0, 1.0),
+        glm::vec3(-0.7, -0.9, 1.1),
+        glm::vec3(-0.3, -0.5, 1.2),
+        glm::vec3(0.0, 0.0,   1.3),
+        glm::vec3(0.0, 2.0,   1.4),
+        glm::vec3(0.5, 2.5,   1.5),
+        glm::vec3(1.5, 2.75,  1.3),
+        glm::vec3(3.0, 3.0,   1.0),
     };
 
-    Wire pointsWire = Wire(pts, WireNature::POINTS);
-    WiresRenderer points = WiresRenderer(pointsWire, shadersCollection->at("POINTS").get());
-    points.SetColor(glm::vec4(0.0, 0.0, 1.0, 1.0));
+    Wire line = Wire(pts, WireNature::LINES);
+    WiresRenderer lineRenderer = WiresRenderer(line, shadersCollection->at("LINES").get());
+    lineRenderer.SetColor(glm::vec4(0.0, 0.0, 1.0, 1.0));
 
-    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(points)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(lineRenderer)));*/
 }
 
 void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
@@ -1288,21 +1322,21 @@ int main()
     noiseTextures.push_back(OGLTexture2D(
         9,9,
         TextureInternalFormat::R_16f,
-        GetUniformDistributedNoise(81, -1.0, 1.0).data(), GL_RED, GL_FLOAT,
+        GetUniformDistributedSamples1D(81, -1.0, 1.0).data(), GL_RED, GL_FLOAT,
         TextureFiltering::Nearest, TextureFiltering::Nearest,
         TextureWrap::Repeat, TextureWrap::Repeat));
 
     noiseTextures.push_back(OGLTexture2D(
         10, 10,
         TextureInternalFormat::R_16f,
-        GetUniformDistributedNoise(100, -1.0, 1.0).data(), GL_RED, GL_FLOAT,
+        GetUniformDistributedSamples1D(100, -1.0, 1.0).data(), GL_RED, GL_FLOAT,
         TextureFiltering::Nearest, TextureFiltering::Nearest,
         TextureWrap::Repeat, TextureWrap::Repeat));
 
     noiseTextures.push_back(OGLTexture2D(
         11, 11,
         TextureInternalFormat::R_16f,
-        GetUniformDistributedNoise(121, -1.0, 1.0).data(), GL_RED, GL_FLOAT,
+        GetUniformDistributedSamples1D(121, -1.0, 1.0).data(), GL_RED, GL_FLOAT,
         TextureFiltering::Nearest, TextureFiltering::Nearest,
         TextureWrap::Repeat, TextureWrap::Repeat));
 

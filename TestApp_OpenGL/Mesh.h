@@ -599,7 +599,27 @@ public:
 
         return Wire(points, WireNature::LINES);
     }
-    
+    static Wire Rect(glm::vec2 min, glm::vec2 max)
+    {
+        std::vector<glm::vec3> points
+        {
+            glm::vec3(min, 0.0f),
+            glm::vec3(max.x, min.y, 0.0f),
+            glm::vec3(max, 0.0f),
+            glm::vec3(min.x, max.y, 0.0f),
+            glm::vec3(min, 0.0f)
+        };
+        return Wire(points, WireNature::LINES);
+    }
+    static Wire Square(glm::vec2 center, float size)
+    {
+        return Rect(center, center + glm::vec2(size));
+    }
+    static Wire Square(float size)
+    {
+        return Square(glm::vec2(0.0f, 0.0f), size);
+    }
+
 };
 
 class FileReader
@@ -769,6 +789,8 @@ public:
 
     // Overrides the old transformation with the one provided
     // --------------------------------------------------------------
+    virtual void SetTransformation(glm::mat4 transformation) = 0; // => implemented by derived classes and called by the base.
+
     virtual void SetTransformation(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale) 
     {
         glm::mat4 model = glm::mat4(1.0f);
@@ -789,11 +811,12 @@ public:
         SetTransformation(model);
     }
 
-    virtual void SetTransformation(glm::mat4 transformation) = 0;
 
    
     // Transforms the object 
     // --------------------------------------------------------------
+    virtual void Transform(glm::mat4 transformation) = 0; // => implemented by derived classes and called by the base.
+
     virtual void Transform(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale)
     {
         glm::mat4 model = glm::mat4(1.0f);
@@ -804,7 +827,16 @@ public:
         Transform(model);
     }
 
-    virtual void Transform(glm::mat4 transformation) = 0;
+    void Translate(glm::vec3 translation)
+    {
+        glm::mat4 tr = glm::mat4(1.0f);
+        tr = glm::translate(tr, translation);
+        Transform(tr);
+    }
+    void Translate(float x, float y, float z)
+    {
+        Translate(glm::vec3(x, y, z));
+    }
     
 };
 

@@ -173,8 +173,9 @@ namespace GeometrySource_Geometry
         vec2 m0_ss = normalize(n0_ss + n1_ss);
         vec2 m1_ss = normalize(n1_ss + n2_ss);
 
-        float l1_ss = u_thickness/max(dot(m0_ss, n0_ss), 0.2);
-        float l2_ss = u_thickness/max(dot(m1_ss, n1_ss), 0.2);
+        // lower limit for the dot product to prevent miters from being too long
+        float l1_ss = u_thickness/max(dot(m0_ss, n0_ss), 0.5);
+        float l2_ss = u_thickness/max(dot(m1_ss, n1_ss), 0.5);
 
 
         vec4 m0_ndc = gl_in[1].gl_Position + l1_ss * (vec4(m0_ss * u_screenToWorld, 0, 0) * gl_in[1].gl_Position.w);

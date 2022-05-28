@@ -16,7 +16,38 @@
 
 namespace Utils
 {
-	std::vector<float> GetUniformDistributedNoise(int numValues, float min, float max)
+	// TODO: Arbitrary regions.
+	// TODO: Region definition.
+	enum class DomainType2D
+	{
+		Square,
+		Disk
+	};
+
+	/// <summary>
+	/// 2D domain description.
+	/// </summary>
+	class Domain2D
+	{
+		public:
+			DomainType2D type;
+			float size;
+
+		/// <summary>
+		/// Standard constructor.
+		/// </summary>
+		/// <param name="domainType"> The domain type.</param>
+		/// <param name="domainSize"> The domain size. It's meaning depends on the type paramenter. </param>
+		Domain2D(DomainType2D domainType, float domainSize) : type(domainType), size(domainSize) {}
+	};
+
+	/// <summary>
+	/// Returns a <see cref="std::vector"/> of uniformly distributed samples between min and max.
+	/// </summary>
+	/// <param name="numValues"> The number of samples.</param>
+	/// <param name="min"> The minimum sample value.</param>
+	/// <param name="max"> The maximum sample value.</param>
+	std::vector<float> GetUniformDistributedSamples1D(int numValues, float min, float max)
 	{
 		std::default_random_engine generator;
 		std::uniform_real_distribution<float> distribution(min, max);
@@ -26,6 +57,49 @@ namespace Utils
 			noiseVec.push_back(distribution(generator));
 
 		return noiseVec;
+	}
+
+	/// <summary>
+	/// Returns a <see cref="std::vector"/> of uniformly distributed samples on the specified 2D domain.
+	/// </summary>
+	/// <param name="numValues"> The number of samples.</param>
+	/// <param name="domain"> The domain description.</param>
+	std::vector<glm::vec2> GetUniformDistributedSamples2D(int numValues, Domain2D domain)
+	{
+		int smp1DCount = numValues * 2;
+
+		std::vector<float> smp1D = GetUniformDistributedSamples1D(smp1DCount, 0.0f, 1.0f);
+
+		std::vector<glm::vec2> smp2D{};
+		smp2D.reserve(smp1DCount);
+
+		for (int i = 0; i < smp1DCount; /**/)
+		{
+			// SQUARE case
+			// ------------------------------------
+			if (domain.type == DomainType2D::Square)
+			{
+				smp2D.push_back(glm::vec2(
+					smp1D[i++] * domain.size,
+					smp1D[i++] * domain.size
+				));
+			}
+			// DISK case
+			// ------------------------------------
+			else
+			{
+				float r = 1.0f * glm::sqrt(smp1D[i++]);
+				float theta = smp1D[i++] * 2.0f * glm::pi<float>();
+
+				// radius-angle to cartesian
+				smp2D.push_back(glm::vec2(
+					glm::cos(theta) * r * domain.size,
+					glm::sin(theta) * r * domain.size
+				));
+			}
+		}
+
+		return smp2D;
 	}
 
 	template<typename T>
@@ -40,12 +114,14 @@ namespace Utils
 
 		void operator()(const T& p)
 		{
-			// Find Minimum ======================================
+			// Find Minimum 
+			// ---------------------------
 			_min.x = glm::min(_min.x, p.x);
 			_min.y = glm::min(_min.y, p.y);
 			_min.z = glm::min(_min.z, p.z);
 
-			// Find Maximum ======================================
+			// Find Maximum 
+			// ---------------------------
 			_max.x = glm::max(_max.x, p.x);
 			_max.y = glm::max(_max.y, p.y);
 			_max.z = glm::max(_max.z, p.z);
