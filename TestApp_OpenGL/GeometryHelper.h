@@ -61,7 +61,7 @@ namespace Utils
 	/// <summary>
 	/// Returns a <see cref="std::vector"/> of uniformly distributed samples between min and max.
 	/// </summary>
-	/// <param name="numValues"> The number of samples.</param>
+	/// <param name="samplesCount"> The number of samples.</param>
 	/// <param name="min"> The minimum sample value.</param>
 	/// <param name="max"> The maximum sample value.</param>
 	std::vector<float> GetUniformDistributedSamples1D(int samplesCount, float min, float max)
@@ -79,7 +79,7 @@ namespace Utils
 	/// <summary>
 	/// Returns a <see cref="std::vector"/> of uniformly distributed samples on the specified 2D domain.
 	/// </summary>
-	/// <param name="numValues"> The number of samples.</param>
+	/// <param name="samplesCount"> The number of samples.</param>
 	/// <param name="domain"> The domain description.</param>
 	std::vector<glm::vec2> GetUniformDistributedSamples2D(int samplesCount, Domain2D domain)
 	{
@@ -218,8 +218,20 @@ namespace Utils
 		return std::make_pair(res, removedSamples);
 	}
 
+	bool IsPot(int a) { return (a > 0) && ((a & (a - 1)) == 0); }
+
+	/// <summary>
+	/// Computes a poisson disk sample set. 
+	/// The set is ordererd (see reference).
+	/// Based on http://www.cemyuksel.com/research/sampleelimination . 
+	/// </summary>
+	/// <param name="samplesCount"> The samples count. Must be a power of two </param>
+	/// <param name="domain"> The domain. </param>
 	std::vector<glm::vec2> GetPoissonDiskSamples2D(int samplesCount, Domain2D domain)
 	{
+		if (!IsPot(samplesCount))
+			throw "sample count must be POT.";
+
 		int M = samplesCount * 15;
 
 		std::vector<glm::vec2> uDistr = GetUniformDistributedSamples2D(
