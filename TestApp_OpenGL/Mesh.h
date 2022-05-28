@@ -784,7 +784,6 @@ public:
     // --------------------------------------------------------------
     virtual void DrawCustom(ShaderBase* shader) const = 0;
 
-
     virtual void SetMaterial(Material mat) = 0;
 
     // Overrides the old transformation with the one provided
@@ -811,8 +810,6 @@ public:
         SetTransformation(model);
     }
 
-
-   
     // Transforms the object 
     // --------------------------------------------------------------
     virtual void Transform(glm::mat4 transformation) = 0; // => implemented by derived classes and called by the base.
@@ -833,6 +830,7 @@ public:
         tr = glm::translate(tr, translation);
         Transform(tr);
     }
+
     void Translate(float x, float y, float z)
     {
         Translate(glm::vec3(x, y, z));
@@ -1072,9 +1070,6 @@ private:
         else return -1;
 
     }
-
-
-
 
 public:
     WiresRenderer(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale, Wire wire, WiresShader* shader, glm::vec4 color)

@@ -2436,7 +2436,7 @@ namespace OGLTextureUtils
         glTexParameteri(textureType, GL_TEXTURE_WRAP_T, wrapT);
 
 
-        if (NeedsMips(minfilter) || NeedsMips(magfilter))
+        if (NeedsMips(minfilter))
             glGenerateMipmap(textureType);
 
         OGLUtils::CheckOGLErrors();

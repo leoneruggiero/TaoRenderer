@@ -39,6 +39,23 @@ namespace Utils
 		/// <param name="domainType"> The domain type.</param>
 		/// <param name="domainSize"> The domain size. It's meaning depends on the type paramenter. </param>
 		Domain2D(DomainType2D domainType, float domainSize) : type(domainType), size(domainSize) {}
+
+		/// <summary>
+		/// Computes the area of the 2D domain.
+		/// </summary>
+		float Area()
+		{
+			switch (type)
+			{
+				case DomainType2D::Disk:
+					return glm::pi<float>() *size * size;
+				break;
+
+				case DomainType2D::Square:
+					return size * size;
+				break;
+			}
+		}
 	};
 
 	/// <summary>
@@ -47,13 +64,13 @@ namespace Utils
 	/// <param name="numValues"> The number of samples.</param>
 	/// <param name="min"> The minimum sample value.</param>
 	/// <param name="max"> The maximum sample value.</param>
-	std::vector<float> GetUniformDistributedSamples1D(int numValues, float min, float max)
+	std::vector<float> GetUniformDistributedSamples1D(int samplesCount, float min, float max)
 	{
 		std::default_random_engine generator;
 		std::uniform_real_distribution<float> distribution(min, max);
 		std::vector<float> noiseVec;
-		for (unsigned int i = 0; i < numValues; i++)
 
+		for (unsigned int i = 0; i < samplesCount; i++)
 			noiseVec.push_back(distribution(generator));
 
 		return noiseVec;
@@ -64,9 +81,9 @@ namespace Utils
 	/// </summary>
 	/// <param name="numValues"> The number of samples.</param>
 	/// <param name="domain"> The domain description.</param>
-	std::vector<glm::vec2> GetUniformDistributedSamples2D(int numValues, Domain2D domain)
+	std::vector<glm::vec2> GetUniformDistributedSamples2D(int samplesCount, Domain2D domain)
 	{
-		int smp1DCount = numValues * 2;
+		int smp1DCount = samplesCount * 2;
 
 		std::vector<float> smp1D = GetUniformDistributedSamples1D(smp1DCount, 0.0f, 1.0f);
 
@@ -101,6 +118,124 @@ namespace Utils
 
 		return smp2D;
 	}
+
+	struct WeightedSample
+	{
+		public:
+			glm::vec2 sample;
+			float weight;
+	};
+
+	float GetWeightContribution(glm::vec2 s1, glm::vec2 s2, float rMin, float rMax)
+	{
+		float alpha = 8.0f;
+		float distance = glm::distance(s1, s2);
+		
+		if (distance >= 2.0f * rMax) return 0.0f;
+
+		float d =
+			(distance > 2.0f * rMin)
+			? glm::min(2.0f * rMax, distance)
+			: 2.0f * rMin;
+
+		return  pow(1.0f - (d / (2.0 * rMax)), alpha);
+	}
+
+	std::vector<glm::vec2> GetPoissonDiskSamples2D(int samplesCount, Domain2D domain)
+	{
+		// Based on http://www.cemyuksel.com/research/sampleelimination/
+
+		// Constants
+		// ----------------------
+		int M = samplesCount * 15;
+		float
+			beta = 0.65f,
+			gamma = 1.5f;
+
+		std::vector<glm::vec2> uDistr = GetUniformDistributedSamples2D(
+			M, // More initial samples than target count (see reference).
+			domain
+		);
+
+		std::vector<WeightedSample> weightedSamples{};
+		weightedSamples.reserve(M);
+
+		// 1. Assign weights wi to each sample si
+		// --------------------------------------
+		float
+			rMax = sqrt(domain.Area() / (2.0f * sqrt(3.0f) * samplesCount)),
+			rMin = rMax * beta * (1.0f - pow(samplesCount / M, gamma));
+
+		// TODO: some kind of space partitioning !!!
+		for (int i = 0; i < M; i++)
+		{
+			float w = 0;
+			for (int j = 0; j < M; j++)
+			{
+				if (i == j) continue;
+
+				w += GetWeightContribution(uDistr[i], uDistr[j], rMin, rMax);
+			}
+
+			weightedSamples.push_back(WeightedSample{ uDistr[i], w });
+		}
+		
+		// 2. Build a heap for si using weights wi
+		// ---------------------------------------
+		std::make_heap(
+			weightedSamples.begin(), weightedSamples.end(),
+			[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; }
+		);
+		
+		// 3. while number of samples > desired 
+		//    pull from heap, update weight, update heap
+		// ---------------------------------------------
+		while (weightedSamples.size() > samplesCount)
+		{
+			std::pop_heap(weightedSamples.begin(), weightedSamples.end(),
+				[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; }
+			);
+
+			WeightedSample removed = weightedSamples[weightedSamples.size() - 1];
+			weightedSamples.pop_back();
+
+			for (auto& s : weightedSamples)
+				s.weight -= GetWeightContribution(s.sample, removed.sample, rMin, rMax);
+
+			std::make_heap(weightedSamples.begin(), weightedSamples.end(),
+				[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; });
+		}
+
+		// 5. Progessive Sampling
+		// ----------------------
+		std::vector<glm::vec2> res{};
+		res.reserve(samplesCount);
+
+		while (weightedSamples.size() > 0)
+		{
+			rMax = sqrt(domain.Area() / (2.0f * sqrt(3.0f) * weightedSamples.size()));
+			rMin = rMax * beta * (1.0f - pow(weightedSamples.size() / M, gamma));
+
+			std::pop_heap(weightedSamples.begin(), weightedSamples.end(),
+				[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; }
+			);
+
+			WeightedSample removed = weightedSamples[weightedSamples.size() - 1];
+			weightedSamples.pop_back();
+
+			for (auto& s : weightedSamples)
+				s.weight -= GetWeightContribution(s.sample, removed.sample, rMin, rMax);
+
+			std::make_heap(weightedSamples.begin(), weightedSamples.end(),
+				[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; });
+
+			res.insert(res.begin(), removed.sample);
+		}
+
+		return res;
+	}
+
+
 
 	template<typename T>
 	class Functor_MinMax
