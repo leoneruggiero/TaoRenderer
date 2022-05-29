@@ -426,7 +426,7 @@ namespace FragmentSource_Geometry
         R"(
 
     #define BLOCKER_SEARCH_SAMPLES 16
-    #define PCF_SAMPLES 32
+    #define PCF_SAMPLES 64
     
     #ifndef PI
     #define PI 3.14159265358979323846
@@ -545,7 +545,7 @@ namespace FragmentSource_Geometry
             vec2 sampleOffset  = PoissonSample(i);
             sampleOffset = Rotate2D(sampleOffset, noise);
 		    float z=texture(shadowMap, shadowCoords.xy + (sampleOffset * searchWidth)).r;
-            float bias =  ShadowBias(angle) + SlopeBiasForMultisampling(angle, length(sampleOffset) * searchWidth, shadowMapToWorldFactor);
+            float bias =  ShadowBias(angle);// + SlopeBiasForMultisampling(angle, length(sampleOffset) * searchWidth, shadowMapToWorldFactor);
 
             if (z + bias <= shadowCoords.z )
             {
@@ -570,14 +570,16 @@ namespace FragmentSource_Geometry
         float sum = 0;
         for (int i = 0; i < PCF_SAMPLES; i++)
         {
-                vec2 sampleOffset = PoissonSample(i)* uvRadius;
-                sampleOffset = Rotate2D(sampleOffset, noise * PI);
-		        float closestDepth=texture(shadowMap, shadowCoords.xy + sampleOffset).r;
+            vec2 sampleOffset = PoissonSample(i)* uvRadius;
+            
+            // Ugly screen space noise. However it's hardly noticeable with enough samples.
+            sampleOffset = Rotate2D(sampleOffset, noise * PI);
+		    float closestDepth=texture(shadowMap, shadowCoords.xy + sampleOffset).r;
 
-                sum+= 
-                    (closestDepth + ShadowBias(angle) + SlopeBiasForMultisampling(angle, length(sampleOffset) * uvRadius, shadowMapToWorldFactor)) <= shadowCoords.z 
-                    ? 0.0 
-                    : 1.0;
+            sum+= 
+                (closestDepth + ShadowBias(angle) + SlopeBiasForMultisampling(angle, length(sampleOffset) * uvRadius, shadowMapToWorldFactor)) <= shadowCoords.z 
+                ? 0.0 
+                : 1.0;
         }
 
 	    return sum / PCF_SAMPLES;

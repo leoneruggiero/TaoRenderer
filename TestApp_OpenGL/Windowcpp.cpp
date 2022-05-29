@@ -397,7 +397,7 @@ void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std
 
 void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
 {
-    Mesh planeMesh = Mesh::Box(5, 5, 0.5);
+    Mesh planeMesh = Mesh::Box(8, 8, 0.5);
 
     FileReader reader = FileReader("../../Assets/Models/Teapot.obj");
     reader.Load();
@@ -405,7 +405,7 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
 
     MeshRenderer plane = MeshRenderer(planeMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get());
     plane.SetMaterial(MaterialsCollection::MatteGray);
-    plane.Renderer::SetTransformation(glm::vec3(-2.5, -2.5, -0.5), 0, glm::vec3(1.0, 0, 0), glm::vec3(1, 1, 1));
+    plane.Renderer::SetTransformation(glm::vec3(-4, -4, -0.5), 0, glm::vec3(1.0, 0, 0), glm::vec3(1, 1, 1));
     
     
     MeshRenderer
@@ -824,20 +824,20 @@ void SetupScene(
     std::map<std::string, std::shared_ptr<WiresShader>>* wiresShadersCollection
 )
 {
-   // LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    //LoadPlane(sceneMeshCollection, meshShadersCollection, 4.0);
+    //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
+    LoadPlane(sceneMeshCollection, meshShadersCollection, 10.0f);
     //LoadScene_PbrTextSpheres(sceneMeshCollection, shadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, shadersCollection);
-    //LoadScene_TechnoDemon(sceneMeshCollection, shadersCollection);
+    //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("./Assets/Models/suzanne.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ClayShingles);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
-    //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
+    LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
     //LoadSceneFromPath("./Assets/Models/Dragon.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("./Assets/Models/Knob.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
-    //LoadSceneFromPath("./Assets/Models/trees.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::MatteGray);
-    LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
+    //LoadSceneFromPath("../../Assets/Models/trees.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
+    //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, shadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
