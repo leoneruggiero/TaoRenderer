@@ -128,7 +128,7 @@ namespace GeometrySource_Geometry
     }
     )";
 
-    const std::string THICK_LINES =
+    const std::string THICK_LINE_STRIP =
         R"(
 
     #version 330 core
@@ -201,6 +201,49 @@ namespace GeometrySource_Geometry
         gl_Position = l2_ss > 0
                         ? m3_ndc
                         : m2_ndc;
+        EmitVertex();
+
+        EndPrimitive();
+    }
+    )";
+
+    const std::string THICK_LINES =
+        R"(
+
+    #version 330 core
+
+    layout(lines) in;
+    layout(triangle_strip, max_vertices = 4) out;
+
+    // 1.0 / screen size 
+    uniform vec2 u_screenToWorld;
+    uniform float u_near;
+    uniform uint u_thickness;
+
+    void main() {
+        
+        // Normal in screen space
+        vec2 n0_ss = 
+                    (gl_in[1].gl_Position.xy/gl_in[1].gl_Position.w) - 
+                    (gl_in[0].gl_Position.xy/gl_in[0].gl_Position.w);
+
+        n0_ss = normalize((n0_ss.xy / u_screenToWorld.xy));
+        n0_ss = vec2(-n0_ss.y, n0_ss.x);
+
+        float f = u_thickness * gl_in[0].gl_Position.w;
+
+        gl_Position = gl_in[0].gl_Position + f * vec4(n0_ss * u_screenToWorld, 0.0, 0.0);
+        EmitVertex();
+
+        gl_Position = gl_in[0].gl_Position - f * vec4(n0_ss * u_screenToWorld, 0.0, 0.0);
+        EmitVertex();
+
+        f = u_thickness * gl_in[1].gl_Position.w;
+
+        gl_Position = gl_in[1].gl_Position + f * vec4(n0_ss * u_screenToWorld, 0.0, 0.0);
+        EmitVertex();
+
+        gl_Position = gl_in[1].gl_Position - f * vec4(n0_ss * u_screenToWorld, 0.0, 0.0);
         EmitVertex();
 
         EndPrimitive();
@@ -3032,15 +3075,14 @@ class WiresShader : public ShaderBase
 {
 
 public:
-    WiresShader(std::vector<std::string> vertexExpansions, std::vector<std::string> fragmentExpansions, bool points) :
+    WiresShader(std::vector<std::string> vertexExpansions, std::vector<std::string> fragmentExpansions, WireNature wireNature) :
         ShaderBase(
 
             VertexSource_Geometry::Expand(
                 VertexSource_Geometry::EXP_VERTEX,
                 vertexExpansions),
-            points
-            ? GeometrySource_Geometry::THICK_POINTS
-            : GeometrySource_Geometry::THICK_LINES,
+
+            ResolveGeometryShader(wireNature),
 
             FragmentSource_Geometry::Expand(
                 FragmentSource_Geometry::EXP_FRAGMENT,
@@ -3057,6 +3099,24 @@ public:
     void SetMatrices(glm::mat4 modelMatrix) const override
     {
         glUniformMatrix4fv(UniformLocation("model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+    }
+
+private:
+    std::string ResolveGeometryShader(WireNature nature)
+    {
+        switch (nature)
+        {
+        case WireNature::POINTS:
+            return GeometrySource_Geometry::THICK_POINTS;
+        case WireNature::LINES:
+            return GeometrySource_Geometry::THICK_LINES;
+            break;
+        case WireNature::LINE_STRIP:
+            return GeometrySource_Geometry::THICK_LINE_STRIP;
+            break;
+        default:
+            break;
+        }
     }
 };
 

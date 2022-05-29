@@ -597,7 +597,7 @@ public:
             glm::sin(da * subdivisions),
             0.0f));
 
-        return Wire(points, WireNature::LINES);
+        return Wire(points, WireNature::LINE_STRIP);
     }
     static Wire Rect(glm::vec2 min, glm::vec2 max)
     {
@@ -609,7 +609,7 @@ public:
             glm::vec3(min.x, max.y, 0.0f),
             glm::vec3(min, 0.0f)
         };
-        return Wire(points, WireNature::LINES);
+        return Wire(points, WireNature::LINE_STRIP);
     }
     static Wire Square(glm::vec2 center, float size)
     {
@@ -1114,21 +1114,22 @@ public:
         // Happily naive....tolerances are not fun
         bool isClosed = glm::all(glm::equal(start, end, 0.1f));
 
-        // If closed fill adj data rotating the array
-        if (isClosed)
-        {
-            start = positions[positions.size() - 2],
-            end = positions[1];
-        }
-        else
-        {
-            start = positions[0] + positions[0] - positions[1],
-            end = positions[positions.size() - 1] + positions[positions.size() - 1] - positions[positions.size() - 2];
-        }
 
         // lines with adjacency data
-        if (_wire.GetNature() == WireNature::LINES)
+        if (_wire.GetNature() == WireNature::LINE_STRIP)
         {
+            // If closed fill adj data rotating the array
+            if (isClosed)
+            {
+                start = positions[positions.size() - 2],
+                    end = positions[1];
+            }
+            else
+            {
+                start = positions[0] + positions[0] - positions[1],
+                    end = positions[positions.size() - 1] + positions[positions.size() - 1] - positions[positions.size() - 2];
+            }
+
             positions.insert(positions.end(), end);
             positions.insert(positions.begin(), start);
             _numVertices += 2;
@@ -1150,8 +1151,7 @@ public:
     
     void Draw(glm::vec3 eye, const SceneParams& sceneParams) const override
     {
-        bool isLines = _wire.GetNature() == WireNature::LINES;
-
+       
         _shader->SetCurrent();
         _shader->SetMatrices(_modelMatrix);
         _shader->SetColor(_color);
@@ -1160,18 +1160,14 @@ public:
 
         glUniform2fv(_shader->UniformLocation("u_screenToWorld"), 1, glm::value_ptr(screenToWorldFactor));
         glUniform1ui(_shader->UniformLocation("u_thickness"),
-            isLines
-            ? sceneParams.lineWidth
-            : sceneParams.pointWidth);
+            _wire.GetNature() == WireNature::POINTS
+            ? sceneParams.pointWidth
+            : sceneParams.lineWidth);
         glUniform1f(_shader->UniformLocation("u_near"), sceneParams.cameraNear);
 
         _vao.Bind();
 
-        glDrawArrays(
-            isLines
-            ? GL_LINE_STRIP_ADJACENCY
-            : GL_POINTS
-            , 0, _numVertices);
+        glDrawArrays(ResolveDrawingMode(_wire.GetNature()), 0, _numVertices);
 
         _vao.UnBind();
 
@@ -1218,6 +1214,19 @@ public:
         return transformed;
     }
 
+    private:
+        GLenum ResolveDrawingMode(const WireNature &nature) const
+        {
+            switch (nature)
+            {
+            case WireNature::POINTS: return     GL_POINTS;                  break;
+            case WireNature::LINES: return      GL_LINES;                   break;
+            case WireNature::LINE_STRIP: return GL_LINE_STRIP_ADJACENCY;    break;
+
+            default:
+                break; throw "Unsupported WireNature. Allowed values are: POINTS, LINES, LINE_STRIP";
+            }
+        }
 };
 
 

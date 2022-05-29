@@ -8,7 +8,8 @@
 enum class WireNature
 {
 	POINTS = 0,
-	LINES = 1
+	LINES = 1,
+	LINE_STRIP = 2
 };
 
 enum class AOType

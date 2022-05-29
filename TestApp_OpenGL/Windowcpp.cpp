@@ -272,18 +272,18 @@ void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std
     
     // Circles
     // -----------------
-    WiresRenderer circle_8 = WiresRenderer(circleWire, shadersCollection->at("LINES").get());
+    WiresRenderer circle_8 = WiresRenderer(circleWire, shadersCollection->at("LINE_STRIP").get());
     circle_8.SetColor(glm::vec4(0.0, 0.5, 0.5, 1.0));
 
-    WiresRenderer circle_16 = WiresRenderer(circleWire, shadersCollection->at("LINES").get());
+    WiresRenderer circle_16 = WiresRenderer(circleWire, shadersCollection->at("LINE_STRIP").get());
     ((Renderer*)&circle_16)->Translate(2.5f, 0.0f , 0.0f);
     circle_16.SetColor(glm::vec4(0.0, 0.5, 0.5, 1.0));
 
-    WiresRenderer circle_32 = WiresRenderer(circleWire, shadersCollection->at("LINES").get());
+    WiresRenderer circle_32 = WiresRenderer(circleWire, shadersCollection->at("LINE_STRIP").get());
     ((Renderer*)&circle_32)->Translate(5.0f, 0.0f, 0.0f);
     circle_32.SetColor(glm::vec4(0.0, 0.5, 0.5, 1.0));
 
-    WiresRenderer circle_64 = WiresRenderer(circleWire, shadersCollection->at("LINES").get());
+    WiresRenderer circle_64 = WiresRenderer(circleWire, shadersCollection->at("LINE_STRIP").get());
     ((Renderer*)&circle_64)->Translate(7.5f, 0.0f, 0.0f);
     circle_64.SetColor(glm::vec4(0.0, 0.5, 0.5, 1.0));
 
@@ -332,19 +332,19 @@ void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std
 
     // Squares
     // -----------------
-    WiresRenderer square_8 = WiresRenderer(squareWire, shadersCollection->at("LINES").get());
+    WiresRenderer square_8 = WiresRenderer(squareWire, shadersCollection->at("LINE_STRIP").get());
     ((Renderer*)&square_8)->Translate(-1.0f, 2.5f, 0.0f);
     square_8.SetColor(glm::vec4(0.9, 0.5, 0.0, 1.0));
 
-    WiresRenderer square_16 = WiresRenderer(squareWire, shadersCollection->at("LINES").get());
+    WiresRenderer square_16 = WiresRenderer(squareWire, shadersCollection->at("LINE_STRIP").get());
     ((Renderer*)&square_16)->Translate(1.5f, 2.5f, 0.0f);
     square_16.SetColor(glm::vec4(0.9, 0.5, 0.0, 1.0));
 
-    WiresRenderer square_32 = WiresRenderer(squareWire, shadersCollection->at("LINES").get());
+    WiresRenderer square_32 = WiresRenderer(squareWire, shadersCollection->at("LINE_STRIP").get());
     ((Renderer*)&square_32)->Translate(4.0f, 2.5f, 0.0f);
     square_32.SetColor(glm::vec4(0.9, 0.5, 0.0, 1.0));
 
-    WiresRenderer square_64 = WiresRenderer(squareWire, shadersCollection->at("LINES").get());
+    WiresRenderer square_64 = WiresRenderer(squareWire, shadersCollection->at("LINE_STRIP").get());
     ((Renderer*)&square_64)->Translate(6.5f, 2.5f, 0.0f);
     square_64.SetColor(glm::vec4(0.9, 0.5, 0.0, 1.0));
 
@@ -825,7 +825,7 @@ void SetupScene(
 )
 {
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 10.0f);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 10.0f);
     //LoadScene_PbrTextSpheres(sceneMeshCollection, shadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, shadersCollection);
@@ -833,7 +833,7 @@ void SetupScene(
     //LoadSceneFromPath("./Assets/Models/suzanne.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ClayShingles);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
-    LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
+    //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
     //LoadSceneFromPath("./Assets/Models/Dragon.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("./Assets/Models/Knob.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("../../Assets/Models/trees.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
@@ -841,7 +841,7 @@ void SetupScene(
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, shadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -863,7 +863,7 @@ std::map<std::string, std::shared_ptr<WiresShader>> InitializeWiresShaders()
             "DEFS_MATERIAL",
             "CALC_UNLIT_MAT"
             }),
-            true
+            WireNature::POINTS
     ) };
 
     std::shared_ptr<WiresShader> lines{ std::make_shared<WiresShader>(
@@ -873,13 +873,24 @@ std::map<std::string, std::shared_ptr<WiresShader>> InitializeWiresShaders()
             "DEFS_MATERIAL",
             "CALC_UNLIT_MAT"
             }),
-            false
+            WireNature::LINES
+    ) };
+
+    std::shared_ptr<WiresShader> lineStrip{ std::make_shared<WiresShader>(
+        std::vector<std::string>({/* NO VERTEX_SHADER EXPANSIONS */ }),
+        std::vector<std::string>(
+            {
+            "DEFS_MATERIAL",
+            "CALC_UNLIT_MAT"
+            }),
+            WireNature::LINE_STRIP
     ) };
 
     return std::map<std::string, std::shared_ptr<WiresShader>>
     {
-        { "POINTS", points },
-        { "LINES",  lines }
+        { "POINTS",     points },
+        { "LINE_STRIP", lineStrip },
+        { "LINES",      lines }
     };
 }
 
