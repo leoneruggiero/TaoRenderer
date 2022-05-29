@@ -426,7 +426,7 @@ namespace FragmentSource_Geometry
         R"(
 
     #define BLOCKER_SEARCH_SAMPLES 16
-    #define PCF_SAMPLES 16
+    #define PCF_SAMPLES 32
     
     #ifndef PI
     #define PI 3.14159265358979323846
@@ -439,6 +439,7 @@ namespace FragmentSource_Geometry
     uniform sampler2D noiseTex_0;
     uniform sampler2D noiseTex_1;
     uniform sampler2D noiseTex_2;    
+    uniform sampler1D poissonSamples;
 
     layout (std140) uniform blk_PerFrameData
     {
@@ -465,26 +466,11 @@ namespace FragmentSource_Geometry
     // *** UTILITY ***//
     // --------------------------------------------------------- //
 
-     vec2 poissonDisk[16] = vec2[](
-     vec2( -0.94201624, -0.39906216 ),
-     vec2( 0.94558609, -0.76890725 ),
-     vec2( -0.094184101, -0.92938870 ),
-     vec2( 0.34495938, 0.29387760 ),
-     vec2( -0.91588581, 0.45771432 ),
-     vec2( -0.81544232, -0.87912464 ),
-     vec2( -0.38277543, 0.27676845 ),
-     vec2( 0.97484398, 0.75648379 ),
-     vec2( 0.44323325, -0.97511554 ),
-     vec2( 0.53742981, -0.47373420 ),
-     vec2( -0.26496911, -0.41893023 ),
-     vec2( 0.79197514, 0.19090188 ),
-     vec2( -0.24188840, 0.99706507 ),
-     vec2( -0.81409955, 0.91437590 ),
-     vec2( 0.19984126, 0.78641367 ),
-     vec2( 0.14383161, -0.14100790 )
-    ); 
-
-
+    vec2 PoissonSample(int index)
+    {
+        return texelFetch(poissonSamples, index, 0).rg;
+    }
+        
     float RandomValue()
     {
         // Using 3 textures with convenient resolution (like 9x9, 10x10, 11x11) to get a non repeating (almost) noise pattern 
@@ -515,11 +501,7 @@ namespace FragmentSource_Geometry
         return (noise0 + noise1 + noise2) / 3.0;
     }
 
-    vec2 PoissonSample(int i)
-    {
-        return poissonDisk[i];
-    }
-
+  
     vec2 Rotate2D(vec2 direction, float angle)
     {
         float sina = sin(angle);
@@ -1001,26 +983,6 @@ namespace FragmentSource_PostProcessing
     // *** UTILITY ***//
     // --------------------------------------------------------- //
 
-     vec2 poissonDisk[16] = vec2[](
-     vec2( -0.94201624, -0.39906216 ),
-     vec2( 0.94558609, -0.76890725 ),
-     vec2( -0.094184101, -0.92938870 ),
-     vec2( 0.34495938, 0.29387760 ),
-     vec2( -0.91588581, 0.45771432 ),
-     vec2( -0.81544232, -0.87912464 ),
-     vec2( -0.38277543, 0.27676845 ),
-     vec2( 0.97484398, 0.75648379 ),
-     vec2( 0.44323325, -0.97511554 ),
-     vec2( 0.53742981, -0.47373420 ),
-     vec2( -0.26496911, -0.41893023 ),
-     vec2( 0.79197514, 0.19090188 ),
-     vec2( -0.24188840, 0.99706507 ),
-     vec2( -0.81409955, 0.91437590 ),
-     vec2( 0.19984126, 0.78641367 ),
-     vec2( 0.14383161, -0.14100790 )
-    ); 
-
-
     float RandomValue()
     {
         // Using 3 textures with convenient resolution (like 9x9, 10x10, 11x11) to get a non repeating (almost) noise pattern 
@@ -1049,11 +1011,6 @@ namespace FragmentSource_PostProcessing
         float noise2 = texelFetch(noiseTex_2, ivec2(mod(fragCoord.xy,noiseSize_2.xy)), 0).r;
 
         return (noise0 + noise1 + noise2) / 3.0;
-    }
-
-    vec2 PoissonSample(int i)
-    {
-        return poissonDisk[i];
     }
 
     vec2 Rotate2D(vec2 direction, float angle)
@@ -1611,793 +1568,33 @@ namespace OGLUtils
     }
 }
 
-class OGLResource
-{
-
-public:
-    OGLResource()
-        : _id(0), _type(OGLResourceType::UNDEFINED) {};
-
-    // No Copy Constructor/Assignment allowed
-    OGLResource(const OGLResource&) = delete;
-    OGLResource& operator=(const OGLResource&) = delete;
-
-    OGLResource(OGLResource&& other) noexcept
-    {
-        _id = other._id;
-        _type = other._type;
-        other._id = 0;
-        other._type = OGLResourceType::UNDEFINED;
-    };
-
-    OGLResource& operator=(OGLResource&& other) noexcept
-    {
-        if (this != &other)
-        {
-            NotifyDestruction();
-            FreeResources(_type);
-            OGLUtils::CheckOGLErrors();
-
-            _id = other._id;
-            other._id = 0;
-        }
-        return *this;
-    };
-
-    ~OGLResource()
-    {
-        if(_id)
-            throw "Trying to destroy an OpenGL resource without deleting it first";
-    }
-    
-    unsigned int ID() const
-    {
-        if (!_id)
-            throw "Trying to use an uninitialized/deleted OpenGL resource";
-
-        return _id;
-    }
-
-private:
-    unsigned int _id;
-    OGLResourceType _type;
-    void InitResources(OGLResourceType type)
-    {
-        ResourceTypeSwitch(type, false);
-    };
-    void FreeResources(OGLResourceType type)
-    {
-        ResourceTypeSwitch(type, true);
-    };
-    void ResourceTypeSwitch(OGLResourceType type, bool destroy)
-    {
-        switch (type)
-        {
-        case (OGLResourceType::VERTEX_SHADER):
-            if (!destroy)
-                _id = glCreateShader(GL_VERTEX_SHADER);
-            else
-            {
-                glDeleteShader(_id);
-                _id = 0;
-            }
-            break;
-
-        case (OGLResourceType::FRAGMENT_SHADER):
-            if (!destroy)
-                _id = glCreateShader(GL_FRAGMENT_SHADER);
-            else
-            {
-                glDeleteShader(_id);
-                _id = 0;
-            }
-            break;
-
-        case (OGLResourceType::GEOMETRY_SHADER):
-            if (!destroy)
-                _id = glCreateShader(GL_GEOMETRY_SHADER);
-            else
-            {
-                glDeleteShader(_id);
-                _id = 0;
-            }
-            break;
-
-        case (OGLResourceType::SHADER_PROGRAM):
-            if (!destroy)
-                _id = glCreateProgram();
-            else
-            {
-                glDeleteProgram(_id);
-                _id = 0;
-            }
-            break;
-
-        case (OGLResourceType::VERTEX_BUFFER_OBJECT):
-        case (OGLResourceType::INDEX_BUFFER):
-        case (OGLResourceType::UNIFORM_BUFFER):
-            if (!destroy)
-                glGenBuffers(1, &_id);
-            else
-            {
-                glDeleteBuffers(1, &_id);
-                _id = 0;
-            }
-                break;
-
-        case(OGLResourceType::VERTEX_ATTRIB_ARRAY):
-                if (!destroy)
-                    glGenVertexArrays(1, &_id);
-                else
-                {
-                    glDeleteVertexArrays(1, &_id);
-                    _id = 0;
-                }
-                break;
-        case(OGLResourceType::TEXTURE):
-            if (!destroy)
-                glGenTextures(1, &_id);
-            else
-            {
-                glDeleteTextures(1, &_id);
-                _id = 0;
-            }
-            break;
-        case(OGLResourceType::FRAMEBUFFER):
-            if (!destroy)
-                glGenFramebuffers(1, &_id);
-            else
-            {
-                glDeleteFramebuffers(1, &_id);
-                _id = 0;
-            }
-            break;
-        default:
-            throw "Unhandled Resource Type";
-            break;
-        }
-    }
-
-protected:
-    void Create(OGLResourceType type)
-    {
-        _type = type;
-        InitResources(_type);
-        OGLUtils::CheckOGLErrors();
-
-        NotifyCreation();
-    }
-
-    void Destroy()
-    {
-        // Skip if the resources has already been freed (like after a move assignemnt)
-        if (_id)
-        {
-            NotifyDestruction();
-            FreeResources(_type);
-            OGLUtils::CheckOGLErrors();
-        }
-    }
-    std::string ResourceType()
-    { 
-        switch (_type)
-        {
-        case (OGLResourceType::VERTEX_SHADER):
-            return "VERTEX_SHADER";
-            break;
-
-        case (OGLResourceType::FRAGMENT_SHADER):
-            return "FRAGMENT_SHADER";
-            break;
-
-        case (OGLResourceType::GEOMETRY_SHADER):
-            return "GEOMETRY_SHADER";
-            break;
-
-        case (OGLResourceType::SHADER_PROGRAM):
-            return "SHADER_PROGRAM";
-            break;
-
-        case (OGLResourceType::VERTEX_BUFFER_OBJECT):
-            return "VERTEX_BUFFER_OBJECT";
-            break;
-
-        case (OGLResourceType::INDEX_BUFFER):
-            return "INDEX_BUFFER";
-            break;
-
-        case (OGLResourceType::UNIFORM_BUFFER):
-            return "UNIFORM_BUFFER";
-            break;
-
-        case(OGLResourceType::VERTEX_ATTRIB_ARRAY):
-            return "VERTEX_ATTRIB_ARRAY";
-            break;
-
-        case(OGLResourceType::TEXTURE):
-            return "TEXTURE";
-            break;
-
-        case(OGLResourceType::FRAMEBUFFER):
-            return "FRAMEBUFFER";
-            break;
-        }
-    }
-    void NotifyCreation() { std::cout << std::endl << "Creating OGL Object: " + ResourceType() + "_" + std::to_string(ID()); }
-    void NotifyDestruction() { std::cout << std::endl << "Destroying OGL Object: " + ResourceType() + "_" + std::to_string(ID()); }
-
-};
-
-class VertexBufferObject : public OGLResource
-{
-public:
-    enum class VBOType
-    {
-        Undefined,
-        StaticDraw,
-        DynamicDraw,
-        StreamDraw
-    };
-
-public:
-
-    VertexBufferObject(VBOType type) : _type(type)
-    {
-        OGLResource::Create(OGLResourceType::VERTEX_BUFFER_OBJECT);
-    }
-
-    VertexBufferObject(VertexBufferObject&& other) noexcept : OGLResource(std::move(other))
-    {
-        this->_type = other._type;
-        other._type = VBOType::Undefined;
-    };
-
-    VertexBufferObject& operator=(VertexBufferObject&& other) noexcept
-    {
-        if (this != &other)
-        {
-            OGLResource::operator=(std::move(other));
-            this->_type = other._type;
-            other._type = VBOType::Undefined;
-        }
-        return *this;
-    };
-
-    ~VertexBufferObject()
-    {
-        OGLResource::Destroy();
-    }
-
-    GLenum ResolveUsage(VBOType type)
-    {
-        switch (type)
-        {
-        case(VBOType::StaticDraw):
-            return GL_STATIC_DRAW;
-            break;
-
-        case(VBOType::DynamicDraw):
-            return GL_DYNAMIC_DRAW;
-            break;
-
-        case(VBOType::StreamDraw):
-            GL_STREAM_DRAW;
-            break;
-        default:
-            return -1;
-            break;
-        }
-    }
-
-    void Bind()
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, OGLResource::ID());
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    void UnBind()
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    void SetData(unsigned int count, const float* data)
-    {
-        Bind();
-        glBufferData(GL_ARRAY_BUFFER, count * sizeof(float), data != nullptr ? data : NULL, ResolveUsage(_type));
-        UnBind();
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    void SetSubData(unsigned int startIndex, unsigned int count, const float* data)
-    {
-        Bind();
-        glBufferSubData(GL_ARRAY_BUFFER, startIndex * sizeof(float), count * sizeof(float), data != nullptr ? data : NULL);
-        UnBind();
-
-        OGLUtils::CheckOGLErrors();
-    }
-private:
-    VBOType _type;
-};
-
-class IndexBufferObject : public OGLResource
-{
-public:
-    enum class EBOType
-    {
-        Undefined,
-        StaticDraw,
-        DynamicDraw,
-        StreamDraw
-    };
-
-public:
-    IndexBufferObject(EBOType type) : _type(type)
-    {
-        OGLResource::Create(OGLResourceType::INDEX_BUFFER);
-    }
-
-    IndexBufferObject(IndexBufferObject&& other) noexcept : OGLResource(std::move(other))
-    {
-        this->_type = other._type;
-        other._type = EBOType::Undefined;
-    };
-
-    IndexBufferObject& operator=(IndexBufferObject&& other) noexcept
-    {
-        if (this != &other)
-        {
-            OGLResource::operator=(std::move(other));
-            this->_type = other._type;
-            other._type = EBOType::Undefined;
-        }
-        return *this;
-    };
-
-    ~IndexBufferObject()
-    {
-        OGLResource::Destroy();
-    }
-
-    GLenum ResolveUsage(EBOType type)
-    {
-        switch (type)
-        {
-        case(EBOType::StaticDraw):
-            return GL_STATIC_DRAW;
-            break;
-
-        case(EBOType::DynamicDraw):
-            return GL_DYNAMIC_DRAW;
-            break;
-
-        case(EBOType::StreamDraw):
-            GL_STREAM_DRAW;
-            break;
-        default:
-            return -1;
-            break;
-        }
-    }
-
-    void Bind()
-    {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, OGLResource::ID());
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    void UnBind()
-    {
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    void SetData(unsigned int count, const int* data)
-    {
-        Bind();
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(int), data != nullptr ? data : NULL, ResolveUsage(_type));
-        UnBind();
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    void SetSubData(unsigned int startIndex, unsigned int count, const int* data)
-    {
-        Bind();
-        glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, startIndex * sizeof(int), count * sizeof(int), data != nullptr ? data : NULL);
-        UnBind();
-
-        OGLUtils::CheckOGLErrors();
-    }
-private:
-    EBOType _type;
-};
-
-class UniformBufferObject : public OGLResource
-{
-public:
-    enum class UBOType
-    {
-        Undefined,
-        StaticDraw,
-        DynamicDraw,
-        StreamDraw
-    };
-
-
-public:
-    UniformBufferObject(UBOType type) : _type(type)
-    {
-        OGLResource::Create(OGLResourceType::UNIFORM_BUFFER);
-    }
-
-    UniformBufferObject(UniformBufferObject&& other) noexcept : OGLResource(std::move(other))
-    {
-        this->_type = other._type;
-        other._type = UBOType::Undefined;
-    };
-
-    UniformBufferObject& operator=(UniformBufferObject&& other) noexcept
-    {
-        if (this != &other)
-        {
-            OGLResource::operator=(std::move(other));
-            this->_type = other._type;
-            other._type = UBOType::Undefined;
-        }
-        return *this;
-    };
-
-    ~UniformBufferObject()
-    {
-        OGLResource::Destroy();
-    }
-
-    GLenum ResolveUsage(UBOType type)
-    {
-        switch (type)
-        {
-        case(UBOType::StaticDraw):
-            return GL_STATIC_DRAW;
-            break;
-
-        case(UBOType::DynamicDraw):
-            return GL_DYNAMIC_DRAW;
-            break;
-
-        case(UBOType::StreamDraw):
-            GL_STREAM_DRAW;
-            break;
-        default:
-            return -1;
-            break;
-        }
-    }
-
-    void Bind()
-    {
-        glBindBuffer(GL_UNIFORM_BUFFER, OGLResource::ID());
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    void UnBind()
-    {
-        glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    template<typename T>
-    void SetData(unsigned int count, const T* data)
-    {
-        Bind();
-        glBufferData(GL_UNIFORM_BUFFER, count * sizeof(T), data != nullptr ? data : NULL, ResolveUsage(_type));
-        UnBind();
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    template<typename T>
-    void SetSubData(unsigned int startIndex, unsigned int count, const T* data)
-    {
-        OGLUtils::CheckOGLErrors();
-
-        Bind();
-        glBufferSubData(GL_UNIFORM_BUFFER, startIndex * sizeof(T), count * sizeof(T), data != nullptr ? data : NULL);
-        UnBind();
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    void BindingPoint(UBOBinding binding)
-    {
-        glBindBufferBase(GL_UNIFORM_BUFFER, binding, OGLResource::ID());
-    }
-
-private:
-    UBOType _type;
-};
-
-class VertexAttribArray : public OGLResource
-{
-
-public:
-    VertexAttribArray()
-    {
-        OGLResource::Create(OGLResourceType::VERTEX_ATTRIB_ARRAY);
-    }
-
-    VertexAttribArray(VertexAttribArray&& other) noexcept : OGLResource(std::move(other)) {};
-
-    VertexAttribArray& operator=(VertexAttribArray&& other) noexcept
-    {
-        if (this != &other)
-        {
-            OGLResource::operator=(std::move(other));
-        }
-        return *this;
-    };
-
-    ~VertexAttribArray()
-    {
-        OGLResource::Destroy();
-    }
-
-    void Bind() const
-    {
-        OGLUtils::CheckOGLErrors();
-
-        glBindVertexArray(OGLResource::ID());
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    void UnBind() const
-    {
-        glBindVertexArray(0);
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-
-    void SetAndEnableAttrib(unsigned int buffer, unsigned int index, int components, bool normalized, unsigned int stride, unsigned int countOffset)
-    {
-        glBindBuffer(GL_ARRAY_BUFFER, buffer);
-
-        Bind();
-        glVertexAttribPointer(index, components, GL_FLOAT, normalized ? GL_TRUE : GL_FALSE, stride, (void*)(countOffset * sizeof(float)));
-        glEnableVertexAttribArray(index);
-        UnBind();
-
-        glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    void SetIndexBuffer(unsigned int indexBuffer)
-    {
-
-        Bind();
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
-        UnBind();
-        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-    }
-};
-
-
-class OGLFragmentShader : public OGLResource
-{
-    private:
-        std::string _source;
-
-    public:
-        OGLFragmentShader(std::string source) : _source{ source } 
-        {
-            OGLResource::Create(OGLResourceType::FRAGMENT_SHADER);
-
-            const char* fsc = source.data();
-            glShaderSource(OGLResource::ID(), 1, &fsc, NULL);
-            glCompileShader(OGLResource::ID());
-            OGLUtils::CheckCompileErrors(OGLResource::ID(), ResourceType());
-            OGLUtils::CheckOGLErrors();
-        }
-
-        OGLFragmentShader(OGLFragmentShader&& other) noexcept : OGLResource(std::move(other))
-        {
-            _source = std::move(other._source);
-        };
-
-        OGLFragmentShader& operator=(OGLFragmentShader&& other) noexcept
-        {
-            if (this != &other)
-            {
-                OGLResource::operator=(std::move(other));
-                _source = std::move(other._source);
-            }
-            return *this;
-        };
-
-        ~OGLFragmentShader()
-        {
-            OGLResource::Destroy();
-        }
-};
-
-class OGLGeometryShader : public OGLResource
-{
-private:
-    std::string _source;
-
-public:
-    OGLGeometryShader(std::string source) : _source{ source }
-    {
-        OGLResource::Create(OGLResourceType::GEOMETRY_SHADER);
-
-        const char* gsc = source.data();
-        glShaderSource(OGLResource::ID(), 1, &gsc, NULL);
-        glCompileShader(OGLResource::ID());
-        OGLUtils::CheckCompileErrors(OGLResource::ID(), ResourceType());
-        OGLUtils::CheckOGLErrors();
-    }
-
-    OGLGeometryShader(OGLGeometryShader&& other) noexcept : OGLResource(std::move(other))
-    {
-        _source = std::move(other._source);
-    };
-
-    OGLGeometryShader& operator=(OGLGeometryShader&& other) noexcept
-    {
-        if (this != &other)
-        {
-            OGLResource::operator=(std::move(other));
-            _source = std::move(other._source);
-        }
-        return *this;
-    };
-
-    ~OGLGeometryShader()
-    {
-        OGLResource::Destroy();
-    }
-};
-
-class OGLVertexShader : public OGLResource
-{
-private:
-    std::string _source;
-
-public:
-    OGLVertexShader(std::string source) : _source{ source }
-    {
-        OGLResource::Create(OGLResourceType::VERTEX_SHADER);
-
-        const char* vsc = source.data();
-        glShaderSource(OGLResource::ID(), 1, &vsc, NULL);
-        glCompileShader(OGLResource::ID());
-        OGLUtils::CheckCompileErrors(OGLResource::ID(), ResourceType());
-        OGLUtils::CheckOGLErrors();
-    }
-
-    OGLVertexShader(OGLVertexShader&& other) noexcept : OGLResource(std::move(other))
-    {
-        _source = std::move(other._source);
-    };
-
-    OGLVertexShader& operator=(OGLVertexShader&& other) noexcept
-    {
-        if (this != &other)
-        {
-            OGLResource::operator=(std::move(other));
-            _source = std::move(other._source);
-        }
-        return *this;
-    };
-
-    ~OGLVertexShader()
-    {
-        OGLResource::Destroy();
-    }
-
-};
-
-class ShaderProgram : public OGLResource
-{
-
-public:
-    // constructor generates the shader on the fly
-    // ------------------------------------------------------------------------
-    ShaderProgram(const std::string vShaderCode, std::string fShaderCode, std::string gShaderCode)
-    {
-
-        OGLVertexShader vertex(vShaderCode);
-        OGLFragmentShader fragment(fShaderCode);
-
-        OGLResource::Create(OGLResourceType::SHADER_PROGRAM);
-
-        glAttachShader(OGLResource::ID(), vertex.ID());
-        glAttachShader(OGLResource::ID(), fragment.ID());
-
-        if (!gShaderCode.empty())
-        {
-            OGLGeometryShader geometry(gShaderCode);
-            glAttachShader(OGLResource::ID(), geometry.ID());
-        }
-
-        glLinkProgram(OGLResource::ID());
-        OGLUtils::CheckLinkErrors(OGLResource::ID(), ResourceType());
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    ShaderProgram(const std::string vShaderCode, std::string fShaderCode) : ShaderProgram(vShaderCode, fShaderCode, "")
-    {
-       
-    }
-   
-    ShaderProgram(OGLVertexShader&& other) : OGLResource(std::move(other)) {};
-
-    ShaderProgram& operator=(ShaderProgram&& other) noexcept
-    {
-        if (this != &other)
-        {
-            OGLResource::operator=(std::move(other));
-        }
-        return *this;
-    };
-
-    void  Enable() const { glUseProgram(OGLResource::ID()); }
-
-    std::vector<std::pair<unsigned int, std::string>> GetInput()
-    {
-        unsigned int id = OGLResource::ID();
-
-        int numAttribs;
-        glGetProgramInterfaceiv(id, GL_PROGRAM_INPUT, GL_ACTIVE_RESOURCES, &numAttribs);
-        unsigned int properties[] = { GL_NAME_LENGTH, GL_TYPE, GL_LOCATION };
-
-        std::vector<std::pair<unsigned int, std::string>> res{};
-        for (int i = 0; i < numAttribs; ++i) 
-        {
-            GLint results[3];
-            glGetProgramResourceiv(id, GL_PROGRAM_INPUT, i, 3, properties, 3, NULL, results);
-
-            GLint nameBufSize = results[0];
-            std::unique_ptr<char[]> name(std::make_unique<char[]>(nameBufSize));
-            glGetProgramResourceName(id, GL_PROGRAM_INPUT, i, nameBufSize, NULL, name.get());
-            
-            res.push_back(std::pair<unsigned int, std::string>(results[2], std::string(name.get())));
-            
-        }
-        return res;
-    }
-
-    ~ShaderProgram()
-    {
-        OGLResource::Destroy();
-    }
-
-
-};
-
 
 namespace OGLTextureUtils
 {
-    
+
     void Init(unsigned int texture, TextureType textureType, GLenum target, int level, TextureInternalFormat internalFormat, int width, int height, GLenum format, GLenum type, const void* data)
     {
 
         glBindTexture(textureType, texture);
 
-        glTexImage2D(target, level, internalFormat,
-            width, height, 0, format, type, data);
+        switch (textureType)
+        {
+        case(TextureType::Texture2D):
+        case(TextureType::CubeMap):
+
+            glTexImage2D(target, level, internalFormat,
+                width, height, 0, format, type, data);
+            break;
+
+        case(TextureType::Texture1D):
+
+            glTexImage1D(target, level, internalFormat,
+                width, 0, format, type, data);
+            break;
+
+        default:
+            throw "Unsupported texture type. Allowed typese are: Texture1D, Texture2D, Cubemap.";
+        }
 
         OGLUtils::CheckOGLErrors();
 
@@ -2455,6 +1652,9 @@ namespace OGLTextureUtils
         case(TextureInternalFormat::Rgb_16f):
             return GL_RGB;
             break;
+        case(TextureInternalFormat::Rg_16f):
+            return GL_RG;
+            break;
         case(TextureInternalFormat::R_16ui):
             return GL_RED;
             break;
@@ -2465,445 +1665,1300 @@ namespace OGLTextureUtils
     }
 }
 
-
-class OGLTexture2D : public OGLResource
+namespace OGLResources
 {
 
-private:
-    int
-        _width, _height;
-
-    static const TextureType _textureType = TextureType::Texture2D;
-
-public:
-    OGLTexture2D(int width, int height, TextureInternalFormat internalFormat) : _width(width), _height(height)
-    {
-        OGLResource::Create(OGLResourceType::TEXTURE);
-
-        OGLTextureUtils::Init(
-            OGLResource::ID(), _textureType,
-            0, internalFormat, width, height, OGLTextureUtils:: ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, NULL);
-
-        OGLTextureUtils::SetParameters(
-            OGLResource::ID(), _textureType,
-            TextureFiltering::Nearest, TextureFiltering::Nearest,
-            TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    OGLTexture2D(const char* path, TextureFiltering minFilter, TextureFiltering magFilter)
+    class OGLResource
     {
 
-        int width, height, nrChannels;
-        stbi_set_flip_vertically_on_load(true);
-        unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
+    public:
+        OGLResource()
+            : _id(0), _type(OGLResourceType::UNDEFINED) {};
 
-        if (!data)
+        // No Copy Constructor/Assignment allowed
+        OGLResource(const OGLResource&) = delete;
+        OGLResource& operator=(const OGLResource&) = delete;
+
+        OGLResource(OGLResource&& other) noexcept
         {
-            std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << std::endl;
-            throw "Texture data loading failed";
-        }
+            _id = other._id;
+            _type = other._type;
+            other._id = 0;
+            other._type = OGLResourceType::UNDEFINED;
+        };
 
-        OGLResource::Create(OGLResourceType::TEXTURE);
-
-        OGLUtils::CheckOGLErrors();
-
-        TextureInternalFormat internalFormat;
-        switch (nrChannels)
+        OGLResource& operator=(OGLResource&& other) noexcept
         {
-            case(1): internalFormat = TextureInternalFormat::R; break;
-            case(3): internalFormat = TextureInternalFormat::Rgb; break;
-            case(4): internalFormat = TextureInternalFormat::Rgba; break;
-            default:
-                throw "Unsupported texture format."; break;
-        }
-
-        OGLTextureUtils::Init(
-            OGLResource::ID(), _textureType,
-            0, internalFormat, width, height, OGLTextureUtils::ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, data);
-
-        OGLUtils::CheckOGLErrors();
-
-        OGLTextureUtils::SetParameters(
-            OGLResource::ID(), _textureType,
-            minFilter, magFilter,
-            TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
-
-        OGLUtils::CheckOGLErrors();
-
-        stbi_image_free(data);
-    }
-
-    OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, void* data, GLenum dataFormat, GLenum type)
-    {
-        OGLResource::Create(OGLResourceType::TEXTURE);
-
-        OGLTextureUtils::Init(
-            OGLResource::ID(), _textureType,
-            0, internalFormat, width, height, dataFormat, type, data);
-
-        OGLTextureUtils::SetParameters(
-            OGLResource::ID(), _textureType,
-            TextureFiltering::Nearest, TextureFiltering::Nearest,
-            TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, void* data, GLenum dataFormat, GLenum type,
-        TextureFiltering minFilter, TextureFiltering magFilter, TextureWrap wrapS, TextureWrap wrapT)
-    {
-        OGLResource::Create(OGLResourceType::TEXTURE);
-
-        OGLTextureUtils::Init(
-            OGLResource::ID(), _textureType,
-            0, internalFormat, width, height, dataFormat, type, data);
-
-        OGLTextureUtils::SetParameters(
-            OGLResource::ID(), _textureType,
-            minFilter, magFilter, wrapS, wrapT);
-
-        OGLUtils::CheckOGLErrors();
-    }
-
-    OGLTexture2D(OGLTexture2D&& other) noexcept : OGLResource(std::move(other))
-    {
-        _width = other._width;
-        _height = other._height;
-    };
-
-    void Bind() const
-    {
-        glBindTexture(GL_TEXTURE_2D, OGLResource::ID());
-    }
-
-    void UnBind() const
-    {
-        glBindTexture(GL_TEXTURE_2D, 0);
-    }
-
-    OGLTexture2D& operator=(OGLTexture2D&& other) noexcept
-    {
-        if (this != &other)
-        {
-            OGLResource::operator=(std::move(other));
-            _height = other._height;
-            _width = other._width;
-        }
-        return *this;
-    };
-
-    ~OGLTexture2D()
-    {
-        OGLResource::Destroy();
-    }
-
-};
-
-
-class OGLTextureCubemap : public OGLResource
-{
-
-private:
-    int
-        _width, _height;
-
-    static const TextureType _textureType = TextureType::CubeMap;
-
-public:
-   
-    OGLTextureCubemap(const char* folderPath, TextureFiltering minFilter, TextureFiltering magFilter)
-    {
-
-        
-        //stbi_set_flip_vertically_on_load(true);
-        
-        OGLResource::Create(OGLResourceType::TEXTURE);
-
-        OGLUtils::CheckOGLErrors();
-
-        TextureInternalFormat internalFormat;
-        
-
-        std::string path(folderPath);
-
-        for (int i = 0; i < 6; i++)
-        {
-            std::string suffix;
-            switch (i)
+            if (this != &other)
             {
-            case(0): suffix = "/right.jpg";break;
-            case(1): suffix = "/left.jpg"; break;
-            case(2): suffix = "/top.jpg"; break;
-            case(3): suffix = "/bottom.jpg"; break;
-            case(4): suffix = "/front.jpg"; break;
-            case(5): suffix = "/back.jpg"; break;
-            default: throw "no...."; break;
+                NotifyDestruction();
+                FreeResources(_type);
+                OGLUtils::CheckOGLErrors();
+
+                _id = other._id;
+                other._id = 0;
+            }
+            return *this;
+        };
+
+        ~OGLResource()
+        {
+            if (_id)
+                throw "Trying to destroy an OpenGL resource without deleting it first";
+        }
+
+        unsigned int ID() const
+        {
+            if (!_id)
+                throw "Trying to use an uninitialized/deleted OpenGL resource";
+
+            return _id;
+        }
+
+    private:
+        unsigned int _id;
+        OGLResourceType _type;
+        void InitResources(OGLResourceType type)
+        {
+            ResourceTypeSwitch(type, false);
+        };
+        void FreeResources(OGLResourceType type)
+        {
+            ResourceTypeSwitch(type, true);
+        };
+        void ResourceTypeSwitch(OGLResourceType type, bool destroy)
+        {
+            switch (type)
+            {
+            case (OGLResourceType::VERTEX_SHADER):
+                if (!destroy)
+                    _id = glCreateShader(GL_VERTEX_SHADER);
+                else
+                {
+                    glDeleteShader(_id);
+                    _id = 0;
+                }
+                break;
+
+            case (OGLResourceType::FRAGMENT_SHADER):
+                if (!destroy)
+                    _id = glCreateShader(GL_FRAGMENT_SHADER);
+                else
+                {
+                    glDeleteShader(_id);
+                    _id = 0;
+                }
+                break;
+
+            case (OGLResourceType::GEOMETRY_SHADER):
+                if (!destroy)
+                    _id = glCreateShader(GL_GEOMETRY_SHADER);
+                else
+                {
+                    glDeleteShader(_id);
+                    _id = 0;
+                }
+                break;
+
+            case (OGLResourceType::SHADER_PROGRAM):
+                if (!destroy)
+                    _id = glCreateProgram();
+                else
+                {
+                    glDeleteProgram(_id);
+                    _id = 0;
+                }
+                break;
+
+            case (OGLResourceType::VERTEX_BUFFER_OBJECT):
+            case (OGLResourceType::INDEX_BUFFER):
+            case (OGLResourceType::UNIFORM_BUFFER):
+                if (!destroy)
+                    glGenBuffers(1, &_id);
+                else
+                {
+                    glDeleteBuffers(1, &_id);
+                    _id = 0;
+                }
+                break;
+
+            case(OGLResourceType::VERTEX_ATTRIB_ARRAY):
+                if (!destroy)
+                    glGenVertexArrays(1, &_id);
+                else
+                {
+                    glDeleteVertexArrays(1, &_id);
+                    _id = 0;
+                }
+                break;
+            case(OGLResourceType::TEXTURE):
+                if (!destroy)
+                    glGenTextures(1, &_id);
+                else
+                {
+                    glDeleteTextures(1, &_id);
+                    _id = 0;
+                }
+                break;
+            case(OGLResourceType::FRAMEBUFFER):
+                if (!destroy)
+                    glGenFramebuffers(1, &_id);
+                else
+                {
+                    glDeleteFramebuffers(1, &_id);
+                    _id = 0;
+                }
+                break;
+            default:
+                throw "Unhandled Resource Type";
+                break;
+            }
+        }
+
+    protected:
+        void Create(OGLResourceType type)
+        {
+            _type = type;
+            InitResources(_type);
+            OGLUtils::CheckOGLErrors();
+
+            NotifyCreation();
+        }
+
+        void Destroy()
+        {
+            // Skip if the resources has already been freed (like after a move assignemnt)
+            if (_id)
+            {
+                NotifyDestruction();
+                FreeResources(_type);
+                OGLUtils::CheckOGLErrors();
+            }
+        }
+        std::string ResourceType()
+        {
+            switch (_type)
+            {
+            case (OGLResourceType::VERTEX_SHADER):
+                return "VERTEX_SHADER";
+                break;
+
+            case (OGLResourceType::FRAGMENT_SHADER):
+                return "FRAGMENT_SHADER";
+                break;
+
+            case (OGLResourceType::GEOMETRY_SHADER):
+                return "GEOMETRY_SHADER";
+                break;
+
+            case (OGLResourceType::SHADER_PROGRAM):
+                return "SHADER_PROGRAM";
+                break;
+
+            case (OGLResourceType::VERTEX_BUFFER_OBJECT):
+                return "VERTEX_BUFFER_OBJECT";
+                break;
+
+            case (OGLResourceType::INDEX_BUFFER):
+                return "INDEX_BUFFER";
+                break;
+
+            case (OGLResourceType::UNIFORM_BUFFER):
+                return "UNIFORM_BUFFER";
+                break;
+
+            case(OGLResourceType::VERTEX_ATTRIB_ARRAY):
+                return "VERTEX_ATTRIB_ARRAY";
+                break;
+
+            case(OGLResourceType::TEXTURE):
+                return "TEXTURE";
+                break;
+
+            case(OGLResourceType::FRAMEBUFFER):
+                return "FRAMEBUFFER";
+                break;
+            }
+        }
+        void NotifyCreation() { std::cout << std::endl << "Creating OGL Object: " + ResourceType() + "_" + std::to_string(ID()); }
+        void NotifyDestruction() { std::cout << std::endl << "Destroying OGL Object: " + ResourceType() + "_" + std::to_string(ID()); }
+
+    };
+
+    class VertexBufferObject : public OGLResource
+    {
+    public:
+        enum class VBOType
+        {
+            Undefined,
+            StaticDraw,
+            DynamicDraw,
+            StreamDraw
+        };
+
+    public:
+
+        VertexBufferObject(VBOType type) : _type(type)
+        {
+            OGLResource::Create(OGLResourceType::VERTEX_BUFFER_OBJECT);
+        }
+
+        VertexBufferObject(VertexBufferObject&& other) noexcept : OGLResource(std::move(other))
+        {
+            this->_type = other._type;
+            other._type = VBOType::Undefined;
+        };
+
+        VertexBufferObject& operator=(VertexBufferObject&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+                this->_type = other._type;
+                other._type = VBOType::Undefined;
+            }
+            return *this;
+        };
+
+        ~VertexBufferObject()
+        {
+            OGLResource::Destroy();
+        }
+
+        GLenum ResolveUsage(VBOType type)
+        {
+            switch (type)
+            {
+            case(VBOType::StaticDraw):
+                return GL_STATIC_DRAW;
+                break;
+
+            case(VBOType::DynamicDraw):
+                return GL_DYNAMIC_DRAW;
+                break;
+
+            case(VBOType::StreamDraw):
+                GL_STREAM_DRAW;
+                break;
+            default:
+                return -1;
+                break;
+            }
+        }
+
+        void Bind()
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, OGLResource::ID());
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void UnBind()
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void SetData(unsigned int count, const float* data)
+        {
+            Bind();
+            glBufferData(GL_ARRAY_BUFFER, count * sizeof(float), data != nullptr ? data : NULL, ResolveUsage(_type));
+            UnBind();
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void SetSubData(unsigned int startIndex, unsigned int count, const float* data)
+        {
+            Bind();
+            glBufferSubData(GL_ARRAY_BUFFER, startIndex * sizeof(float), count * sizeof(float), data != nullptr ? data : NULL);
+            UnBind();
+
+            OGLUtils::CheckOGLErrors();
+        }
+    private:
+        VBOType _type;
+    };
+
+    class IndexBufferObject : public OGLResource
+    {
+    public:
+        enum class EBOType
+        {
+            Undefined,
+            StaticDraw,
+            DynamicDraw,
+            StreamDraw
+        };
+
+    public:
+        IndexBufferObject(EBOType type) : _type(type)
+        {
+            OGLResource::Create(OGLResourceType::INDEX_BUFFER);
+        }
+
+        IndexBufferObject(IndexBufferObject&& other) noexcept : OGLResource(std::move(other))
+        {
+            this->_type = other._type;
+            other._type = EBOType::Undefined;
+        };
+
+        IndexBufferObject& operator=(IndexBufferObject&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+                this->_type = other._type;
+                other._type = EBOType::Undefined;
+            }
+            return *this;
+        };
+
+        ~IndexBufferObject()
+        {
+            OGLResource::Destroy();
+        }
+
+        GLenum ResolveUsage(EBOType type)
+        {
+            switch (type)
+            {
+            case(EBOType::StaticDraw):
+                return GL_STATIC_DRAW;
+                break;
+
+            case(EBOType::DynamicDraw):
+                return GL_DYNAMIC_DRAW;
+                break;
+
+            case(EBOType::StreamDraw):
+                GL_STREAM_DRAW;
+                break;
+            default:
+                return -1;
+                break;
+            }
+        }
+
+        void Bind()
+        {
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, OGLResource::ID());
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void UnBind()
+        {
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void SetData(unsigned int count, const int* data)
+        {
+            Bind();
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(int), data != nullptr ? data : NULL, ResolveUsage(_type));
+            UnBind();
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void SetSubData(unsigned int startIndex, unsigned int count, const int* data)
+        {
+            Bind();
+            glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, startIndex * sizeof(int), count * sizeof(int), data != nullptr ? data : NULL);
+            UnBind();
+
+            OGLUtils::CheckOGLErrors();
+        }
+    private:
+        EBOType _type;
+    };
+
+    class UniformBufferObject : public OGLResource
+    {
+    public:
+        enum class UBOType
+        {
+            Undefined,
+            StaticDraw,
+            DynamicDraw,
+            StreamDraw
+        };
+
+
+    public:
+        UniformBufferObject(UBOType type) : _type(type)
+        {
+            OGLResource::Create(OGLResourceType::UNIFORM_BUFFER);
+        }
+
+        UniformBufferObject(UniformBufferObject&& other) noexcept : OGLResource(std::move(other))
+        {
+            this->_type = other._type;
+            other._type = UBOType::Undefined;
+        };
+
+        UniformBufferObject& operator=(UniformBufferObject&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+                this->_type = other._type;
+                other._type = UBOType::Undefined;
+            }
+            return *this;
+        };
+
+        ~UniformBufferObject()
+        {
+            OGLResource::Destroy();
+        }
+
+        GLenum ResolveUsage(UBOType type)
+        {
+            switch (type)
+            {
+            case(UBOType::StaticDraw):
+                return GL_STATIC_DRAW;
+                break;
+
+            case(UBOType::DynamicDraw):
+                return GL_DYNAMIC_DRAW;
+                break;
+
+            case(UBOType::StreamDraw):
+                GL_STREAM_DRAW;
+                break;
+            default:
+                return -1;
+                break;
+            }
+        }
+
+        void Bind()
+        {
+            glBindBuffer(GL_UNIFORM_BUFFER, OGLResource::ID());
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void UnBind()
+        {
+            glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        template<typename T>
+        void SetData(unsigned int count, const T* data)
+        {
+            Bind();
+            glBufferData(GL_UNIFORM_BUFFER, count * sizeof(T), data != nullptr ? data : NULL, ResolveUsage(_type));
+            UnBind();
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        template<typename T>
+        void SetSubData(unsigned int startIndex, unsigned int count, const T* data)
+        {
+            OGLUtils::CheckOGLErrors();
+
+            Bind();
+            glBufferSubData(GL_UNIFORM_BUFFER, startIndex * sizeof(T), count * sizeof(T), data != nullptr ? data : NULL);
+            UnBind();
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void BindingPoint(UBOBinding binding)
+        {
+            glBindBufferBase(GL_UNIFORM_BUFFER, binding, OGLResource::ID());
+        }
+
+    private:
+        UBOType _type;
+    };
+
+    class VertexAttribArray : public OGLResource
+    {
+
+    public:
+        VertexAttribArray()
+        {
+            OGLResource::Create(OGLResourceType::VERTEX_ATTRIB_ARRAY);
+        }
+
+        VertexAttribArray(VertexAttribArray&& other) noexcept : OGLResource(std::move(other)) {};
+
+        VertexAttribArray& operator=(VertexAttribArray&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+            }
+            return *this;
+        };
+
+        ~VertexAttribArray()
+        {
+            OGLResource::Destroy();
+        }
+
+        void Bind() const
+        {
+            OGLUtils::CheckOGLErrors();
+
+            glBindVertexArray(OGLResource::ID());
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void UnBind() const
+        {
+            glBindVertexArray(0);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+
+        void SetAndEnableAttrib(unsigned int buffer, unsigned int index, int components, bool normalized, unsigned int stride, unsigned int countOffset)
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, buffer);
+
+            Bind();
+            glVertexAttribPointer(index, components, GL_FLOAT, normalized ? GL_TRUE : GL_FALSE, stride, (void*)(countOffset * sizeof(float)));
+            glEnableVertexAttribArray(index);
+            UnBind();
+
+            glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void SetIndexBuffer(unsigned int indexBuffer)
+        {
+
+            Bind();
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+            UnBind();
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+        }
+    };
+
+
+    class OGLFragmentShader : public OGLResource
+    {
+    private:
+        std::string _source;
+
+    public:
+        OGLFragmentShader(std::string source) : _source{ source }
+        {
+            OGLResource::Create(OGLResourceType::FRAGMENT_SHADER);
+
+            const char* fsc = source.data();
+            glShaderSource(OGLResource::ID(), 1, &fsc, NULL);
+            glCompileShader(OGLResource::ID());
+            OGLUtils::CheckCompileErrors(OGLResource::ID(), ResourceType());
+            OGLUtils::CheckOGLErrors();
+        }
+
+        OGLFragmentShader(OGLFragmentShader&& other) noexcept : OGLResource(std::move(other))
+        {
+            _source = std::move(other._source);
+        };
+
+        OGLFragmentShader& operator=(OGLFragmentShader&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+                _source = std::move(other._source);
+            }
+            return *this;
+        };
+
+        ~OGLFragmentShader()
+        {
+            OGLResource::Destroy();
+        }
+    };
+
+    class OGLGeometryShader : public OGLResource
+    {
+    private:
+        std::string _source;
+
+    public:
+        OGLGeometryShader(std::string source) : _source{ source }
+        {
+            OGLResource::Create(OGLResourceType::GEOMETRY_SHADER);
+
+            const char* gsc = source.data();
+            glShaderSource(OGLResource::ID(), 1, &gsc, NULL);
+            glCompileShader(OGLResource::ID());
+            OGLUtils::CheckCompileErrors(OGLResource::ID(), ResourceType());
+            OGLUtils::CheckOGLErrors();
+        }
+
+        OGLGeometryShader(OGLGeometryShader&& other) noexcept : OGLResource(std::move(other))
+        {
+            _source = std::move(other._source);
+        };
+
+        OGLGeometryShader& operator=(OGLGeometryShader&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+                _source = std::move(other._source);
+            }
+            return *this;
+        };
+
+        ~OGLGeometryShader()
+        {
+            OGLResource::Destroy();
+        }
+    };
+
+    class OGLVertexShader : public OGLResource
+    {
+    private:
+        std::string _source;
+
+    public:
+        OGLVertexShader(std::string source) : _source{ source }
+        {
+            OGLResource::Create(OGLResourceType::VERTEX_SHADER);
+
+            const char* vsc = source.data();
+            glShaderSource(OGLResource::ID(), 1, &vsc, NULL);
+            glCompileShader(OGLResource::ID());
+            OGLUtils::CheckCompileErrors(OGLResource::ID(), ResourceType());
+            OGLUtils::CheckOGLErrors();
+        }
+
+        OGLVertexShader(OGLVertexShader&& other) noexcept : OGLResource(std::move(other))
+        {
+            _source = std::move(other._source);
+        };
+
+        OGLVertexShader& operator=(OGLVertexShader&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+                _source = std::move(other._source);
+            }
+            return *this;
+        };
+
+        ~OGLVertexShader()
+        {
+            OGLResource::Destroy();
+        }
+
+    };
+
+    class ShaderProgram : public OGLResource
+    {
+
+    public:
+        // constructor generates the shader on the fly
+        // ------------------------------------------------------------------------
+        ShaderProgram(const std::string vShaderCode, std::string fShaderCode, std::string gShaderCode)
+        {
+
+            OGLVertexShader vertex(vShaderCode);
+            OGLFragmentShader fragment(fShaderCode);
+
+            OGLResource::Create(OGLResourceType::SHADER_PROGRAM);
+
+            glAttachShader(OGLResource::ID(), vertex.ID());
+            glAttachShader(OGLResource::ID(), fragment.ID());
+
+            if (!gShaderCode.empty())
+            {
+                OGLGeometryShader geometry(gShaderCode);
+                glAttachShader(OGLResource::ID(), geometry.ID());
             }
 
+            glLinkProgram(OGLResource::ID());
+            OGLUtils::CheckLinkErrors(OGLResource::ID(), ResourceType());
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        ShaderProgram(const std::string vShaderCode, std::string fShaderCode) : ShaderProgram(vShaderCode, fShaderCode, "")
+        {
+
+        }
+
+        ShaderProgram(OGLVertexShader&& other) : OGLResource(std::move(other)) {};
+
+        ShaderProgram& operator=(ShaderProgram&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+            }
+            return *this;
+        };
+
+        void  Enable() const { glUseProgram(OGLResource::ID()); }
+
+        std::vector<std::pair<unsigned int, std::string>> GetInput()
+        {
+            unsigned int id = OGLResource::ID();
+
+            int numAttribs;
+            glGetProgramInterfaceiv(id, GL_PROGRAM_INPUT, GL_ACTIVE_RESOURCES, &numAttribs);
+            unsigned int properties[] = { GL_NAME_LENGTH, GL_TYPE, GL_LOCATION };
+
+            std::vector<std::pair<unsigned int, std::string>> res{};
+            for (int i = 0; i < numAttribs; ++i)
+            {
+                GLint results[3];
+                glGetProgramResourceiv(id, GL_PROGRAM_INPUT, i, 3, properties, 3, NULL, results);
+
+                GLint nameBufSize = results[0];
+                std::unique_ptr<char[]> name(std::make_unique<char[]>(nameBufSize));
+                glGetProgramResourceName(id, GL_PROGRAM_INPUT, i, nameBufSize, NULL, name.get());
+
+                res.push_back(std::pair<unsigned int, std::string>(results[2], std::string(name.get())));
+
+            }
+            return res;
+        }
+
+        ~ShaderProgram()
+        {
+            OGLResource::Destroy();
+        }
+
+
+    };
+
+
+    class OGLTexture2D : public OGLResource
+    {
+
+    private:
+        int
+            _width, _height;
+
+        static const TextureType _textureType = TextureType::Texture2D;
+
+    public:
+        OGLTexture2D(int width, int height, TextureInternalFormat internalFormat) : _width(width), _height(height)
+        {
+            OGLResource::Create(OGLResourceType::TEXTURE);
+
+            OGLTextureUtils::Init(
+                OGLResource::ID(), _textureType,
+                0, internalFormat, width, height, OGLTextureUtils::ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, NULL);
+
+            OGLTextureUtils::SetParameters(
+                OGLResource::ID(), _textureType,
+                TextureFiltering::Nearest, TextureFiltering::Nearest,
+                TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        OGLTexture2D(const char* path, TextureFiltering minFilter, TextureFiltering magFilter)
+        {
+
             int width, height, nrChannels;
+            stbi_set_flip_vertically_on_load(true);
+            unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
 
-            unsigned char*
-                data = stbi_load((path + suffix).c_str(), &width, &height, &nrChannels, 0);
-
-            
             if (!data)
             {
-                std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << path << "\n" << std::endl;;
+                std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << std::endl;
                 throw "Texture data loading failed";
             }
 
+            OGLResource::Create(OGLResourceType::TEXTURE);
+
+            OGLUtils::CheckOGLErrors();
+
+            TextureInternalFormat internalFormat;
             switch (nrChannels)
             {
             case(1): internalFormat = TextureInternalFormat::R; break;
             case(3): internalFormat = TextureInternalFormat::Rgb; break;
             case(4): internalFormat = TextureInternalFormat::Rgba; break;
             default:
-                std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: "<< path<< "\n" << std::endl;
                 throw "Unsupported texture format."; break;
             }
 
             OGLTextureUtils::Init(
-                OGLResource::ID(), _textureType, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                OGLResource::ID(), _textureType,
                 0, internalFormat, width, height, OGLTextureUtils::ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, data);
+
+            OGLUtils::CheckOGLErrors();
+
+            OGLTextureUtils::SetParameters(
+                OGLResource::ID(), _textureType,
+                minFilter, magFilter,
+                TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
+
+            OGLUtils::CheckOGLErrors();
 
             stbi_image_free(data);
         }
-        
-        OGLTextureUtils::SetParameters(
-            OGLResource::ID(), _textureType,
-            minFilter, magFilter,
-            TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
 
-        OGLUtils::CheckOGLErrors();
-
-    }
-
-   
-    OGLTextureCubemap(OGLTextureCubemap&& other) noexcept : OGLResource(std::move(other))
-    {
-        _width = other._width;
-        _height = other._height;
-    };
-
-    void Bind() const
-    {
-        glBindTexture(_textureType, OGLResource::ID());
-    }
-
-    void UnBind() const
-    {
-        glBindTexture(_textureType, 0);
-    }
-
-    OGLTextureCubemap& operator=(OGLTextureCubemap&& other) noexcept
-    {
-        if (this != &other)
+        OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, void* data, GLenum dataFormat, GLenum type)
         {
-            OGLResource::operator=(std::move(other));
-            _height = other._height;
+            OGLResource::Create(OGLResourceType::TEXTURE);
+
+            OGLTextureUtils::Init(
+                OGLResource::ID(), _textureType,
+                0, internalFormat, width, height, dataFormat, type, data);
+
+            OGLTextureUtils::SetParameters(
+                OGLResource::ID(), _textureType,
+                TextureFiltering::Nearest, TextureFiltering::Nearest,
+                TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, void* data, GLenum dataFormat, GLenum type,
+            TextureFiltering minFilter, TextureFiltering magFilter, TextureWrap wrapS, TextureWrap wrapT)
+        {
+            OGLResource::Create(OGLResourceType::TEXTURE);
+
+            OGLTextureUtils::Init(
+                OGLResource::ID(), _textureType,
+                0, internalFormat, width, height, dataFormat, type, data);
+
+            OGLTextureUtils::SetParameters(
+                OGLResource::ID(), _textureType,
+                minFilter, magFilter, wrapS, wrapT);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        OGLTexture2D(OGLTexture2D&& other) noexcept : OGLResource(std::move(other))
+        {
             _width = other._width;
+            _height = other._height;
+        };
+
+        void Bind() const
+        {
+            glBindTexture(GL_TEXTURE_2D, OGLResource::ID());
         }
-        return *this;
+
+        void UnBind() const
+        {
+            glBindTexture(GL_TEXTURE_2D, 0);
+        }
+
+        OGLTexture2D& operator=(OGLTexture2D&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+                _height = other._height;
+                _width = other._width;
+            }
+            return *this;
+        };
+
+        ~OGLTexture2D()
+        {
+            OGLResource::Destroy();
+        }
+
     };
 
-    ~OGLTextureCubemap()
-    {
-        OGLResource::Destroy();
-    }
-
-};
-class FrameBuffer : public OGLResource
-{
-private:
-    std::optional<OGLTexture2D> _depthTexture;
-    std::vector<OGLTexture2D> _colorTextures;
-    int
-        _width, _height;
-
-
-    void Initialize(int width, int height, bool depth, bool color, int colorAttachments, TextureInternalFormat colorTextureFormat)
+    class OGLTexture1D : public OGLResource
     {
 
-        if (depth)
-            _depthTexture = OGLTexture2D(width, height, TextureInternalFormat::Depth_Component);
+    private:
+        int _width;
+        static const TextureType _textureType = TextureType::Texture1D;
 
-        if (color)
+    public:
+        OGLTexture1D(int width, TextureInternalFormat internalFormat, float* data) : _width(width)
         {
-            for (int i = 0; i < colorAttachments; i++)
-                _colorTextures.push_back(OGLTexture2D(width, height, colorTextureFormat));
+            OGLResource::Create(OGLResourceType::TEXTURE);
+
+            OGLTextureUtils::Init(
+                OGLResource::ID(), _textureType,
+                0, internalFormat, width, 0, OGLTextureUtils::ResolveFormat(internalFormat), GL_FLOAT, data);
+
+            OGLTextureUtils::SetParameters(
+                OGLResource::ID(), _textureType,
+                TextureFiltering::Nearest, TextureFiltering::Nearest,
+                TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
+
+            OGLUtils::CheckOGLErrors();
         }
 
-        Bind();
-
-        if (color)
+        OGLTexture1D(OGLTexture1D&& other) noexcept : OGLResource(std::move(other))
         {
-            for (int i = 0; i < colorAttachments; i++)
+            _width = other._width;
+        };
+
+        void Bind() const
+        {
+            glBindTexture(GL_TEXTURE_1D, OGLResource::ID());
+        }
+
+        void UnBind() const
+        {
+            glBindTexture(GL_TEXTURE_1D, 0);
+        }
+
+        OGLTexture1D& operator=(OGLTexture1D&& other) noexcept
+        {
+            if (this != &other)
             {
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, _colorTextures.at(i).ID(), 0);
+                OGLResource::operator=(std::move(other));
+                _width = other._width;
+            }
+            return *this;
+        };
+
+        ~OGLTexture1D()
+        {
+            OGLResource::Destroy();
+        }
+
+    };
+
+    class OGLTextureCubemap : public OGLResource
+    {
+
+    private:
+        int
+            _width, _height;
+
+        static const TextureType _textureType = TextureType::CubeMap;
+
+    public:
+
+        OGLTextureCubemap(const char* folderPath, TextureFiltering minFilter, TextureFiltering magFilter)
+        {
+
+
+            //stbi_set_flip_vertically_on_load(true);
+
+            OGLResource::Create(OGLResourceType::TEXTURE);
+
+            OGLUtils::CheckOGLErrors();
+
+            TextureInternalFormat internalFormat;
+
+
+            std::string path(folderPath);
+
+            for (int i = 0; i < 6; i++)
+            {
+                std::string suffix;
+                switch (i)
+                {
+                case(0): suffix = "/right.jpg"; break;
+                case(1): suffix = "/left.jpg"; break;
+                case(2): suffix = "/top.jpg"; break;
+                case(3): suffix = "/bottom.jpg"; break;
+                case(4): suffix = "/front.jpg"; break;
+                case(5): suffix = "/back.jpg"; break;
+                default: throw "no...."; break;
+                }
+
+                int width, height, nrChannels;
+
+                unsigned char*
+                    data = stbi_load((path + suffix).c_str(), &width, &height, &nrChannels, 0);
+
+
+                if (!data)
+                {
+                    std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << path << "\n" << std::endl;;
+                    throw "Texture data loading failed";
+                }
+
+                switch (nrChannels)
+                {
+                case(1): internalFormat = TextureInternalFormat::R; break;
+                case(3): internalFormat = TextureInternalFormat::Rgb; break;
+                case(4): internalFormat = TextureInternalFormat::Rgba; break;
+                default:
+                    std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << path << "\n" << std::endl;
+                    throw "Unsupported texture format."; break;
+                }
+
+                OGLTextureUtils::Init(
+                    OGLResource::ID(), _textureType, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                    0, internalFormat, width, height, OGLTextureUtils::ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, data);
+
+                stbi_image_free(data);
             }
 
+            OGLTextureUtils::SetParameters(
+                OGLResource::ID(), _textureType,
+                minFilter, magFilter,
+                TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
+
+            OGLUtils::CheckOGLErrors();
+
+        }
+
+
+        OGLTextureCubemap(OGLTextureCubemap&& other) noexcept : OGLResource(std::move(other))
+        {
+            _width = other._width;
+            _height = other._height;
+        };
+
+        void Bind() const
+        {
+            glBindTexture(_textureType, OGLResource::ID());
+        }
+
+        void UnBind() const
+        {
+            glBindTexture(_textureType, 0);
+        }
+
+        OGLTextureCubemap& operator=(OGLTextureCubemap&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+                _height = other._height;
+                _width = other._width;
+            }
+            return *this;
+        };
+
+        ~OGLTextureCubemap()
+        {
+            OGLResource::Destroy();
+        }
+
+    };
+    class FrameBuffer : public OGLResource
+    {
+    private:
+        std::optional<OGLTexture2D> _depthTexture;
+        std::vector<OGLTexture2D> _colorTextures;
+        int
+            _width, _height;
+
+
+        void Initialize(int width, int height, bool depth, bool color, int colorAttachments, TextureInternalFormat colorTextureFormat)
+        {
+
             if (depth)
+                _depthTexture = OGLTexture2D(width, height, TextureInternalFormat::Depth_Component);
+
+            if (color)
+            {
+                for (int i = 0; i < colorAttachments; i++)
+                    _colorTextures.push_back(OGLTexture2D(width, height, colorTextureFormat));
+            }
+
+            Bind();
+
+            if (color)
+            {
+                for (int i = 0; i < colorAttachments; i++)
+                {
+                    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, _colorTextures.at(i).ID(), 0);
+                }
+
+                if (depth)
+                    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _depthTexture.value().ID(), 0);
+
+            }
+            else if (depth)
+            {
                 glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _depthTexture.value().ID(), 0);
 
+                glDrawBuffer(GL_NONE);
+                glReadBuffer(GL_NONE);
+            }
+
+            if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+                throw "Framebuffer" + std::to_string(ID()) + " is not complete!";
+
+            UnBind();
+
         }
-        else if (depth)
+    public:
+        FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth)
+            :_width(width), _height(height)
         {
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _depthTexture.value().ID(), 0);
+            OGLResource::Create(OGLResourceType::FRAMEBUFFER);
 
-            glDrawBuffer(GL_NONE);
-            glReadBuffer(GL_NONE);
+            Initialize(_width, _height, depth, color, colorAttachments, TextureInternalFormat::Rgba_32f);
         }
 
-        if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-            throw "Framebuffer" + std::to_string(ID()) +" is not complete!" ;
-
-        UnBind();
-
-    }
-public:
-    FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth)
-        :_width(width), _height(height)
-    {
-        OGLResource::Create(OGLResourceType::FRAMEBUFFER);
-
-        Initialize(_width, _height, depth, color, colorAttachments, TextureInternalFormat::Rgba_32f);
-    }
-
-    FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth, TextureInternalFormat colorTextureFormat)
-        :_width(width), _height(height)
-    {
-        OGLResource::Create(OGLResourceType::FRAMEBUFFER);
-
-        Initialize(_width, _height, depth, color, colorAttachments, colorTextureFormat);
-    }
-
-    FrameBuffer(FrameBuffer&& other) noexcept : OGLResource(std::move(other))
-    {
-        _width = other._width;
-        _height = other._height;
-
-        _colorTextures = std::vector<OGLTexture2D>(std::move(other._colorTextures));
-        _depthTexture = std::optional<OGLTexture2D>(std::move(other._depthTexture));
-    };
-
-
-    FrameBuffer& operator=(FrameBuffer&& other) noexcept
-    {
-        if (this != &other)
+        FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth, TextureInternalFormat colorTextureFormat)
+            :_width(width), _height(height)
         {
-            OGLResource::operator=(std::move(other));
+            OGLResource::Create(OGLResourceType::FRAMEBUFFER);
 
-            _height = other._height;
+            Initialize(_width, _height, depth, color, colorAttachments, colorTextureFormat);
+        }
+
+        FrameBuffer(FrameBuffer&& other) noexcept : OGLResource(std::move(other))
+        {
             _width = other._width;
+            _height = other._height;
 
             _colorTextures = std::vector<OGLTexture2D>(std::move(other._colorTextures));
             _depthTexture = std::optional<OGLTexture2D>(std::move(other._depthTexture));
+        };
+
+
+        FrameBuffer& operator=(FrameBuffer&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+
+                _height = other._height;
+                _width = other._width;
+
+                _colorTextures = std::vector<OGLTexture2D>(std::move(other._colorTextures));
+                _depthTexture = std::optional<OGLTexture2D>(std::move(other._depthTexture));
+            }
+            return *this;
+
+        };
+        ~FrameBuffer()
+        {
+            OGLResource::Destroy();
         }
-        return *this;
+
+
+        void Bind(bool read, bool write) const
+        {
+            int mask = (read ? GL_READ_FRAMEBUFFER : 0) | (write ? GL_DRAW_FRAMEBUFFER : 0);
+            glBindFramebuffer(mask, OGLResource::ID());
+        }
+
+        void Bind() const
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, OGLResource::ID());
+        }
+
+        void UnBind() const
+        {
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
+
+
+        unsigned int DepthTextureId() const
+        {
+            return _depthTexture.value().ID();
+        }
+
+        unsigned int ColorTextureId(int attachment = 0) const
+        {
+            return _colorTextures.at(attachment).ID();
+        }
+
+        unsigned int Width() const
+        {
+            return _width;
+        }
+
+        unsigned int Height() const
+        {
+            return _height;
+        }
+
+        void CopyFromOtherFbo(const FrameBuffer* other, bool color, int attachment, bool depth, glm::ivec2 rect0, glm::ivec2 rect1) const
+        {
+
+            unsigned int id = other != nullptr ? other->ID() : 0;
+
+            unsigned int flag = (color ? GL_COLOR_BUFFER_BIT : 0) | (depth ? GL_DEPTH_BUFFER_BIT : 0);
+
+            // Bind read buffer
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, id);
+
+            // Bind draw buffer
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, OGLResource::ID());
+
+            if (color)
+                glDrawBuffer(GL_COLOR_ATTACHMENT0 + attachment);
+
+            // Blit
+            glBlitFramebuffer(rect0.x, rect0.y, rect1.x, rect1.y, rect0.x, rect0.y, rect1.x, rect1.y, flag, GL_NEAREST);
+
+            // Unbind
+            glDrawBuffer(GL_COLOR_ATTACHMENT0);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
+
+        void CopyToOtherFbo(const FrameBuffer* other, bool color, int attachment, bool depth, glm::ivec2 rect0, glm::ivec2 rect1) const
+        {
+
+            unsigned int id = other != nullptr ? other->ID() : 0;
+
+            unsigned int flag = (color ? GL_COLOR_BUFFER_BIT : 0) | (depth ? GL_DEPTH_BUFFER_BIT : 0);
+
+            // Bind read buffer
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, OGLResource::ID());
+
+            // Bind draw buffer
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, id);
+
+            if (color)
+            {
+                if (id != 0)
+                    glDrawBuffer(GL_COLOR_ATTACHMENT0 + attachment);
+                else
+                    glDrawBuffer(GL_BACK);
+            }
+
+            // Blit
+            glBlitFramebuffer(rect0.x, rect0.y, rect1.x, rect1.y, rect0.x, rect0.y, rect1.x, rect1.y, flag, GL_NEAREST);
+
+            // Unbind
+            if (color && id != 0)
+                glDrawBuffer(GL_COLOR_ATTACHMENT0);
+
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
 
     };
-    ~FrameBuffer()
-    {
-        OGLResource::Destroy();
-    }
+
+}
 
 
-    void Bind(bool read, bool write) const
-    {
-        int mask = (read ? GL_READ_FRAMEBUFFER : 0) | (write ? GL_DRAW_FRAMEBUFFER : 0);
-        glBindFramebuffer(mask, OGLResource::ID());
-    }
+using namespace OGLResources;
 
-    void Bind() const
-    {
-        glBindFramebuffer(GL_FRAMEBUFFER, OGLResource::ID());
-    }
+struct SceneParams
+{
+    glm::mat4 projectionMatrix;
+    glm::mat4 viewMatrix;
+    float cameraNear, cameraFar;
+    int viewportWidth, viewportHeight;
+    SceneLights sceneLights;
+    ScenePostProcessing postProcessing;
+    DrawParams drawParams;
+    Environment environment;
+    int pointWidth = 8;
+    int lineWidth = 4;
 
-    void UnBind() const
-    {
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
-
-
-    unsigned int DepthTextureId() const
-    {
-        return _depthTexture.value().ID();
-    }
-
-    unsigned int ColorTextureId(int attachment = 0) const
-    {
-        return _colorTextures.at(attachment).ID();
-    }
-
-    unsigned int Width() const
-    {
-        return _width;
-    }
-
-    unsigned int Height() const
-    {
-        return _height;
-    }
-
-    void CopyFromOtherFbo(const FrameBuffer* other, bool color, int attachment, bool depth, glm::ivec2 rect0, glm::ivec2 rect1) const
-    {
-
-        unsigned int id = other != nullptr ? other->ID() : 0;
-
-        unsigned int flag = (color ? GL_COLOR_BUFFER_BIT : 0) | (depth ? GL_DEPTH_BUFFER_BIT : 0);
-
-        // Bind read buffer
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, id);
-
-        // Bind draw buffer
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, OGLResource::ID());
-
-        if (color)
-            glDrawBuffer(GL_COLOR_ATTACHMENT0 + attachment);
-
-        // Blit
-        glBlitFramebuffer(rect0.x, rect0.y, rect1.x, rect1.y, rect0.x, rect0.y, rect1.x, rect1.y, flag, GL_NEAREST);
-
-        // Unbind
-        glDrawBuffer(GL_COLOR_ATTACHMENT0);
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
-
-    void CopyToOtherFbo(const FrameBuffer* other, bool color, int attachment, bool depth, glm::ivec2 rect0, glm::ivec2 rect1) const
-    {
-
-        unsigned int id = other != nullptr ? other->ID() : 0;
-
-        unsigned int flag = (color ? GL_COLOR_BUFFER_BIT : 0) | (depth ? GL_DEPTH_BUFFER_BIT : 0);
-
-        // Bind read buffer
-        glBindFramebuffer(GL_READ_FRAMEBUFFER, OGLResource::ID());
-
-        // Bind draw buffer
-        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, id);
-
-        if (color)
-        {
-            if (id != 0)
-                glDrawBuffer(GL_COLOR_ATTACHMENT0 + attachment);
-            else
-                glDrawBuffer(GL_BACK);
-        }
-
-        // Blit
-        glBlitFramebuffer(rect0.x, rect0.y, rect1.x, rect1.y, rect0.x, rect0.y, rect1.x, rect1.y, flag, GL_NEAREST);
-
-        // Unbind
-        if (color && id != 0)
-            glDrawBuffer(GL_COLOR_ATTACHMENT0);
-
-        glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    }
-
+    std::vector<OGLResources::OGLTexture2D> noiseTextures;
+    std::optional<OGLResources::OGLTexture1D> poissonSamples;
 };
-
 
 class RenderableBasic
 {
@@ -2919,7 +2974,7 @@ public:
 class ShaderBase
 {
 private:
-    ShaderProgram _shaderProgram;
+    OGLResources::ShaderProgram _shaderProgram;
     std::string _vertexCode;
     std::string _geometryCode;
     std::string _fragmentCode;
@@ -3110,7 +3165,7 @@ public:
 
     }
 
-    void SetSamplers(SceneParams sceneParams)
+    void SetSamplers(const SceneParams &sceneParams)
     {
         // TODO bind texture once for all
         if (sceneParams.sceneLights.Directional.ShadowMapId)
@@ -3120,17 +3175,24 @@ public:
             glUniform1i(UniformLocation("shadowMap"), TextureBinding::ShadowMap);
 
             // Noise textures for PCSS calculations
+            // ------------------------------------
             glActiveTexture(GL_TEXTURE0 + TextureBinding::NoiseMap0);
-            glBindTexture(GL_TEXTURE_2D, sceneParams.noiseTexId_0);
+            sceneParams.noiseTextures.at(0).Bind();
             glUniform1i(UniformLocation("noiseTex_0"), TextureBinding::NoiseMap0);
 
             glActiveTexture(GL_TEXTURE0 + TextureBinding::NoiseMap1);
-            glBindTexture(GL_TEXTURE_2D, sceneParams.noiseTexId_1);
+            sceneParams.noiseTextures.at(1).Bind();
             glUniform1i(UniformLocation("noiseTex_1"), TextureBinding::NoiseMap1);
 
             glActiveTexture(GL_TEXTURE0 + TextureBinding::NoiseMap2);
-            glBindTexture(GL_TEXTURE_2D, sceneParams.noiseTexId_2);
+            sceneParams.noiseTextures.at(2).Bind();
             glUniform1i(UniformLocation("noiseTex_2"), TextureBinding::NoiseMap2);
+
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::PoissonSamples);
+            if(sceneParams.poissonSamples.has_value())
+                sceneParams.poissonSamples.value().Bind();
+            glUniform1i(UniformLocation("poissonSamples"), TextureBinding::PoissonSamples);
+
         }
 
         if (sceneParams.sceneLights.Ambient.AoMapId)
@@ -3357,12 +3419,15 @@ public:
         glActiveTexture(GL_TEXTURE1);
         _aoNoiseTexture.value().Bind();                         // random rotation        => TEXTURE1
 
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, sceneParams.noiseTexId_0); // noise 0                => TEXTURE2
-        glActiveTexture(GL_TEXTURE3);                           
-        glBindTexture(GL_TEXTURE_2D, sceneParams.noiseTexId_1); // noise 1                => TEXTURE3
-        glActiveTexture(GL_TEXTURE4);                           
-        glBindTexture(GL_TEXTURE_2D, sceneParams.noiseTexId_2); // noise 2                => TEXTURE4
+        if (sceneParams.noiseTextures.size() == 3)
+        {
+            glActiveTexture(GL_TEXTURE2);
+            sceneParams.noiseTextures.at(0).Bind();  // noise 0                => TEXTURE2
+            glActiveTexture(GL_TEXTURE3);
+            sceneParams.noiseTextures.at(1).Bind();  // noise 1                => TEXTURE3
+            glActiveTexture(GL_TEXTURE4);
+            sceneParams.noiseTextures.at(2).Bind();  // noise 2                => TEXTURE4
+        }
 
         const PostProcessingShader& aoShader = (aoType == AOType::SSAO ? _ssaoShader : _hbaoShader);
 

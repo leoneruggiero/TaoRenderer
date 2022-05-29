@@ -21,6 +21,8 @@
 #include "FrameBuffer.h"
 #include "Scene.h"
 
+using namespace OGLResources;
+
 // CONSTANTS ======================================================
 const char* glsl_version = "#version 130";
 
@@ -822,8 +824,8 @@ void SetupScene(
     std::map<std::string, std::shared_ptr<WiresShader>>* wiresShadersCollection
 )
 {
-    LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    //LoadPlane(sceneMeshCollection, shadersCollection, 4.0);
+   // LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 4.0);
     //LoadScene_PbrTextSpheres(sceneMeshCollection, shadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, shadersCollection);
@@ -835,11 +837,11 @@ void SetupScene(
     //LoadSceneFromPath("./Assets/Models/Dragon.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("./Assets/Models/Knob.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("./Assets/Models/trees.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::MatteGray);
-    //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::MatteGray);
+    LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, shadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    //LoadScene_PCSStest(sceneMeshCollection, shadersCollection);
+    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1365,49 +1367,54 @@ int main()
     sceneParams.sceneLights.Directional.Specular = glm::vec4(1.0, 1.0, 1.0, 0.75);
 
     // Shadow Map
+    // ----------------------
     FrameBuffer shadowFBO = FrameBuffer(shadowMapResolution, shadowMapResolution, false, 0, true);
 
     // Noise Textures for PCSS 
-    std::vector<OGLTexture2D> noiseTextures{};
-
-    noiseTextures.push_back(OGLTexture2D(
-        9,9,
-        TextureInternalFormat::R_16f,
-        GetUniformDistributedSamples1D(81, -1.0, 1.0).data(), GL_RED, GL_FLOAT,
-        TextureFiltering::Nearest, TextureFiltering::Nearest,
-        TextureWrap::Repeat, TextureWrap::Repeat));
-
-    noiseTextures.push_back(OGLTexture2D(
+    // ----------------------
+    sceneParams.noiseTextures.push_back(OGLTexture2D(
+            9, 9,
+            TextureInternalFormat::R_16f,
+            GetUniformDistributedSamples1D(81, -1.0, 1.0).data(), GL_RED, GL_FLOAT,
+            TextureFiltering::Nearest, TextureFiltering::Nearest,
+            TextureWrap::Repeat, TextureWrap::Repeat));
+    
+    sceneParams.noiseTextures.push_back(OGLTexture2D(
         10, 10,
         TextureInternalFormat::R_16f,
         GetUniformDistributedSamples1D(100, -1.0, 1.0).data(), GL_RED, GL_FLOAT,
         TextureFiltering::Nearest, TextureFiltering::Nearest,
         TextureWrap::Repeat, TextureWrap::Repeat));
-
-    noiseTextures.push_back(OGLTexture2D(
+    
+    sceneParams.noiseTextures.push_back(OGLTexture2D(
         11, 11,
         TextureInternalFormat::R_16f,
         GetUniformDistributedSamples1D(121, -1.0, 1.0).data(), GL_RED, GL_FLOAT,
         TextureFiltering::Nearest, TextureFiltering::Nearest,
         TextureWrap::Repeat, TextureWrap::Repeat));
 
-    sceneParams.noiseTexId_0 = noiseTextures.at(0).ID();
-    sceneParams.noiseTexId_1 = noiseTextures.at(1).ID();
-    sceneParams.noiseTexId_2 = noiseTextures.at(2).ID();
+    std::vector<float> poissonSamples = 
+        flatten2(GetPoissonDiskSamples2D(64, Domain2D{ DomainType2D::Disk, 1.0f }));
+    sceneParams.poissonSamples = 
+        OGLTexture1D(64, TextureInternalFormat::Rg_16f, poissonSamples.data());
 
     // AmbientOcclusion Map
+    // --------------------
     FrameBuffer ssaoFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 2, true);
 
     // Tone-mapping and gamma correction
+    // ---------------------------------
     FrameBuffer mainFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, true);
     sceneParams.postProcessing.ToneMapping = false;
     sceneParams.postProcessing.Exposure = 1.0f;
     sceneParams.postProcessing.GammaCorrection = true;
 
     // Post processing unit (ao, blur, bloom, ...)
+    // -------------------------------------------
     PostProcessingUnit postProcessingUnit(SSAO_BLUR_MAX_RADIUS, SSAO_MAX_SAMPLES);
 
     // Uniform buffer objects 
+    // ----------------------
     std::vector<UniformBufferObject> sceneUniformBuffers{};
     for (int i = 0; i <= UBOBinding::AmbientOcclusion; i++)
         sceneUniformBuffers.push_back(std::move(UniformBufferObject(UniformBufferObject::UBOType::StaticDraw)));
@@ -1550,7 +1557,8 @@ int main()
     MeshShaders.clear();
     WiresShaders.clear();
     PostProcessingShaders.clear();
-    noiseTextures.clear();
+    sceneParams.noiseTextures.~vector();
+    sceneParams.poissonSamples.~optional();
     sceneMeshCollection.~SceneMeshCollection();
     lightMesh.~MeshRenderer();
     ssaoFBO.~FrameBuffer();

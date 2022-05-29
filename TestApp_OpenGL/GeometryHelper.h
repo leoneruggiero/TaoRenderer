@@ -177,12 +177,11 @@ namespace Utils
 			weightedSamples.push_back(WeightedSample{ initialDistribution[i], w });
 		}
 
+		auto wsCompare = [](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; };
+
 		// 2. Build a heap for si using weights wi
 		// ---------------------------------------
-		std::make_heap(
-			weightedSamples.begin(), weightedSamples.end(),
-			[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; }
-		);
+		std::make_heap(weightedSamples.begin(), weightedSamples.end(), wsCompare);
 
 		// 3. while number of samples > desired 
 		//    pull from heap, update weight, update heap
@@ -192,9 +191,7 @@ namespace Utils
 
 		while (weightedSamples.size() > samplesCount)
 		{
-			std::pop_heap(weightedSamples.begin(), weightedSamples.end(),
-				[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; }
-			);
+			std::pop_heap(weightedSamples.begin(), weightedSamples.end(), wsCompare);
 
 			WeightedSample removed = weightedSamples[weightedSamples.size() - 1];
 			removedSamples.push_back(removed.sample);
@@ -203,8 +200,7 @@ namespace Utils
 			for (auto& s : weightedSamples)
 				s.weight -= GetWeightContribution(s.sample, removed.sample, rMin, rMax);
 
-			std::make_heap(weightedSamples.begin(), weightedSamples.end(),
-				[](WeightedSample& a, WeightedSample& b) {return a.weight < b.weight; });
+			std::make_heap(weightedSamples.begin(), weightedSamples.end(), wsCompare);
 		}
 
 		// 5. Progessive Sampling

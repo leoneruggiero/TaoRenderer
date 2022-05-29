@@ -35,10 +35,11 @@ enum TextureBinding
 	NoiseMap0 = 2,
 	NoiseMap1 = 3,
 	NoiseMap2 = 4,
-	Albedo = 5,
-	Normals = 6,
-	Roughness = 7,
-	Metallic = 8
+	PoissonSamples = 5,
+	Albedo = 6,
+	Normals = 7,
+	Roughness = 8,
+	Metallic = 9
 };
 
 enum VertexInputType
@@ -76,8 +77,10 @@ enum TextureInternalFormat
 	Depth_Stencil = GL_DEPTH_STENCIL,
 	R = GL_RED,
 	R_16f = GL_R16F,
-	R_16ui = GL_R16UI,     // Where do those fancy formats come from???
-	Rgb_16f = GL_RGB16F,   // Where do those fancy formats come from???
+	R_16ui = GL_R16UI,     
+	Rg = GL_RG,
+	Rg_16f = GL_RG16F,
+	Rgb_16f = GL_RGB16F,   
 	Rgba = GL_RGBA,
 	Rgb = GL_RGB,
 	Rgba_32f = GL_RGBA32F,
@@ -87,6 +90,7 @@ enum TextureInternalFormat
 
 enum TextureType
 {
+	Texture1D = GL_TEXTURE_1D,
 	Texture2D = GL_TEXTURE_2D,
 	CubeMap = GL_TEXTURE_CUBE_MAP
 };
@@ -185,22 +189,6 @@ struct Environment
 
 };
 
-struct SceneParams
-{
-	glm::mat4 projectionMatrix;
-	glm::mat4 viewMatrix;
-	float cameraNear, cameraFar;
-	int viewportWidth, viewportHeight;
-	SceneLights sceneLights;
-	ScenePostProcessing postProcessing;
-	DrawParams drawParams;
-	Environment environment;
-	int pointWidth = 8;
-	int lineWidth = 4;
-
-	//Utils....where to store them???
-	unsigned int noiseTexId_0, noiseTexId_1, noiseTexId_2;
-};
 struct Texture
 {
 	unsigned char* data;
@@ -218,6 +206,7 @@ struct Material
 
 	const char* Textures;
 };
+
 
 struct MaterialsCollection
 {
