@@ -21,6 +21,11 @@
 #include "FrameBuffer.h"
 #include "Scene.h"
 
+
+#if GFX_STOPWATCH
+    #include "Diagnostics.h"
+#endif
+
 using namespace OGLResources;
 
 // CONSTANTS ======================================================
@@ -75,6 +80,60 @@ AOType AOShaderFromItem(const char* item)
         return AOType::HBAO;
 
     else return AOType::NONE;
+}
+
+void ShowStatsWindow()
+{
+#if GFX_STOPWATCH
+
+    // Constants
+    // ----------
+    int lineWidth_font = 28;
+    int barWidth_font = 10;
+
+    ImGui::Begin("Stats");
+
+    ImDrawList* draw_list = ImGui::GetWindowDrawList();
+
+    long totTime = 0;
+
+    for (const auto& q : Profiler::Instance().GetAllNamedQueries())
+        totTime += (long)q.value;
+
+    int cnt = 0;
+    for (const auto& q : Profiler::Instance().GetAllNamedQueries())
+    {
+        std::string s = "";
+        s.insert(s.begin(), std::max(0, 10 - (int)q.name.size()), ' '); // left padding
+        s = s.append(q.name);
+
+        ImGui::Text("%s (ms/frame): %.2f", s.c_str(), (long)q.value / 1000000.0f);
+        
+        // The bar is proportional to the elapsed time 
+        float fac = (float)q.value / totTime;
+
+        ImVec2 screenPos = ImGui::GetCursorScreenPos();
+        ImVec2 barSize = ImVec2(ImGui::GetFontSize() * barWidth_font * fac, ImGui::GetFrameHeight());
+
+        ImVec2 p0 = ImVec2(screenPos.x + ImGui::GetFontSize() * lineWidth_font - barSize.x, screenPos.y - barSize.y);
+        ImVec2 p1 = ImVec2(p0.x + barSize.x, p0.y + barSize.y);
+
+        draw_list->AddRectFilled(p0, p1,
+            ImGui::GetColorU32(IM_COL32(
+                PROFILER_COLORS_4RGB[(cnt % 4)*3 + 0],
+                PROFILER_COLORS_4RGB[(cnt % 4)*3 + 1],
+                PROFILER_COLORS_4RGB[(cnt % 4)*3 + 2],
+                160))
+        );
+
+        ImGui::InvisibleButton("##gradient1", ImVec2(20, 20));
+
+        cnt++;
+    }
+
+    ImGui::End();
+
+#endif
 }
 
 void ShowImGUIWindow()
@@ -403,17 +462,17 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
     reader.Load();
     Mesh teapotMesh = reader.Meshes()[0];
 
-    MeshRenderer plane = MeshRenderer(planeMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get());
+    MeshRenderer plane = MeshRenderer(planeMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get());
     plane.SetMaterial(MaterialsCollection::MatteGray);
     plane.Renderer::SetTransformation(glm::vec3(-4, -4, -0.5), 0, glm::vec3(1.0, 0, 0), glm::vec3(1, 1, 1));
     
     
     MeshRenderer
-        teapot1 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()),
-        teapot2 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()),
-        teapot3 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()),
-        teapot4 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()),
-        teapot5 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get());
+        teapot1 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get()),
+        teapot2 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get()),
+        teapot3 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get()),
+        teapot4 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get()),
+        teapot5 = MeshRenderer(teapotMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get());
 
     teapot1.Renderer::Transform(glm::vec3(-1, 1, 1), 1.5, glm::vec3(1, -0.5, 0.6), glm::vec3(1, 1, 1));
     teapot2.Renderer::Transform(glm::vec3(0, 0.6, 3), 0.5, glm::vec3(0, -0.5, 0.6), glm::vec3(1, 1, 1));
@@ -790,7 +849,7 @@ void LoadSceneFromPath(const char* path, SceneMeshCollection& sceneMeshCollectio
 void LoadScene_TechnoDemon(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
 {
    
-    LoadSceneFromPath("./Assets/Models/TechnoDemon.fbx", sceneMeshCollection, shadersCollection);
+    LoadSceneFromPath("../../Assets/Models/TechnoDemon.fbx", sceneMeshCollection, shadersCollection);
 
     // ___ Transformation ___ //
     // ---------------------- //
@@ -1156,6 +1215,10 @@ void ShadowPass(
     SceneParams& sceneParams, const SceneMeshCollection& sceneMeshCollection, 
     std::vector<UniformBufferObject>& sceneUniformBuffers, const MeshShader& shaderForShadows, const FrameBuffer& shadowFBO)
 {
+#if GFX_STOPWATCH
+    Profiler::Instance().StartNamedStopWatch("Shadows");
+#endif
+
     glm::mat4
         viewShadow, projShadow;
 
@@ -1182,12 +1245,19 @@ void ShadowPass(
     sceneParams.sceneLights.Directional.ShadowMapId = shadowFBO.DepthTextureId();
     shadowFBO.UnBind();
     
+#if GFX_STOPWATCH
+    Profiler::Instance().StopNamedStopWatch("Shadows");
+#endif
 }
 
 void AmbienOcclusionPass(
     SceneParams& sceneParams, const SceneMeshCollection& sceneMeshCollection, std::vector<UniformBufferObject>& sceneUniformBuffers, 
     const MeshShader& shaderForDepthPass, const FrameBuffer& ssaoFBO, const PostProcessingUnit& postProcessingUnit)
 {
+
+#if GFX_STOPWATCH 
+    Profiler::Instance().StartNamedStopWatch("AO");
+#endif
 
     ssaoFBO.Bind(true, true);
     glDrawBuffer(GL_COLOR_ATTACHMENT0 + 1);
@@ -1218,6 +1288,12 @@ void AmbienOcclusionPass(
     postProcessingUnit.BlurTexture(ssaoFBO, 0, sceneParams.sceneLights.Ambient.aoBlurAmount, sceneParams.viewportWidth, sceneParams.viewportHeight);
 
     sceneParams.sceneLights.Ambient.AoMapId = ssaoFBO.ColorTextureId();
+
+#if GFX_STOPWATCH 
+    long aoGpuTime =
+        Profiler::Instance().StopNamedStopWatch("AO");
+    std::cout << "AO Pass: " << aoGpuTime << std::endl;
+#endif
 }
 
 int main()
@@ -1376,6 +1452,7 @@ int main()
     sceneParams.sceneLights.Directional.Direction = glm::vec3(0.9, 0.9, -0.9);
     sceneParams.sceneLights.Directional.Diffuse = glm::vec4(1.0, 1.0, 1.0, 0.75);
     sceneParams.sceneLights.Directional.Specular = glm::vec4(1.0, 1.0, 1.0, 0.75);
+    sceneParams.drawParams.doShadows = true;
 
     // Shadow Map
     // ----------------------
@@ -1474,6 +1551,9 @@ int main()
 
         // OPAQUE PASS /////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#if GFX_STOPWATCH
+        Profiler::Instance().StartNamedStopWatch("Scene");
+#endif
         // Offscreen rendering to enable hdr and gamma correction.
         if (sceneParams.postProcessing.ToneMapping || sceneParams.postProcessing.GammaCorrection)
         {
@@ -1500,6 +1580,9 @@ int main()
             sceneMeshCollection.at(i).get()->Draw(camera.Position, sceneParams);
         }
         
+#if GFX_STOPWATCH
+        Profiler::Instance().StopNamedStopWatch("Scene");
+#endif
         // ENVIRONMENT //////////////////////////////////////////////////////////////////////////////////////////////////////
 
         DrawEnvironment(camera, sceneParams, envCube_vao, environmentShader, environmentCubemap);
@@ -1541,6 +1624,7 @@ int main()
         if (showWindow)
         {
             ShowImGUIWindow();
+            ShowStatsWindow();
 
         }
 

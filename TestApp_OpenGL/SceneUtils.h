@@ -127,7 +127,7 @@ struct DirectionalLight
 	float ShadowMapToWorld;
 	float Bias=0.002f;
 	float SlopeBias=0.025f;
-	float Softness = 0.0;
+	float Softness = 0.01f;
 };
 
 struct AmbientLight
@@ -197,7 +197,7 @@ struct Texture
 	int height;
 };
 
-constexpr const char* MaterialsFolder = "./Assets/Materials";
+constexpr const char* MaterialsFolder = "../../Assets/Materials";
 
 struct Material
 {

@@ -2709,27 +2709,27 @@ namespace OGLResources
 
             for (int i = 0; i < 6; i++)
             {
-                std::string suffix;
+                std::string fileName;
                 switch (i)
                 {
-                case(0): suffix = "/right.jpg"; break;
-                case(1): suffix = "/left.jpg"; break;
-                case(2): suffix = "/top.jpg"; break;
-                case(3): suffix = "/bottom.jpg"; break;
-                case(4): suffix = "/front.jpg"; break;
-                case(5): suffix = "/back.jpg"; break;
+                case(0): fileName = "/right.jpg"; break;
+                case(1): fileName = "/left.jpg"; break;
+                case(2): fileName = "/top.jpg"; break;
+                case(3): fileName = "/bottom.jpg"; break;
+                case(4): fileName = "/front.jpg"; break;
+                case(5): fileName = "/back.jpg"; break;
                 default: throw "no...."; break;
                 }
 
                 int width, height, nrChannels;
 
                 unsigned char*
-                    data = stbi_load((path + suffix).c_str(), &width, &height, &nrChannels, 0);
+                    data = stbi_load((path + fileName).c_str(), &width, &height, &nrChannels, 0);
 
-
+                
                 if (!data)
                 {
-                    std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << path << "\n" << std::endl;;
+                    std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << (path + fileName) << "\n" << std::endl;;
                     throw "Texture data loading failed";
                 }
 
@@ -2739,7 +2739,7 @@ namespace OGLResources
                 case(3): internalFormat = TextureInternalFormat::Rgb; break;
                 case(4): internalFormat = TextureInternalFormat::Rgba; break;
                 default:
-                    std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << path << "\n" << std::endl;
+                    std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << (path + fileName) << "\n" << std::endl;
                     throw "Unsupported texture format."; break;
                 }
 
