@@ -54,7 +54,7 @@ bool showGrid = false;
 bool showLights = false;
 bool showBoundingBox = false;
 bool showAO = false;
-
+bool showStats = false;
 
 // Camera ==========================================================
 bool perspective = true;
@@ -91,7 +91,7 @@ void ShowStatsWindow()
     int lineWidth_font = 28;
     int barWidth_font = 10;
 
-    ImGui::Begin("Stats");
+    ImGui::Begin("Stats", &showStats);
 
     ImDrawList* draw_list = ImGui::GetWindowDrawList();
 
@@ -104,7 +104,7 @@ void ShowStatsWindow()
     for (const auto& q : Profiler::Instance().GetAllNamedQueries())
     {
         std::string s = "";
-        s.insert(s.begin(), std::max(0, 10 - (int)q.name.size()), ' '); // left padding
+        s.insert(s.begin(), std::max(0, 15 - (int)q.name.size()), ' '); // left padding
         s = s.append(q.name);
 
         ImGui::Text("%s (ms/frame): %.2f", s.c_str(), (long)q.value / 1000000.0f);
@@ -228,6 +228,7 @@ void ShowImGUIWindow()
             ImGui::Checkbox("BoundingBox", &showBoundingBox);
             ImGui::Checkbox("Show Lights", &showLights);
             ImGui::Checkbox("AO Pass", &showAO);
+            ImGui::Checkbox("Stats", &showStats);
             ImGui::EndTabItem();
         }
         ImGui::EndTabBar();
@@ -1165,6 +1166,10 @@ void DrawEnvironment(
     const Camera& camera, const SceneParams& sceneParams, const VertexAttribArray& unitCubeVAO,  const ShaderBase& environmentShader, const OGLTextureCubemap& environmentMap)
 {
    
+#if GFX_STOPWATCH
+    Profiler::Instance().StartNamedStopWatch("Environment");
+#endif
+
     glm::mat4 transf = glm::mat4(1.0);
 
     transf[0] =  sceneParams.viewMatrix[0];
@@ -1209,6 +1214,10 @@ void DrawEnvironment(
     glDepthFunc(GL_LESS);
     glCullFace(GL_BACK);
     glDisable(GL_CULL_FACE);
+
+#if GFX_STOPWATCH
+    Profiler::Instance().StopNamedStopWatch("Environment");
+#endif
 }
 
 void ShadowPass(
@@ -1624,8 +1633,8 @@ int main()
         if (showWindow)
         {
             ShowImGUIWindow();
-            ShowStatsWindow();
-
+            if (showStats)
+                ShowStatsWindow();
         }
 
         // Rendering
