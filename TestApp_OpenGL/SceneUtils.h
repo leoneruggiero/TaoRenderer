@@ -33,7 +33,8 @@ enum TextureBinding
 	Albedo = 6,
 	Normals = 7,
 	Roughness = 8,
-	Metallic = 9
+	Metallic = 9,
+	IrradianceMap = 10
 };
 
 enum VertexInputType

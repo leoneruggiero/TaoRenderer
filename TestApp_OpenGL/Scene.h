@@ -93,15 +93,16 @@ struct DrawParams
 
 struct Environment
 {
-	bool useTexture;
-
+	// Skybox
+	bool useSkyboxTexture;
 	glm::vec3 SouthColor;
 	glm::vec3 NorthColor;
 	glm::vec3 EquatorColor;
-
 	std::optional<OGLResources::OGLTextureCubemap> Skybox;
-	std::optional<OGLResources::OGLTextureCubemap> IrradianceMap;
 
+	// IrradianceMap
+	float intensity;
+	std::optional<OGLResources::OGLTextureCubemap> IrradianceMap;
 };
 
 struct Texture

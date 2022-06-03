@@ -155,7 +155,7 @@ void ShowImGUIWindow()
                     ImGuiColorEditFlags_PickerHueWheel |
                     ImGuiColorEditFlags_NoSidePreview;
 
-                ImGui::Checkbox("Image Texture", &sceneParams.environment.useTexture);
+                ImGui::Checkbox("Image Texture", &sceneParams.environment.useSkyboxTexture);
                 ImGui::ColorPicker3("North", &sceneParams.environment.NorthColor[0], f);
                 ImGui::ColorPicker3("Equator", &sceneParams.environment.EquatorColor[0], f);
                 ImGui::ColorPicker3("South", &sceneParams.environment.SouthColor[0], f);
@@ -169,7 +169,7 @@ void ShowImGUIWindow()
         {
             if (ImGui::CollapsingHeader("Ambient", ImGuiTreeNodeFlags_None))
             {
-                ImGui::ColorEdit4("Color", (float*)&(sceneParams.sceneLights.Ambient.Ambient));
+                ImGui::DragFloat("Environment", (float*)&(sceneParams.environment.intensity), 0.1, 0.0, 1.0);
                 if (ImGui::BeginCombo("AO Tecnique", ao_comboBox_current_item)) // The second parameter is the label previewed before opening the combo.
                 {
                     for (int n = 0; n < IM_ARRAYSIZE(ao_comboBox_items); n++)
@@ -889,7 +889,7 @@ void SetupScene(
     //LoadScene_PbrTextSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
+    LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("./Assets/Models/suzanne.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ClayShingles);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
@@ -901,7 +901,7 @@ void SetupScene(
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1186,7 +1186,7 @@ void DrawEnvironment(
     glUniformMatrix4fv(environmentShader.UniformLocation("u_model"), 1, GL_FALSE, glm::value_ptr(transf));
     glUniformMatrix4fv(environmentShader.UniformLocation("u_projection"), 1, GL_FALSE, glm::value_ptr(proj));
 
-    if (sceneParams.environment.useTexture && sceneParams.environment.Skybox.has_value())
+    if (sceneParams.environment.useSkyboxTexture && sceneParams.environment.Skybox.has_value())
     {
         glActiveTexture(GL_TEXTURE0);
         sceneParams.environment.Skybox.value().Bind();
@@ -1211,7 +1211,7 @@ void DrawEnvironment(
     glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
     unitCubeVAO.UnBind();
 
-    if (sceneParams.environment.useTexture)
+    if (sceneParams.environment.useSkyboxTexture)
         sceneParams.environment.Skybox.value().UnBind();
 
     glDepthFunc(GL_LESS);

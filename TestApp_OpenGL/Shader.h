@@ -398,6 +398,10 @@ namespace FragmentSource_Geometry
     uniform sampler2D Roughness;
     uniform sampler2D AmbientOcclusion;
 
+    uniform bool u_hasIrradianceMap;
+    uniform float u_environmentIntensity;
+    uniform samplerCube IrradianceMap;
+
     uniform bool u_doGammaCorrection;
     uniform float u_gamma;
     
@@ -416,8 +420,12 @@ namespace FragmentSource_Geometry
         // F0 + (1 - F0)(1 - (h*v))^5
         return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
     }
-    // ---------------------------------------------------
 
+    vec3 FresnelRoughness(float cosTheta, vec3 F0, float roughness)
+    {
+        return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+    }
+    
     // Trowbridge - Reitz GGX normal distribution function
     // ---------------------------------------------------
     float NDF_GGXTR(vec3 n, vec3 h, float roughness)
@@ -430,8 +438,7 @@ namespace FragmentSource_Geometry
         
         return a2 / d ;
     }
-    // ---------------------------------------------------
-
+   
     // Schlick GGX geometry function
     // ---------------------------------------------------
     float G_GGXS(vec3 n, vec3 v, float roughness)
@@ -442,8 +449,7 @@ namespace FragmentSource_Geometry
 
         return dot / (dot * (1.0 - k) + k);
     }
-    // ---------------------------------------------------
-
+    
     // Complete geometry function, product of occlusion-probability
     // from light and from view directions
     // ---------------------------------------------------
@@ -451,7 +457,20 @@ namespace FragmentSource_Geometry
     {
        return G_GGXS(n, v, roughness) * G_GGXS(n, l, roughness);    
     }
+    
+    // Diffuse indirect (irradiance map)
     // ---------------------------------------------------
+    vec3 ComputeDiffuseIndirectIllumination(vec3 normal, vec3 kd, vec3 albedo)
+    {
+        vec3 irradiance = vec3(1,1,1); // White environment by default
+
+        if(u_hasIrradianceMap)
+            irradiance = texture(IrradianceMap, normalize(normal)).rbg;
+
+        return albedo * irradiance* kd * u_environmentIntensity;
+    }
+
+
 
 )";
     const std::string DEFS_SSAO =
@@ -809,7 +828,17 @@ namespace FragmentSource_Geometry
         vec3 diffuse = (kd  * diffuseColor.rgb / PI);
         vec3 reflected = ((F * D * G) / (4.0 * NdotL * NdotV + 0.0001));
         
-        finalColor = vec4( (diffuse + reflected) * NdotL * Li , 1.0);
+        // Direct lighting contribution
+        vec3 direct = (diffuse + reflected) * NdotL * Li ;
+
+        // Indirect diffuse
+        vec3 indirectF = FresnelRoughness(max(0.0, dot(worldNormal, viewDir)), vec3(F0_DIELECTRIC), roughness);
+        indirectF = mix(indirectF, diffuseColor.rgb, metallic);
+        ambient = 
+            vec4(ComputeDiffuseIndirectIllumination(worldNormal, 1.0-indirectF, diffuseColor.rgb), 1.0);
+
+        finalColor = vec4( direct /*ambient will be added later in the shader*/, 1.0);
+
 )";
 
     const std::string CALC_UNLIT_MAT_OLD =

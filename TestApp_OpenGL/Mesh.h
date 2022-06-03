@@ -276,6 +276,17 @@ public:
             glBindTexture(GL_TEXTURE_2D, sceneParams.sceneLights.Ambient.AoMapId);
             glUniform1i(UniformLocation("aoMap"), TextureBinding::AoMap);
         }
+
+        if (sceneParams.environment.IrradianceMap.has_value())
+        {
+            glUniform1ui(UniformLocation("u_hasIrradianceMap"), true);
+            glUniform1f(UniformLocation("u_environmentIntensity"), sceneParams.environment.intensity);
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::IrradianceMap);
+            sceneParams.environment.IrradianceMap.value().Bind();
+            glUniform1i(UniformLocation("IrradianceMap"), TextureBinding::IrradianceMap);
+        }
+        else
+            glUniform1ui(UniformLocation("u_hasIrradianceMap"), false);
     }
 
 };
