@@ -1,49 +1,171 @@
 #ifndef SCENE_H
 #define SCENE_H
 
-#include "Mesh.h"
 #include "GeometryHelper.h"
 #include <vector>
+#include <optional>
+#include "Shader.h"
 
-class SceneMeshCollection /* TODO : public std::vector<std::shared_ptr<MeshRenderer>>::iterator*/
+
+struct PointLight
 {
-private:
-	std::vector<std::shared_ptr<Renderer>> _meshRendererCollection;
-	Utils::BoundingBox<glm::vec3> _sceneAABBox;
+	glm::vec3 Position;
 
-public:
-	SceneMeshCollection() : _sceneAABBox(std::vector<glm::vec3>()) // TODO: Why bbox dowsn't have a default constructor???
-	{
+	// Alpha is intensity
+	glm::vec4 Diffuse;
+	glm::vec4 Specular;
 
-	}
+	// Faloff
+	float Constant = 1.0;
+	float Linear;
+	float Quadratic;
+};
 
-	
-	void AddToCollection(std::shared_ptr<Renderer> meshRenderer)
-	{
-		_meshRendererCollection.push_back(meshRenderer);
-		_sceneAABBox.Update(meshRenderer.get()->GetTransformedPoints());
-	}
+struct DirectionalLight
+{
+	glm::vec3 Direction;
 
-	void UpdateBBox()
-	{
-		_sceneAABBox = Utils::BoundingBox<glm::vec3>(std::vector<glm::vec3>());
-		for (auto& m : _meshRendererCollection)
-			_sceneAABBox.Update(m.get()->GetTransformedPoints());
-	}
+	// Needed for shadowMap
+	glm::vec3 Position;
 
-	const std::shared_ptr<Renderer>& at(const size_t Pos) const { return _meshRendererCollection.at(Pos); }
+	// Alpha is intensity
+	glm::vec4 Diffuse;
+	glm::vec4 Specular;
 
-	size_t size() const { return _meshRendererCollection.size(); }
+	// ShadowData
+	unsigned int ShadowMapId;
+	glm::mat4 LightSpaceMatrix;
+	float ShadowMapToWorld;
+	float Bias;
+	float SlopeBias;
+	float Softness;
+};
 
-	// TODO return reference instead of vec3?
-	float GetSceneBBSize() const { return _sceneAABBox.Size(); } 
-	glm::vec3 GetSceneBBExtents() const { return _sceneAABBox.Diagonal(); }
-	glm::vec3 GetSceneBBCenter() const { return _sceneAABBox.Center(); }
-	std::vector<glm::vec3> GetSceneBBPoints() const { return _sceneAABBox.GetPoints(); }
-	std::vector<glm::vec3> GetSceneBBLines() const { return _sceneAABBox.GetLines(); }
+struct AmbientLight
+{
+	glm::vec4 Ambient;
 
+	float aoStrength;
+	float aoRadius;
+	int aoSamples;
+	int aoSteps;
+	int aoBlurAmount;
+	// SSAO
+	unsigned int AoMapId;
+};
+
+struct Spotlight
+{
+	glm::vec3 Position;
+	glm::vec3 Direction;
+
+	// Alpha is intensity
+	glm::vec4 Diffuse;
+	glm::vec4 Specular;
+
+	// Cone
+	float InnerRadius;
+	float OuterRadius;
+};
+
+struct SceneLights
+{
+	// ambientLight
+	AmbientLight Ambient;
+
+	// directionalLight
+	DirectionalLight Directional;
+};
+
+struct ScenePostProcessing
+{
+	bool ToneMapping;
+	float Exposure;
+
+	bool GammaCorrection;
+};
+
+struct DrawParams
+{
+	bool doShadows;
+};
+
+
+struct Environment
+{
+	bool useTexture;
+
+	glm::vec3 SouthColor;
+	glm::vec3 NorthColor;
+	glm::vec3 EquatorColor;
+
+	std::optional<OGLResources::OGLTextureCubemap> Skybox;
+	std::optional<OGLResources::OGLTextureCubemap> IrradianceMap;
 
 };
+
+struct Texture
+{
+	unsigned char* data;
+	int width;
+	int height;
+};
+
+struct SceneParams
+{
+	glm::mat4 projectionMatrix;
+	glm::mat4 viewMatrix;
+	float cameraNear, cameraFar;
+	int viewportWidth, viewportHeight;
+	SceneLights sceneLights;
+	ScenePostProcessing postProcessing;
+	DrawParams drawParams;
+	Environment environment;
+	int pointWidth = 8;
+	int lineWidth = 4;
+
+	std::vector<OGLResources::OGLTexture2D> noiseTextures;
+	std::optional<OGLResources::OGLTexture1D> poissonSamples;
+};
+
+constexpr const char* MaterialsFolder = "../../Assets/Materials";
+
+struct Material
+{
+	glm::vec4 Albedo;
+	float Roughness;
+	float Metallic;
+
+	const char* Textures;
+};
+
+
+struct MaterialsCollection
+{
+	static const Material NullMaterial;
+	static const Material ShinyRed;
+	static const Material PlasticGreen;
+	static const Material Copper;
+	static const Material PureWhite;
+	static const Material MatteGray;
+	static const Material ClayShingles;
+	static const Material WornFactoryFloor;
+	static const Material Cobblestone;
+	static const Material WoodPlanks;
+	static const Material BlackAndWhiteTiles;
+};
+
+const Material MaterialsCollection::NullMaterial = Material{ glm::vec4(1, 0, 1, 1), 0.0, 0.0 };
+const Material MaterialsCollection::ShinyRed = Material{ glm::vec4(1, 0, 0, 1), 0.2, 0.0 };
+const Material MaterialsCollection::PlasticGreen = Material{ glm::vec4(0, 0.8, 0, 1), 0.3, 0.0 };
+const Material MaterialsCollection::Copper = Material{ glm::vec4(0.8, 0.3, 0, 1),  0.2, 1.0 };
+const Material MaterialsCollection::PureWhite = Material{ glm::vec4(0.9, 0.9, 0.9, 1),0.6, 0.0 };
+const Material MaterialsCollection::MatteGray = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.8 , 0.0 };
+const Material MaterialsCollection::ClayShingles = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0, "Shingles" };
+const Material MaterialsCollection::WornFactoryFloor = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0, "WornFactoryFloor" };
+const Material MaterialsCollection::WoodPlanks = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0,  "WoodPlanks" };
+const Material MaterialsCollection::Cobblestone = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.7, 0.0, "Cobblestone" };
+const Material MaterialsCollection::BlackAndWhiteTiles = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.5, 0.0,  "BlackAndWhiteTiles" };
 
 
 #endif

@@ -170,7 +170,6 @@
     <ClInclude Include="Camera.h" />
     <ClInclude Include="Diagnostics.h" />
     <ClInclude Include="FileUtils.h" />
-    <ClInclude Include="FrameBuffer.h" />
     <ClInclude Include="GeometryHelper.h" />
     <ClInclude Include="ImGui\imconfig.h" />
     <ClInclude Include="ImGui\imgui.h" />

@@ -10,10 +10,9 @@
 #include <vector>
 #include <optional>
 #include <map>
-#include "SceneUtils.h"
-#include "FrameBuffer.h"
-#include "GeometryHelper.h"
 #include "stb_image.h"
+
+
 
 namespace VertexSource_Environment
 {
@@ -60,6 +59,9 @@ namespace FragmentSource_Environment
     uniform vec3 u_south_color; 
     uniform vec3 u_north_color;
 
+    uniform bool u_doGammaCorrection;
+    uniform float u_gamma;
+
     uniform samplerCube EnvironmentMap;
 
     #ifndef PI
@@ -82,12 +84,14 @@ namespace FragmentSource_Environment
                 ? texture(EnvironmentMap, (fpwN * vec3(1.0, -1.0, -1.0))).rgb
                 : mix(u_equator_color, poleColor, abs(f));
         
+        if(u_doGammaCorrection && u_hasEnvironmentMap)
+            col = pow(col, vec3(u_gamma));
+        
         gl_FragColor = vec4(col, 1.0);
        
     }
     )";
 }
-
 namespace GeometrySource_Geometry
 {
     const std::string THICK_POINTS =
@@ -250,8 +254,6 @@ namespace GeometrySource_Geometry
     }
     )";
 }
-
-
 namespace VertexSource_Geometry
 {
     const std::string EXP_VERTEX =
@@ -353,7 +355,6 @@ layout (std140) uniform blk_PerFrameData_Shadows
         return result;
     }
 }
-
 namespace FragmentSource_Geometry
 {
     
@@ -922,7 +923,6 @@ namespace FragmentSource_Geometry
         return result;
     }
 }
-
 namespace VertexSource_PostProcessing
 {
     const std::string EXP_VERTEX =
@@ -1593,6 +1593,51 @@ namespace OGLUtils
 namespace OGLTextureUtils
 {
 
+
+    enum TextureFiltering
+    {
+        Nearest = GL_NEAREST,
+        Linear = GL_LINEAR,
+
+        // NOT ALLOWED FOR MAGNIFICATION
+        Nearest_Mip_Nearest = GL_NEAREST_MIPMAP_NEAREST,
+        Nearest_Mip_Linear = GL_NEAREST_MIPMAP_LINEAR,
+        Linear_Mip_Nearest = GL_LINEAR_MIPMAP_NEAREST,
+        Linear_Mip_Linear = GL_LINEAR_MIPMAP_LINEAR
+    };
+
+    enum TextureWrap
+    {
+        Clamp_To_Edge = GL_CLAMP_TO_EDGE,
+        Repeat = GL_REPEAT
+
+    };
+
+    enum TextureInternalFormat
+    {
+        Depth_Component = GL_DEPTH_COMPONENT,
+        Depth_Stencil = GL_DEPTH_STENCIL,
+        R = GL_RED,
+        R_16f = GL_R16F,
+        R_16ui = GL_R16UI,
+        Rg = GL_RG,
+        Rg_16f = GL_RG16F,
+        Rgb_16f = GL_RGB16F,
+        Rgba = GL_RGBA,
+        Rgb = GL_RGB,
+        Rgba_32f = GL_RGBA32F,
+        Rgba_16f = GL_RGBA16F
+
+    };
+
+    enum TextureType
+    {
+        Texture1D = GL_TEXTURE_1D,
+        Texture2D = GL_TEXTURE_2D,
+        CubeMap = GL_TEXTURE_CUBE_MAP
+    };
+
+
     void Init(unsigned int texture, TextureType textureType, GLenum target, int level, TextureInternalFormat internalFormat, int width, int height, GLenum format, GLenum type, const void* data)
     {
 
@@ -2194,9 +2239,9 @@ namespace OGLResources
             OGLUtils::CheckOGLErrors();
         }
 
-        void BindingPoint(UBOBinding binding)
+        void BindingPoint(unsigned int index)
         {
-            glBindBufferBase(GL_UNIFORM_BUFFER, binding, OGLResource::ID());
+            glBindBufferBase(GL_UNIFORM_BUFFER, index, OGLResource::ID());
         }
 
     private:
@@ -2269,7 +2314,6 @@ namespace OGLResources
 
         }
     };
-
 
     class OGLFragmentShader : public OGLResource
     {
@@ -2465,9 +2509,11 @@ namespace OGLResources
 
     };
 
+    using  namespace OGLTextureUtils;
 
     class OGLTexture2D : public OGLResource
     {
+        
 
     private:
         int
@@ -2671,15 +2717,11 @@ namespace OGLResources
         OGLTextureCubemap(const char* folderPath, TextureFiltering minFilter, TextureFiltering magFilter)
         {
 
-
-            //stbi_set_flip_vertically_on_load(true);
-
             OGLResource::Create(OGLResourceType::TEXTURE);
 
             OGLUtils::CheckOGLErrors();
 
             TextureInternalFormat internalFormat;
-
 
             std::string path(folderPath);
 
@@ -2688,12 +2730,12 @@ namespace OGLResources
                 std::string fileName;
                 switch (i)
                 {
-                case(0): fileName = "/right.jpg"; break;
-                case(1): fileName = "/left.jpg"; break;
-                case(2): fileName = "/top.jpg"; break;
-                case(3): fileName = "/bottom.jpg"; break;
-                case(4): fileName = "/front.jpg"; break;
-                case(5): fileName = "/back.jpg"; break;
+                case(0): fileName = "/posx.hdr"; break;
+                case(1): fileName = "/negx.hdr"; break;
+                case(2): fileName = "/posy.hdr"; break;
+                case(3): fileName = "/negy.hdr"; break;
+                case(4): fileName = "/posz.hdr"; break;
+                case(5): fileName = "/negz.hdr"; break;
                 default: throw "no...."; break;
                 }
 
@@ -2711,9 +2753,9 @@ namespace OGLResources
 
                 switch (nrChannels)
                 {
-                case(1): internalFormat = TextureInternalFormat::R; break;
-                case(3): internalFormat = TextureInternalFormat::Rgb; break;
-                case(4): internalFormat = TextureInternalFormat::Rgba; break;
+                case(1): internalFormat = TextureInternalFormat::R_16f; break;
+                case(3): internalFormat = TextureInternalFormat::Rgb_16f; break;
+                case(4): internalFormat = TextureInternalFormat::Rgba_16f; break;
                 default:
                     std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << (path + fileName) << "\n" << std::endl;
                     throw "Unsupported texture format."; break;
@@ -2769,6 +2811,7 @@ namespace OGLResources
         }
 
     };
+
     class FrameBuffer : public OGLResource
     {
     private:
@@ -2960,543 +3003,4 @@ namespace OGLResources
     };
 
 }
-
-
-using namespace OGLResources;
-
-struct SceneParams
-{
-    glm::mat4 projectionMatrix;
-    glm::mat4 viewMatrix;
-    float cameraNear, cameraFar;
-    int viewportWidth, viewportHeight;
-    SceneLights sceneLights;
-    ScenePostProcessing postProcessing;
-    DrawParams drawParams;
-    Environment environment;
-    int pointWidth = 8;
-    int lineWidth = 4;
-
-    std::vector<OGLResources::OGLTexture2D> noiseTextures;
-    std::optional<OGLResources::OGLTexture1D> poissonSamples;
-};
-
-class RenderableBasic
-{
-public:
-    virtual std::vector<glm::vec3> GetPositions() { return std::vector<glm::vec3>(1); };
-    virtual std::vector<glm::vec3> GetNormals() { return std::vector<glm::vec3>(0); };
-    virtual std::vector<glm::vec2> GetTextureCoordinates() { return std::vector<glm::vec2>(0); };
-    virtual std::vector<glm::vec3> GetTangents() { return std::vector<glm::vec3>(0); };
-    virtual std::vector<glm::vec3> GetBitangents() { return std::vector<glm::vec3>(0); };
-    virtual std::vector<int> GetIndices() { return std::vector<int>(0); };
-};
-
-class ShaderBase
-{
-private:
-    OGLResources::ShaderProgram _shaderProgram;
-    std::string _vertexCode;
-    std::string _geometryCode;
-    std::string _fragmentCode;
-
-protected:
-    void SetUBOBindings()
-    {
-
-        unsigned int blkIndex = -1;
-
-        constexpr static const char* uboNames[] =
-        {
-            "blk_PerFrameData",
-            "blk_PerFrameData_Lights",
-            "blk_PerFrameData_Shadows",
-            "blk_PerFrameData_Ao"
-        };
-
-        for (int i = 0; i <= UBOBinding::AmbientOcclusion; i++)
-        {
-            if ((blkIndex = glGetUniformBlockIndex(ShaderBase::ShaderProgramId(), uboNames[i])) != GL_INVALID_INDEX)
-                glUniformBlockBinding(ShaderBase::ShaderProgramId(), blkIndex, i);
-        };
-
-        OGLUtils::CheckOGLErrors();
-
-    }
-    
-public:
-  
-    ShaderBase( std::string vertexSource, std::string fragmentSource) :
-        _vertexCode(vertexSource), _fragmentCode(fragmentSource), _shaderProgram(vertexSource, fragmentSource)
-    {
-    }
-
-    ShaderBase(std::string vertexSource, std::string geometrySource, std::string fragmentSource) :
-        _vertexCode(vertexSource), _fragmentCode(fragmentSource),_geometryCode(geometrySource), _shaderProgram(vertexSource, fragmentSource, geometrySource)
-    {
-    }
-
-    void SetCurrent() const { _shaderProgram.Enable(); }
-
-    std::vector<std::pair<unsigned int, std::string>> GetVertexInput() { return _shaderProgram.GetInput(); }
-
-    int UniformLocation(std::string name) const { return glGetUniformLocation(_shaderProgram.ID(), name.c_str()); };
-
-    unsigned int ShaderProgramId() { return _shaderProgram.ID(); };
-
-    virtual void SetMatrices(glm::mat4 modelMatrix) const {};
-};
-
-class WiresShader : public ShaderBase
-{
-
-public:
-    WiresShader(std::vector<std::string> vertexExpansions, std::vector<std::string> fragmentExpansions, WireNature wireNature) :
-        ShaderBase(
-
-            VertexSource_Geometry::Expand(
-                VertexSource_Geometry::EXP_VERTEX,
-                vertexExpansions),
-
-            ResolveGeometryShader(wireNature),
-
-            FragmentSource_Geometry::Expand(
-                FragmentSource_Geometry::EXP_FRAGMENT,
-                fragmentExpansions))
-    {
-        ShaderBase::SetUBOBindings();
-    };
-
-    void SetColor(glm::vec4 color)
-    {
-        glUniform4fv(UniformLocation("material.Albedo"), 1, glm::value_ptr(color));
-    }
-
-    void SetMatrices(glm::mat4 modelMatrix) const override
-    {
-        glUniformMatrix4fv(UniformLocation("model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
-    }
-
-private:
-    std::string ResolveGeometryShader(WireNature nature)
-    {
-        switch (nature)
-        {
-        case WireNature::POINTS:
-            return GeometrySource_Geometry::THICK_POINTS;
-        case WireNature::LINES:
-            return GeometrySource_Geometry::THICK_LINES;
-            break;
-        case WireNature::LINE_STRIP:
-            return GeometrySource_Geometry::THICK_LINE_STRIP;
-            break;
-        default:
-            break;
-        }
-    }
-};
-
-class MeshShader : public ShaderBase
-{
-
-public:
-    MeshShader(std::vector<std::string> vertexExpansions, std::vector<std::string> fragmentExpansions) :
-        ShaderBase(
-
-            VertexSource_Geometry::Expand(
-                VertexSource_Geometry::EXP_VERTEX,
-                vertexExpansions),
-
-            FragmentSource_Geometry::Expand(
-                FragmentSource_Geometry::EXP_FRAGMENT,
-                fragmentExpansions)) 
-    {
-        ShaderBase::SetUBOBindings();
-    };
-    
-    void SetMatrices(glm::mat4 modelMatrix) const
-    {
-        glUniformMatrix4fv(UniformLocation("model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
-        glUniformMatrix4fv(UniformLocation("normalMatrix"), 1, GL_FALSE, glm::value_ptr(glm::transpose(glm::inverse(modelMatrix))));
-
-    }
-
-    void SetMaterial(const Material& mat, 
-        const std::optional<OGLTexture2D>& albedoTexture, 
-        const std::optional<OGLTexture2D>& normalsTexture,
-        const std::optional<OGLTexture2D>& roughnessTexture,
-        const std::optional<OGLTexture2D>& metallicTexture,
-        const SceneParams& sceneParams) const
-    {
-        // TODO: uniform block?
-        glUniform4fv(UniformLocation("material.Albedo"), 1, glm::value_ptr(mat.Albedo));
-        glUniform1f(UniformLocation("material.Roughness"), mat.Roughness);
-        glUniform1f (UniformLocation("material.Metallic"), mat.Metallic);
-
-        // ***  ALBEDO color texture *** //
-        // ----------------------------- //
-        if (albedoTexture.has_value())
-        {
-            glUniform1ui(UniformLocation("material.hasAlbedo"), true);
-
-            glUniform1ui(UniformLocation("u_doGammaCorrection"), sceneParams.postProcessing.GammaCorrection);
-            glUniform1f(UniformLocation("u_gamma"), 2.2f);
-            
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::Albedo);
-            albedoTexture.value().Bind();
-            glUniform1i(UniformLocation("Albedo"), TextureBinding::Albedo);
-        }
-        else
-            glUniform1ui(UniformLocation("material.hasAlbedo"), false);
-        // ----------------------------- //
-
-
-        // ***  NORMAL map texture *** //
-        // --------------------------- //
-        if (normalsTexture.has_value())
-        {
-            glUniform1ui(UniformLocation("material.hasNormals"), true);
-
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::Normals);
-            normalsTexture.value().Bind();
-            glUniform1i(UniformLocation("Normals"), TextureBinding::Normals);
-        }
-        else
-            glUniform1ui(UniformLocation("material.hasNormals"), false);
-        // --------------------------- //
-
-        // ***  ROUGHNESS map texture *** //
-        // ------------------------------ //
-        if (roughnessTexture.has_value())
-        {
-            glUniform1ui(UniformLocation("material.hasRoughness"), true);
-
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::Roughness);
-            roughnessTexture.value().Bind();
-            glUniform1i(UniformLocation("Roughness"), TextureBinding::Roughness);
-        }
-        else
-            glUniform1ui(UniformLocation("material.hasRoughness"), false);
-        // ------------------------------ //
-
-        // ***  METALLIC map texture *** //
-        // ----------------------------- //
-        if (metallicTexture.has_value())
-        {
-            glUniform1ui(UniformLocation("material.hasMetallic"), true);
-
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::Metallic);
-            metallicTexture.value().Bind();
-            glUniform1i(UniformLocation("Metallic"), TextureBinding::Metallic);
-        }
-        else
-            glUniform1ui(UniformLocation("material.hasMetallic"), false);
-        // ----------------------------- //
-    }
-
-    void SetMaterial(const glm::vec4& diffuse, const glm::vec4& specular, float shininess) const
-    {
-        // TODO: uniform block?
-        glUniform4fv(UniformLocation("material.Diffuse"), 1, glm::value_ptr(diffuse));
-        glUniform4fv(UniformLocation("material.Specular"), 1, glm::value_ptr(specular));
-        glUniform1f(UniformLocation("material.Shininess"), shininess);
-
-    }
-
-    void SetSamplers(const SceneParams &sceneParams)
-    {
-        // TODO bind texture once for all
-        if (sceneParams.sceneLights.Directional.ShadowMapId)
-        {
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::ShadowMap); 
-            glBindTexture(GL_TEXTURE_2D, sceneParams.sceneLights.Directional.ShadowMapId);
-            glUniform1i(UniformLocation("shadowMap"), TextureBinding::ShadowMap);
-
-            // Noise textures for PCSS calculations
-            // ------------------------------------
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::NoiseMap0);
-            sceneParams.noiseTextures.at(0).Bind();
-            glUniform1i(UniformLocation("noiseTex_0"), TextureBinding::NoiseMap0);
-
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::NoiseMap1);
-            sceneParams.noiseTextures.at(1).Bind();
-            glUniform1i(UniformLocation("noiseTex_1"), TextureBinding::NoiseMap1);
-
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::NoiseMap2);
-            sceneParams.noiseTextures.at(2).Bind();
-            glUniform1i(UniformLocation("noiseTex_2"), TextureBinding::NoiseMap2);
-
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::PoissonSamples);
-            if(sceneParams.poissonSamples.has_value())
-                sceneParams.poissonSamples.value().Bind();
-            glUniform1i(UniformLocation("poissonSamples"), TextureBinding::PoissonSamples);
-
-        }
-
-        if (sceneParams.sceneLights.Ambient.AoMapId)
-        {
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::AoMap);
-            glBindTexture(GL_TEXTURE_2D, sceneParams.sceneLights.Ambient.AoMapId);
-            glUniform1i(UniformLocation("aoMap"), TextureBinding::AoMap);
-        }
-    }
-    
-};
-
-class PostProcessingShader : public ShaderBase
-{
-public:
-    PostProcessingShader(std::vector<std::string> vertexExpansions, std::vector<std::string> fragmentExpansions) :
-        ShaderBase(
-
-            VertexSource_PostProcessing::Expand(
-                VertexSource_PostProcessing::EXP_VERTEX,
-                vertexExpansions),
-
-            FragmentSource_PostProcessing::Expand(
-                FragmentSource_PostProcessing::EXP_FRAGMENT,
-                fragmentExpansions)) {};
-
-    virtual int PositionLayout() { return 0; };
-};
-
-class PostProcessingUnit
-{
- 
-private:
-    PostProcessingShader 
-        _blurShader, _viewFromDepthShader, _ssaoShader, _hbaoShader, _toneMappingAndGammaCorrection;
-
-    std::optional<OGLTexture2D> 
-        _gaussianBlurValuesTexture, _aoNoiseTexture;
-
-    std::vector<glm::vec3> _ssaoDirectionsToSample;
-
-    /*??? static ???*/ VertexBufferObject _vbo;
-    /*??? static ???*/ VertexAttribArray _vao;
-
-    
-    void DrawQuad() const
-    {
-        _vao.Bind();
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-        _vao.UnBind();
-    }
-
-    void InitBlur(int maxRadius)
-    {
-        // Create a 2D texture to store gaussian blur kernel values
-        // https://www.rastergrid.com/blog/2010/09/efficient-gaussian-blur-with-linear-sampling/
-        std::vector<std::vector<int>> pascalValues = ComputePascalOddRows(maxRadius);
-        std::vector<int> flattenedPascalValues = Utils::flatten(pascalValues);
-
-        _gaussianBlurValuesTexture = OGLTexture2D(
-            maxRadius, maxRadius,
-            TextureInternalFormat::R_16ui,
-            flattenedPascalValues.data(), GL_RED_INTEGER, GL_INT);
-    }
-
-
-    void InitAo(int maxDirectionsToSample)
-    {
-        // ssao random rotation texture
-        std::default_random_engine generator;
-        std::uniform_real_distribution<float> distribution(-1.0, 1.0);
-        std::vector<glm::vec3> ssaoNoise;
-        for (unsigned int i = 0; i < 16; i++)
-        {
-            glm::vec3 noise(
-                distribution(generator),
-                distribution(generator),
-                0.0f);
-            ssaoNoise.push_back(noise);
-        }
-        std::vector<float> ssaoNoiseFlat(Utils::flatten3(ssaoNoise));
-
-        _aoNoiseTexture = OGLTexture2D(
-            4, 4,
-            TextureInternalFormat::Rgb_16f,
-            ssaoNoiseFlat.data(), GL_RGB, GL_FLOAT,
-            TextureFiltering::Nearest, TextureFiltering::Nearest,
-            TextureWrap::Repeat, TextureWrap::Repeat);
-
-
-        // ssao directions (set as uniform when executing)
-        _ssaoDirectionsToSample.reserve(maxDirectionsToSample);
-
-        for (unsigned int i = 0; i < maxDirectionsToSample; i++)
-        {
-            glm::vec3 noise(
-                distribution(generator),
-                distribution(generator),
-                distribution(generator) * 0.35f + 0.65f);
-            noise = glm::normalize(noise);
-
-            float x = distribution(generator) * 0.5f + 0.5f;
-            noise *= Utils::Lerp(0.1, 1.0, x * x);
-            _ssaoDirectionsToSample.push_back(noise);
-        }
-
-    }
-
-public:
-    PostProcessingUnit(int maxBlurRadius, int maxAODirectionsToSample) :
-        _blurShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_GAUSSIAN_BLUR", "CALC_GAUSSIAN_BLUR"}),
-        _viewFromDepthShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO","CALC_POSITIONS"}),
-        _ssaoShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_SSAO"}),
-        _hbaoShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_HBAO"}),
-        _toneMappingAndGammaCorrection(
-            std::vector<std::string>{},
-            std::vector<std::string>{"DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION", "CALC_TONE_MAPPING_AND_GAMMA_CORRECTION"}),
-        _gaussianBlurValuesTexture(),
-        _vbo(VertexBufferObject::VBOType::StaticDraw),
-        _vao()
-    {
-        // FIl VBO and VAO for the full screen quad used to trigger the fragment shader execution
-        _vbo.SetData(18, Utils::fullScreenQuad_verts);
-        _vao.SetAndEnableAttrib(_vbo.ID(), 0, 3, false, 0, 0);
-
-        InitBlur(maxBlurRadius);
-        InitAo(maxAODirectionsToSample);
-    }
-
-    void BlurTexture(const FrameBuffer& fbo, int attachment, int radius, int width, int height) const
-    {
-        // Blur pass
-        glDepthMask(GL_FALSE);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, fbo.ColorTextureId(attachment));
-
-        glActiveTexture(GL_TEXTURE1);
-        _gaussianBlurValuesTexture.value().Bind();
-
-        _blurShader.SetCurrent();
-
-        //TODO: block?
-        glUniform1i(_blurShader.UniformLocation("u_texture"), 0);
-        glUniform1i(_blurShader.UniformLocation("u_weights_texture"), 1);
-        glUniform1i(_blurShader.UniformLocation("u_radius"), radius);
-
-        glUniform1i(_blurShader.UniformLocation("u_hor"), 1); // => HORIZONTAL PASS
-
-        DrawQuad();
-
-        fbo.CopyFromOtherFbo( nullptr, true, attachment, false, glm::vec2(0.0, 0.0), glm::vec2(width, height));
-
-        glUniform1i(_blurShader.UniformLocation("u_hor"), 0); // => VERTICAL PASS
-        
-        DrawQuad();
-
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        glDepthMask(GL_TRUE);
-
-        fbo.CopyFromOtherFbo(nullptr, true, attachment, false, glm::vec2(0.0, 0.0), glm::vec2(width, height));
-
-    }
-
-    void ApplyToneMappingAndGammaCorrection(const FrameBuffer& fbo, int attachment, bool toneMapping, float exposure, bool gammaCorrection, float gamma) const
-    {
-
-        glDepthMask(GL_FALSE);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, fbo.ColorTextureId(attachment));
-      
-        _toneMappingAndGammaCorrection.SetCurrent();
-
-        glUniform1i(_toneMappingAndGammaCorrection.UniformLocation(" u_hdrBuffer"), 0);
-        glUniform1i(_toneMappingAndGammaCorrection.UniformLocation("u_doToneMapping"), toneMapping);
-        glUniform1i(_toneMappingAndGammaCorrection.UniformLocation("u_doGammaCorrection"), gammaCorrection);
-        glUniform1f(_toneMappingAndGammaCorrection.UniformLocation("u_exposure"), exposure);
-        glUniform1f(_toneMappingAndGammaCorrection.UniformLocation("u_gamma"), gamma);
-
-        DrawQuad();
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        glDepthMask(GL_TRUE);
-
-    }
-
-    void ComputeAO(AOType aoType, const FrameBuffer& fbo, const SceneParams& sceneParams, int width, int height) const
-    {
-        if (aoType == AOType::NONE)
-            return;
-
-        // Extract view positions from depth
-        // the fbo should contain relevant depth information
-        // at the end the fbo contains the same depth information + not blurred ao map in COLOR_ATTACHMENT0
-        glDepthMask(GL_FALSE);
-
-        fbo.Bind(false, true);
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, fbo.DepthTextureId());
-
-        _viewFromDepthShader.SetCurrent();
-        glUniform1i(_viewFromDepthShader.UniformLocation("u_depthTexture"), 0);
-        glUniform1f(_viewFromDepthShader.UniformLocation("u_near"), sceneParams.cameraNear);
-        glUniform1f(_viewFromDepthShader.UniformLocation("u_far"), sceneParams.cameraFar);
-        glUniformMatrix4fv(_viewFromDepthShader.UniformLocation("u_proj"), 1, GL_FALSE, glm::value_ptr(sceneParams.projectionMatrix));
-        
-        DrawQuad();
-
-        glBindTexture(GL_TEXTURE_2D, 0);
-        fbo.UnBind();
-
-        // Compute SSAO
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, fbo.ColorTextureId());     // eye fragment positions => TEXTURE0
-
-        glActiveTexture(GL_TEXTURE1);
-        _aoNoiseTexture.value().Bind();                         // random rotation        => TEXTURE1
-
-        if (sceneParams.noiseTextures.size() == 3)
-        {
-            glActiveTexture(GL_TEXTURE2);
-            sceneParams.noiseTextures.at(0).Bind();  // noise 0                => TEXTURE2
-            glActiveTexture(GL_TEXTURE3);
-            sceneParams.noiseTextures.at(1).Bind();  // noise 1                => TEXTURE3
-            glActiveTexture(GL_TEXTURE4);
-            sceneParams.noiseTextures.at(2).Bind();  // noise 2                => TEXTURE4
-        }
-
-        const PostProcessingShader& aoShader = (aoType == AOType::SSAO ? _ssaoShader : _hbaoShader);
-
-        aoShader.SetCurrent();
-
-        glUniform1i(aoShader.UniformLocation("u_viewPosTexture"), 0);
-        glUniform1i(aoShader.UniformLocation("u_rotVecs"), 1);
-        glUniform1i(aoShader.UniformLocation("noiseTex_0"), 2);
-        glUniform1i(aoShader.UniformLocation("noiseTex_1"), 3);
-        glUniform1i(aoShader.UniformLocation("noiseTex_2"), 4);
-
-        glUniform1f(aoShader.UniformLocation("u_ssao_radius"), sceneParams.sceneLights.Ambient.aoRadius);
-        glUniform3fv(aoShader.UniformLocation("u_rays"), sceneParams.sceneLights.Ambient.aoSamples, &_ssaoDirectionsToSample[0].x);
-        glUniform1i(aoShader.UniformLocation("u_numSamples"), sceneParams.sceneLights.Ambient.aoSamples);
-        glUniform1i(aoShader.UniformLocation("u_numSteps"), sceneParams.sceneLights.Ambient.aoSteps);
-        glUniform1f(aoShader.UniformLocation("u_radius"), sceneParams.sceneLights.Ambient.aoRadius);
-        glUniform1f(aoShader.UniformLocation("u_near"), sceneParams.cameraNear);
-        glUniform1f(aoShader.UniformLocation("u_far"), sceneParams.cameraFar);
-        glUniformMatrix4fv(aoShader.UniformLocation("u_proj"), 1, GL_FALSE, glm::value_ptr(sceneParams.projectionMatrix));
-        
-        DrawQuad();
-
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, 0);
-        glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, 0);
-
-        fbo.CopyFromOtherFbo(nullptr, true, 0, false, glm::vec2(0.0, 0.0), glm::vec2(width, height));
-    }
-
-};
 #endif

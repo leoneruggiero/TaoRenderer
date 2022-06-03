@@ -885,23 +885,23 @@ void SetupScene(
 )
 {
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    //LoadPlane(sceneMeshCollection, meshShadersCollection, 10.0f);
-    //LoadScene_PbrTextSpheres(sceneMeshCollection, shadersCollection);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 5.0f);
+    //LoadScene_PbrTextSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
-    //LoadScene_NormalMapping(sceneMeshCollection, shadersCollection);
-    LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("./Assets/Models/suzanne.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ClayShingles);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
     //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
-    //LoadSceneFromPath("./Assets/Models/Dragon.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
+    //LoadSceneFromPath("../../Assets/Models/Dragon.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("./Assets/Models/Knob.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadSceneFromPath("../../Assets/Models/trees.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
-    //LoadScene_ALotOfMonkeys(sceneMeshCollection, shadersCollection);
+    //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1163,7 +1163,7 @@ void UpdateAoUBO(UniformBufferObject& ubo, SceneLights& lights)
 }
 
 void DrawEnvironment(
-    const Camera& camera, const SceneParams& sceneParams, const VertexAttribArray& unitCubeVAO,  const ShaderBase& environmentShader, const OGLTextureCubemap& environmentMap)
+    const Camera& camera, const SceneParams& sceneParams, const VertexAttribArray& unitCubeVAO,  const ShaderBase& environmentShader)
 {
    
 #if GFX_STOPWATCH
@@ -1186,12 +1186,15 @@ void DrawEnvironment(
     glUniformMatrix4fv(environmentShader.UniformLocation("u_model"), 1, GL_FALSE, glm::value_ptr(transf));
     glUniformMatrix4fv(environmentShader.UniformLocation("u_projection"), 1, GL_FALSE, glm::value_ptr(proj));
 
-    if (sceneParams.environment.useTexture)
+    if (sceneParams.environment.useTexture && sceneParams.environment.Skybox.has_value())
     {
         glActiveTexture(GL_TEXTURE0);
-        environmentMap.Bind();
+        sceneParams.environment.Skybox.value().Bind();
         glUniform1i(environmentShader.UniformLocation("EnvironmentMap"), 0);
         glUniform1i(environmentShader.UniformLocation("u_hasEnvironmentMap"), true);
+
+        glUniform1ui(environmentShader.UniformLocation("u_doGammaCorrection"), sceneParams.postProcessing.GammaCorrection);
+        glUniform1f(environmentShader.UniformLocation("u_gamma"), 2.2f);
     }
     else
         glUniform1i(environmentShader.UniformLocation("u_hasEnvironmentMap"), false);
@@ -1209,7 +1212,7 @@ void DrawEnvironment(
     unitCubeVAO.UnBind();
 
     if (sceneParams.environment.useTexture)
-        environmentMap.UnBind();
+        sceneParams.environment.Skybox.value().UnBind();
 
     glDepthFunc(GL_LESS);
     glCullFace(GL_BACK);
@@ -1351,8 +1354,11 @@ int main()
     // Environment
     std::string currPath = std::filesystem::current_path().string();
 
-    OGLTextureCubemap environmentCubemap = 
-        OGLTextureCubemap("../../Assets/Environments/Sky", TextureFiltering::Linear, TextureFiltering::Linear);
+    sceneParams.environment.Skybox = 
+        OGLTextureCubemap("../../Assets/Environments/Outdoor/Skybox", TextureFiltering::Linear, TextureFiltering::Linear);
+
+    sceneParams.environment.IrradianceMap =
+        OGLTextureCubemap("../../Assets/Environments/Outdoor/IrradianceMap", TextureFiltering::Linear, TextureFiltering::Linear);
 
     float l = 2.0;
     std::vector<glm::vec3> vertices =
@@ -1596,7 +1602,7 @@ int main()
 #endif
         // ENVIRONMENT //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        DrawEnvironment(camera, sceneParams, envCube_vao, environmentShader, environmentCubemap);
+        DrawEnvironment(camera, sceneParams, envCube_vao, environmentShader);
 
         if (sceneParams.postProcessing.ToneMapping || sceneParams.postProcessing.GammaCorrection)
         {
@@ -1677,7 +1683,7 @@ int main()
     envCube_ebo.~IndexBufferObject();
     envCube_vbo.~VertexBufferObject();
     envCube_vao.~VertexAttribArray();
-    environmentCubemap.~OGLTextureCubemap();
+    sceneParams.environment.~Environment();
     //gaussianKernelValuesTexture.~OGLTexture2D();
     postProcessingUnit.~PostProcessingUnit();
     FreeUBOs(sceneUniformBuffers);
