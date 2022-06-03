@@ -927,7 +927,7 @@ namespace VertexSource_PostProcessing
 {
     const std::string EXP_VERTEX =
         R"(
-    #version 330 core
+    #version 430 core
     layout(location = 0) in vec3 position;
     
     void main()
@@ -1103,31 +1103,6 @@ vec3 EyeCoords(float xNdc, float yNdc, float zEye)
     return vec3(xEye, yEye, zEye);
 }
 
-vec3 EyeNormal(vec2 uvCoords, vec3 eyePos)
-    {
-        vec2 texSize=textureSize(u_viewPosTexture, 0);
-        vec3 normal = vec3(0,0,0);
-
-        // TODO: an incredible waste of resources....please fix this for loop
-        for(int u = 7; u >= 1; u--)
-        {
-            vec2 offset_coords0=(gl_FragCoord.xy + offset[u]*0.8)/texSize;
-            vec2 offset_coords1=(gl_FragCoord.xy + offset[u-1]*0.8)/texSize;
-
-            vec3 eyePos_offset0 = texture(u_viewPosTexture, offset_coords0).rgb;
-            vec3 eyePos_offset1 = texture(u_viewPosTexture, offset_coords1).rgb;
-
-            vec3 pln_x = normalize(eyePos_offset0 - eyePos);
-            vec3 pln_y = normalize(eyePos_offset1 - eyePos);
-
-
-            normal+=normalize(cross(pln_y, pln_x));
-        }
-
-        normal = normalize(normal); 
-
-        return normal; 
-    }
 
 float Attenuation(float distance, float radius)
 {
@@ -1242,53 +1217,51 @@ float OcclusionInDirection_NEW(vec3 p, vec3 direction, vec2 directionImage, floa
        return wao;
 }
 
-vec3 OcclusionInDirection_DEBUG(vec3 p, vec3 direction, float radius, int numSteps, sampler2D viewCoordsTex, mat4 projMatrix, float jitter)
+float OcclusionInDirection_DEBUG(vec3 p, vec3 direction, vec2 directionImage, float radius, float radiusImage, int numSteps, sampler2D viewCoordsTex, mat4 projMatrix)
 {
        
-       float t = atan2(direction.z,length(direction.xy));
-       float increment = radius / numSteps;
-       increment +=(0.2)*jitter*increment;
+       float t = atan(direction.z,length(direction.xy));
+       float increment = radiusImage / numSteps;
        float bias = (PI/6);
-       float slopeBias  = bias * ((3*t)/PI);
+       
+       vec2 texSize = textureSize(viewCoordsTex, 0).xy;
        
        float m = t;
        float wao = 0;
-       float maxLen = 0;
+       float ao = 0;
+       vec2 fragCoord = TexCoords(p*vec3(1.0, 1.0, -1.0), projMatrix);    
 
-        vec3 D = vec3(0.0, 0.0, 0.0);
+       vec3 D = vec3(0.0, 0.0, 0.0);
+       
+      
        for (int i=1; i<=numSteps; i++)
        {
-            vec3 samplePosition = (p*vec3(1,1,-1)) + (direction*increment*i);
-            vec2 sampleUV = TexCoords(samplePosition, projMatrix);
-                
-           
+            //float offset = RandomValue(vec2(fragCoord + (directionImage * increment * i)) * texSize) * increment; 
+            vec2 sampleUV = fragCoord + (directionImage * (increment * i)) * vec2(1.0, (texSize.x/texSize.y));
+            
             D = texture(viewCoordsTex, sampleUV).xyz - p;
+             
+            
+            float l=length(D);
             
             // Ignore samples outside radius
-            float l=length(D);
-            if(l>radius || l<0.001)
-                continue;
+            //if(l>radius)
+                //continue;
 
-            float h = atan2( -D.z,length(D.xy));
+            float h = atan(D.z,length(D.xy));
 
-            if(h > m + bias + slopeBias)
+           
+
+            if(h + bias <  m)
             {
                 m = h;
-                maxLen = l;
+                wao += ((sin(t) - sin(m)) - ao) * Attenuation(l, radius);
+                ao = (sin(t) - sin(m));
             }
        }
-wao = (sin(m) - sin(t))* Attenuation(maxLen, radius);
-        
-        //return vec3(D);
 
-        vec3 samplePosition = (p*vec3(1,1,-1)) + (direction*increment*(1));
-        vec2 sampleUV = TexCoords(samplePosition, projMatrix);
-
-        vec2 pUV = TexCoords((p*vec3(1,1,-1)), projMatrix);
-            
        
-       //return vec3(p.z/15.0,texture(viewCoordsTex, sampleUV).z/15.0f,abs(p.z - texture(viewCoordsTex, sampleUV).z));
-        return vec3((round(sampleUV.xy*textureSize(viewCoordsTex, 0).xy)-round(pUV.xy*textureSize(viewCoordsTex, 0).xy))/20.0, 0.0);
+       return -normalize(direction).y;
 }
 
 vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
@@ -1316,27 +1289,28 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
         return normal;
     }
 
+    
+    // A lot of problems at grazing angles...
     vec3 EyeNormal_dz(vec2 uvCoords, vec3 eyePos)
     {
-        vec2 texSize=textureSize(u_viewPosTexture, 0);
+        ivec2 fetchCoords = ivec2(gl_FragCoord.xy);
 
-        
-        float p_dzdx = texelFetch(u_viewPosTexture, ivec2((gl_FragCoord.x + 1), gl_FragCoord.y),0).z - eyePos.z;
-        float p_dzdy = texelFetch(u_viewPosTexture, ivec2(gl_FragCoord.x, (gl_FragCoord.y + 1)),0).z - eyePos.z;
-
-        float m_dzdx = -texelFetch(u_viewPosTexture, ivec2((gl_FragCoord.x - 1), gl_FragCoord.y),0).z + eyePos.z;
-        float m_dzdy = -texelFetch(u_viewPosTexture, ivec2(gl_FragCoord.x, (gl_FragCoord.y - 1)),0).z + eyePos.z;
+        float p_dzdx = texelFetchOffset(u_viewPosTexture,  fetchCoords , 0, ivec2( 2,  0)).z - eyePos.z;
+        float p_dzdy = texelFetchOffset(u_viewPosTexture,  fetchCoords , 0, ivec2( 0,  2)).z - eyePos.z;
+        float m_dzdx = -texelFetchOffset(u_viewPosTexture, fetchCoords , 0, ivec2(-2,  0)).z + eyePos.z;
+        float m_dzdy = -texelFetchOffset(u_viewPosTexture, fetchCoords , 0, ivec2( 0, -2)).z + eyePos.z;
         
         bool px = abs(p_dzdx)<abs(m_dzdx);
         bool py = abs(p_dzdy)<abs(m_dzdy);
 
-        vec3 i = normalize( texelFetch(u_viewPosTexture, ivec2((gl_FragCoord.x + (px?+1:-1) ), gl_FragCoord.y),0).xyz - eyePos );
-        vec3 j = normalize( texelFetch(u_viewPosTexture, ivec2(gl_FragCoord.x, (gl_FragCoord.y + (py?+1:-1))),0).xyz  - eyePos ); 
+        vec3 i = texelFetch(u_viewPosTexture, ivec2((gl_FragCoord.x + (px?+2:-2) ), gl_FragCoord.y),0).xyz - eyePos ;
+        vec3 j = texelFetch(u_viewPosTexture, ivec2(gl_FragCoord.x, (gl_FragCoord.y + (py?+2:-2))),0).xyz  - eyePos ; 
 
-        
+                
+
         vec3 normal = normalize( cross( (px^^py ? j : i), (px^^py ? i : j)) ); 
         normal.z*=-1;
-        return -normal;
+        return - normal;
     }
 
 )";
@@ -1463,9 +1437,11 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
     for(int k=0; k < u_numSamples; k++)
     {
         //TODO: pass the directions as uniforms???
-        float angle=(increment * k) + offset;
-        vec3 sampleDirection = TBN * vec3(cos(angle), sin(angle), 0.0);      
-        ao += OcclusionInDirection_NEW(eyePos, sampleDirection,normalize(sampleDirection.xy),  u_radius, radiusImage, u_numSteps, u_viewPosTexture, u_proj);     
+        float angle= (increment * k) + offset;
+        vec3 sampleDirection = TBN * vec3(cos(angle), sin(angle), 0.0);  
+        bool skip = length(sampleDirection.xy) > 0.9;    
+        ao +=  OcclusionInDirection_NEW(eyePos, sampleDirection,normalize(sampleDirection.xy),  u_radius, radiusImage, u_numSteps, u_viewPosTexture, u_proj)
+               * int(skip);
     }
     ao /= u_numSamples;
 
@@ -1497,12 +1473,12 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
     if(u_doGammaCorrection)
         col = vec4(pow(col.rgb, vec3(1.0/u_gamma)), col.a);
 
-    gl_FragColor = col;
+    FragColor = col;
 )";
 
     const std::string EXP_FRAGMENT =
         R"(
-    #version 330 core
+    #version 430 core
     out vec4 FragColor;
 
     //[DEFS_SSAO]

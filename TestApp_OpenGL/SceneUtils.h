@@ -125,9 +125,9 @@ struct DirectionalLight
 	unsigned int ShadowMapId;
 	glm::mat4 LightSpaceMatrix;
 	float ShadowMapToWorld;
-	float Bias=0.002f;
-	float SlopeBias=0.025f;
-	float Softness = 0.01f;
+	float Bias;
+	float SlopeBias;
+	float Softness;
 };
 
 struct AmbientLight

@@ -54,7 +54,7 @@ bool showGrid = false;
 bool showLights = false;
 bool showBoundingBox = false;
 bool showAO = false;
-bool showStats = false;
+bool showStats = true;
 
 // Camera ==========================================================
 bool perspective = true;
@@ -123,7 +123,7 @@ void ShowStatsWindow()
                 PROFILER_COLORS_4RGB[(cnt % 4)*3 + 0],
                 PROFILER_COLORS_4RGB[(cnt % 4)*3 + 1],
                 PROFILER_COLORS_4RGB[(cnt % 4)*3 + 2],
-                160))
+                120))
         );
 
         ImGui::InvisibleButton("##gradient1", ImVec2(20, 20));
@@ -889,7 +889,7 @@ void SetupScene(
     //LoadScene_PbrTextSpheres(sceneMeshCollection, shadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, shadersCollection);
-    //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
+    LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("./Assets/Models/suzanne.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ClayShingles);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
@@ -901,7 +901,7 @@ void SetupScene(
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, shadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1299,9 +1299,7 @@ void AmbienOcclusionPass(
     sceneParams.sceneLights.Ambient.AoMapId = ssaoFBO.ColorTextureId();
 
 #if GFX_STOPWATCH 
-    long aoGpuTime =
-        Profiler::Instance().StopNamedStopWatch("AO");
-    std::cout << "AO Pass: " << aoGpuTime << std::endl;
+   Profiler::Instance().StopNamedStopWatch("AO");
 #endif
 }
 
@@ -1453,6 +1451,7 @@ int main()
     ImGui_ImplOpenGL3_Init(glsl_version);
 
     // Lights
+    // ---------------------
     sceneParams.sceneLights.Ambient.Ambient = glm::vec4(1, 1, 1, 0.6);
     sceneParams.sceneLights.Ambient.aoRadius = 0.2;
     sceneParams.sceneLights.Ambient.aoSamples = 16;
@@ -1461,6 +1460,9 @@ int main()
     sceneParams.sceneLights.Directional.Direction = glm::vec3(0.9, 0.9, -0.9);
     sceneParams.sceneLights.Directional.Diffuse = glm::vec4(1.0, 1.0, 1.0, 0.75);
     sceneParams.sceneLights.Directional.Specular = glm::vec4(1.0, 1.0, 1.0, 0.75);
+    sceneParams.sceneLights.Directional.Bias = 0.002f;
+    sceneParams.sceneLights.Directional.SlopeBias = 0.015f;
+    sceneParams.sceneLights.Directional.Softness = 0.01f;
     sceneParams.drawParams.doShadows = true;
 
     // Shadow Map
