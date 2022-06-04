@@ -69,7 +69,7 @@ using namespace Utils;
 
 // ImGUI ============================================================
 const char* ao_comboBox_items[] = {"SSAO", "HBAO", "NONE"};
-static const char* ao_comboBox_current_item = "NONE";
+static const char* ao_comboBox_current_item = "HBAO";
 
 AOType AOShaderFromItem(const char* item)
 {
@@ -270,7 +270,7 @@ void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std
     
 }
 
-void LoadScene_PbrTextSpheres(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
+void LoadScene_PbrTestSpheres(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
 {
      
     Mesh sphereMesh = Mesh::Sphere(1.0, 32);
@@ -291,6 +291,36 @@ void LoadScene_PbrTextSpheres(SceneMeshCollection& sceneMeshCollection, std::map
 
             mr.SetTransformation(t);
             mr.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0, 1.0), (i+1) / 5.0f, (j+1) / 5.0f });
+
+            sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(mr)));
+        }
+    }
+}
+
+void LoadScene_PbrTestTeapots(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
+{
+
+    FileReader reader = FileReader("../../Assets/Models/Teapot.obj");
+    reader.Load();
+    Mesh teapotMesh = reader.Meshes()[0];
+
+    for (int i = 0; i < 5; i++)
+    {
+        for (int j = 0; j < 5; j++)
+        {
+            MeshRenderer mr
+            {
+                teapotMesh,
+                (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
+                (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()
+            };
+
+            glm::mat4 t = glm::mat4(1.0);
+            t = glm::translate(t, glm::vec3(2.0 * i, 2.0 * j, -0.1));
+            t = glm::translate(t, glm::vec3(-5.0f, -5.0f, 0.0f));
+
+            mr.SetTransformation(t);
+            mr.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0, 1.0), (i + 1) / 5.0f, (j + 1) / 5.0f });
 
             sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(mr)));
         }
@@ -482,10 +512,10 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
     teapot5.Renderer::Transform(glm::vec3(1.6, 0.8, 0.5), 0.6, glm::vec3(1,1.0,2.0), glm::vec3(1, 1, 1));
 
     teapot1.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.3, 0.0 });
-    teapot2.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.1, 0.0 });
-    teapot3.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.5, 0.0 });
-    teapot4.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.2, 0.0 });
-    teapot5.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.6, 0.0 });
+    teapot2.SetMaterial(Material{ glm::vec4(0.9, 0.5, 0.0 ,1.0), 0.1, 0.0 });
+    teapot3.SetMaterial(Material{ glm::vec4(0.8, 0.3, 0.5 ,1.0), 0.5, 0.0 });
+    teapot4.SetMaterial(Material{ glm::vec4(0.89, 0.92, 0.1 ,1.0), 0.2, 0.0 });
+    teapot5.SetMaterial(Material{ glm::vec4(0.4, 0.4, 0.9 ,1.0), 0.6, 0.0 });
 
 
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(plane)));
@@ -885,17 +915,19 @@ void SetupScene(
 )
 {
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    //LoadPlane(sceneMeshCollection, meshShadersCollection, 5.0f);
-    //LoadScene_PbrTextSpheres(sceneMeshCollection, meshShadersCollection);
-    //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ShinyRed);
+    LoadPlane(sceneMeshCollection, meshShadersCollection, 5.0f);
+    //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
+    //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
-    LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
-    //LoadSceneFromPath("./Assets/Models/suzanne.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::ClayShingles);
+    //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
+    //LoadSceneFromPath("../../Assets/Models/aoTest.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
     //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
-    //LoadSceneFromPath("../../Assets/Models/Dragon.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PlasticGreen);
-    //LoadSceneFromPath("./Assets/Models/Knob.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
+     //LoadSceneFromPath("../../Assets/Models/Dragon.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
+     //LoadSceneFromPath("../../Assets/Models/Sponza.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
+    LoadSceneFromPath("../../Assets/Models/Knob.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("../../Assets/Models/trees.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
@@ -1101,6 +1133,16 @@ std::map<std::string, std::shared_ptr<ShaderBase>> InitializePostProcessingShade
             }
     )) };
 
+    // Source: https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+    std::shared_ptr<PostProcessingShader> integrateBRDF{ std::make_shared<PostProcessingShader>(
+        std::vector<std::string>({/* NO VERTEX_SHADER EXPANSIONS */ }),
+        std::vector<std::string>(
+            {
+            "DEFS_BRDF_LUT",
+            "CALC_BRDF_LUT"
+            }
+    )) };
+
 
     return std::map<std::string, std::shared_ptr<ShaderBase>>
     {
@@ -1161,6 +1203,7 @@ void UpdateAoUBO(UniformBufferObject& ubo, SceneLights& lights)
     ubo.SetData<float>(1, NULL);
     ubo.SetSubData(0, 1, &lights.Ambient.aoStrength);
 }
+
 
 void DrawEnvironment(
     const Camera& camera, const SceneParams& sceneParams, const VertexAttribArray& unitCubeVAO,  const ShaderBase& environmentShader)
@@ -1459,9 +1502,11 @@ int main()
     // Lights
     // ---------------------
     sceneParams.sceneLights.Ambient.Ambient = glm::vec4(1, 1, 1, 0.6);
-    sceneParams.sceneLights.Ambient.aoRadius = 0.2;
-    sceneParams.sceneLights.Ambient.aoSamples = 16;
-    sceneParams.sceneLights.Ambient.aoSteps = 16;
+    sceneParams.environment.intensity = 0.2f;
+    sceneParams.sceneLights.Ambient.aoStrength = 1.0;
+    sceneParams.sceneLights.Ambient.aoRadius = 0.5;
+    sceneParams.sceneLights.Ambient.aoSamples = 8;
+    sceneParams.sceneLights.Ambient.aoSteps = 8;
     sceneParams.sceneLights.Ambient.aoBlurAmount = 3;
     sceneParams.sceneLights.Directional.Direction = glm::vec3(0.9, 0.9, -0.9);
     sceneParams.sceneLights.Directional.Diffuse = glm::vec4(1.0, 1.0, 1.0, 0.75);
@@ -1525,6 +1570,10 @@ int main()
         sceneUniformBuffers.push_back(std::move(UniformBufferObject(UniformBufferObject::UBOType::StaticDraw)));
     
     BindUBOs(sceneUniformBuffers);
+
+    // This should (does it?) computed at each startup, since it should (does it?) 
+    // be kept in sync with the PBR shaders
+    postProcessingUnit.IntegrateBRDFintoLUT(sceneParams);
 
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_FRAMEBUFFER_SRGB);

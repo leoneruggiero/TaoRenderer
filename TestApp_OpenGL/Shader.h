@@ -411,8 +411,6 @@ namespace FragmentSource_Geometry
 
     #define F0_DIELECTRIC 0.04
 
-
-
     // Schlick's approximation
     // ---------------------------------------------------
     vec3 Fresnel(float cosTheta, vec3 F0)
@@ -449,6 +447,7 @@ namespace FragmentSource_Geometry
 
         return dot / (dot * (1.0 - k) + k);
     }
+
     
     // Complete geometry function, product of occlusion-probability
     // from light and from view directions
@@ -457,7 +456,7 @@ namespace FragmentSource_Geometry
     {
        return G_GGXS(n, v, roughness) * G_GGXS(n, l, roughness);    
     }
-    
+
     // Diffuse indirect (irradiance map)
     // ---------------------------------------------------
     vec3 ComputeDiffuseIndirectIllumination(vec3 normal, vec3 kd, vec3 albedo)
@@ -469,8 +468,6 @@ namespace FragmentSource_Geometry
 
         return albedo * irradiance* kd * u_environmentIntensity;
     }
-
-
 
 )";
     const std::string DEFS_SSAO =
@@ -1204,16 +1201,14 @@ float OcclusionInDirection(vec3 p, vec3 direction, float radius, int numSteps, s
 
 //https://www.researchgate.net/publication/215506032_Image-space_horizon-based_ambient_occlusion
 //https://developer.download.nvidia.com/presentations/2008/SIGGRAPH/HBAO_SIG08b.pdf
-float OcclusionInDirection_NEW(vec3 p, vec3 direction, vec2 directionImage, float radius, float radiusImage, int numSteps, sampler2D viewCoordsTex, mat4 projMatrix)
+float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float radius, float radiusImage, int numSteps, sampler2D viewCoordsTex, mat4 projMatrix)
 {
        
-       float t = atan2(direction.z,length(direction.xy));
        float increment = radiusImage / numSteps;
        float bias = (PI/6);
        
        vec2 texSize = textureSize(viewCoordsTex, 0).xy;
        
-       float m = t;
        float wao = 0;
        float ao = 0;
        vec2 fragCoord = TexCoords(p*vec3(1.0, 1.0, -1.0), projMatrix);    
@@ -1224,13 +1219,13 @@ float OcclusionInDirection_NEW(vec3 p, vec3 direction, vec2 directionImage, floa
             float offset = RandomValue(vec2(fragCoord + (directionImage * increment * i)) * texSize) * increment; 
             vec2 sampleUV = fragCoord + (directionImage * (increment + abs(offset)) * i) * vec2(1.0, (texSize.x/texSize.y));
             
-            D = texture(viewCoordsTex, sampleUV).xyz - p;
-             
+            vec3 smpl =  texture(viewCoordsTex, sampleUV).xyz;
+            D = smpl - p;
             float l=length(D);
 
-            // Ignore samples outside radius
-            if(l>radius)
-                continue;
+            vec3 tangent = normalize(D - normal * dot(D, normal)); 
+            float t = atan2(tangent.z,length(tangent.xy));
+            float m = t;
 
             float h = atan2(D.z,length(D.xy));
 
@@ -1246,79 +1241,6 @@ float OcclusionInDirection_NEW(vec3 p, vec3 direction, vec2 directionImage, floa
        return wao;
 }
 
-float OcclusionInDirection_DEBUG(vec3 p, vec3 direction, vec2 directionImage, float radius, float radiusImage, int numSteps, sampler2D viewCoordsTex, mat4 projMatrix)
-{
-       
-       float t = atan(direction.z,length(direction.xy));
-       float increment = radiusImage / numSteps;
-       float bias = (PI/6);
-       
-       vec2 texSize = textureSize(viewCoordsTex, 0).xy;
-       
-       float m = t;
-       float wao = 0;
-       float ao = 0;
-       vec2 fragCoord = TexCoords(p*vec3(1.0, 1.0, -1.0), projMatrix);    
-
-       vec3 D = vec3(0.0, 0.0, 0.0);
-       
-      
-       for (int i=1; i<=numSteps; i++)
-       {
-            //float offset = RandomValue(vec2(fragCoord + (directionImage * increment * i)) * texSize) * increment; 
-            vec2 sampleUV = fragCoord + (directionImage * (increment * i)) * vec2(1.0, (texSize.x/texSize.y));
-            
-            D = texture(viewCoordsTex, sampleUV).xyz - p;
-             
-            
-            float l=length(D);
-            
-            // Ignore samples outside radius
-            //if(l>radius)
-                //continue;
-
-            float h = atan(D.z,length(D.xy));
-
-           
-
-            if(h + bias <  m)
-            {
-                m = h;
-                wao += ((sin(t) - sin(m)) - ao) * Attenuation(l, radius);
-                ao = (sin(t) - sin(m));
-            }
-       }
-
-       
-       return -normalize(direction).y;
-}
-
-vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
-    {
-        vec2 texSize=textureSize(u_viewPosTexture, 0);
-
-        
-        float p_dzdx = texelFetch(u_viewPosTexture, ivec2((gl_FragCoord.x + 1), gl_FragCoord.y),0).z - eyePos.z;
-        float p_dzdy = texelFetch(u_viewPosTexture, ivec2(gl_FragCoord.x, (gl_FragCoord.y + 1)),0).z - eyePos.z;
-
-        float m_dzdx = -texelFetch(u_viewPosTexture, ivec2((gl_FragCoord.x - 1), gl_FragCoord.y),0).z + eyePos.z;
-        float m_dzdy = -texelFetch(u_viewPosTexture, ivec2(gl_FragCoord.x, (gl_FragCoord.y - 1)),0).z + eyePos.z;
-        
-        bool px = abs(p_dzdx)<abs(m_dzdx);
-        bool py = abs(p_dzdy)<abs(m_dzdy);
-
-        float p_dx=texelFetch(u_viewPosTexture, ivec2((gl_FragCoord.x + 1.0 ), gl_FragCoord.y),0).x - eyePos.x;
-        float p_dy=texelFetch(u_viewPosTexture, ivec2(gl_FragCoord.x, (gl_FragCoord.y + 1.0)),0).y  - eyePos.y; 
-
-        float m_dx= - texelFetch(u_viewPosTexture, ivec2((gl_FragCoord.x - 1.0 ), gl_FragCoord.y),0).x + eyePos.x;
-        float m_dy= - texelFetch(u_viewPosTexture, ivec2(gl_FragCoord.x, (gl_FragCoord.y - 1.0)),0).y  + eyePos.y; 
-
-        vec3 normal = normalize(vec3(px?p_dzdx:m_dzdx, py?p_dzdy:m_dzdy, length(vec2(px?p_dx:m_dx, py?p_dy:m_dy)))); 
-
-        return normal;
-    }
-
-    
     // A lot of problems at grazing angles...
     vec3 EyeNormal_dz(vec2 uvCoords, vec3 eyePos)
     {
@@ -1467,10 +1389,9 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
     {
         //TODO: pass the directions as uniforms???
         float angle= (increment * k) + offset;
-        vec3 sampleDirection = TBN * vec3(cos(angle), sin(angle), 0.0);  
-        bool skip = length(sampleDirection.xy) > 0.9;    
-        ao +=  OcclusionInDirection_NEW(eyePos, sampleDirection,normalize(sampleDirection.xy),  u_radius, radiusImage, u_numSteps, u_viewPosTexture, u_proj)
-               * int(skip);
+        vec2 sampleDirectionImage = vec2(cos(angle), sin(angle));
+        ao +=  OcclusionInDirection_NEW(eyePos, normal, sampleDirectionImage,  u_radius, radiusImage, u_numSteps, u_viewPosTexture, u_proj);
+               
     }
     ao /= u_numSamples;
 
@@ -1505,6 +1426,120 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
     FragColor = col;
 )";
 
+    const std::string DEFS_BRDF_LUT =
+R"(
+   
+    uniform ivec2 u_screenSize;    
+
+    #define NUM_SAMPLES_BRDF_LUT 1024
+
+    #ifndef PI
+    #define PI 3.14159265358979323846
+    #endif
+
+    // Keep in sync with the functions used for direct illumination 
+    float G_GGXS_IBL(float NoV, float roughness)
+    {   
+        float k = (roughness*roughness) / 2.0;     
+        float dot = clamp(NoV, 0.0, 1.0);
+
+        return dot / (dot * (1.0 - k) + k);
+    }
+	
+	float G_GGXS_IBL(float NoV, float NoL, float roughness)
+    {
+       return G_GGXS_IBL(NoV, roughness) * G_GGXS_IBL(NoL, roughness);    
+    }
+    
+	// Importance sampling (based on roughness)
+    // ----------------------------------------
+    vec3 ImportanceSampleGGX( vec2 Xi, float Roughness, vec3 N )
+    {
+        // Source: https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+
+        float a = Roughness * Roughness;
+        float Phi = 2 * PI * Xi.x;
+        float CosTheta = sqrt( (1 - Xi.y) / ( 1 + (a*a - 1) * Xi.y ) );
+        float SinTheta = sqrt( 1 - CosTheta * CosTheta );
+        
+        vec3 H;
+        H.x = SinTheta * cos( Phi );
+        H.y = SinTheta * sin( Phi );
+        H.z = CosTheta;
+
+        vec3 UpVector = abs(N.z) < 0.999 ? vec3(0,0,1) : vec3(1,0,0);
+        vec3 TangentX = normalize( cross( UpVector, N ) );
+        vec3 TangentY = cross( N, TangentX );
+
+        // Tangent to world space
+        return TangentX * H.x + TangentY * H.y + N * H.z;
+    }
+
+    float RadicalInverse_VdC(uint bits) 
+    {
+        bits = (bits << 16u) | (bits >> 16u);
+        bits = ((bits & 0x55555555u) << 1u) | ((bits & 0xAAAAAAAAu) >> 1u);
+        bits = ((bits & 0x33333333u) << 2u) | ((bits & 0xCCCCCCCCu) >> 2u);
+        bits = ((bits & 0x0F0F0F0Fu) << 4u) | ((bits & 0xF0F0F0F0u) >> 4u);
+        bits = ((bits & 0x00FF00FFu) << 8u) | ((bits & 0xFF00FF00u) >> 8u);
+        return float(bits) * 2.3283064365386963e-10; // / 0x100000000
+    }
+    
+    vec2 Hammersley(uint i, uint N)
+    {
+        return vec2(float(i)/float(N), RadicalInverse_VdC(i));
+    } 
+
+)";
+
+    const std::string CALC_BRDF_LUT =
+R"(
+    // Source: https://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+    // Schlick's approximation
+    // F0 + (1 - F0)(1 - (h*v))^5 => F0(1 - (1-(h*v)^5)) + (1-(h*v)^5) 
+    
+    
+    vec2 nrmWinCoord = gl_FragCoord.xy/u_screenSize;
+
+    // Range [0-1]
+    float roughness = nrmWinCoord.y;
+    float NoV = nrmWinCoord.x;
+
+    vec3 V = vec3(0.0);
+    V.x = sqrt( 1.0f - NoV * NoV ); // sin
+    V.y = 0.0;
+    V.z = NoV;                      // cos
+
+    vec3 N = vec3(0.0, 0.0, 1.0);
+
+    float A = 0.0;
+    float B = 0.0;
+
+    
+    for( uint i = 0; i < NUM_SAMPLES_BRDF_LUT; i++ )
+    {
+        vec2 Xi = Hammersley( i, NUM_SAMPLES_BRDF_LUT ); // generate a low discrepance sequence
+        vec3 H = ImportanceSampleGGX( Xi, roughness, N ); // use the sequence element to get vectors biased towards the halfway vec
+        vec3 L = -reflect(V, H);
+
+        float NoL = clamp( L.z, 0.0, 1.0 );
+        float NoH = clamp( H.z, 0.0, 1.0 );
+        float VoH = clamp( dot( V, H ), 0.0, 1.0);
+
+        if( NoL > 0 )
+        {
+            float G = G_GGXS_IBL( NoV, NoL, roughness);
+            float G_Vis = G * VoH / (NoH * NoV);
+            float Fc = pow( 1 - VoH, 5 );
+            A += (1 - Fc) * G_Vis;
+            B += Fc * G_Vis;
+        }
+    }
+    vec2 val = vec2( A, B ) / NUM_SAMPLES_BRDF_LUT;
+
+    FragColor = vec4(val, 0.0, 0.0);
+)";
+
     const std::string EXP_FRAGMENT =
         R"(
     #version 430 core
@@ -1513,7 +1548,9 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
     //[DEFS_SSAO]
     //[DEFS_BLUR]
     //[DEFS_GAUSSIAN_BLUR]
-    //[DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION]
+    //[DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION]  
+    //[DEFS_MATERIAL]
+    //[DEFS_BRDF_LUT]
 
     void main()
     {
@@ -1523,6 +1560,7 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
         //[CALC_BLUR]
         //[CALC_GAUSSIAN_BLUR]
         //[CALC_TONE_MAPPING_AND_GAMMA_CORRECTION]
+        //[CALC_BRDF_LUT]
     }
     )";
 
@@ -1532,12 +1570,14 @@ vec3 EyeNormal_dzOLD(vec2 uvCoords, vec3 eyePos)
        { "DEFS_BLUR",                                   FragmentSource_PostProcessing::DEFS_BLUR                                },
        { "DEFS_GAUSSIAN_BLUR",                          FragmentSource_PostProcessing::DEFS_GAUSSIAN_BLUR                       },
        { "DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION",      FragmentSource_PostProcessing::DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION   },
+       { "DEFS_BRDF_LUT",                               FragmentSource_PostProcessing::DEFS_BRDF_LUT                            },
        { "CALC_POSITIONS",                              FragmentSource_PostProcessing::CALC_POSITIONS                           },
        { "CALC_SSAO",                                   FragmentSource_PostProcessing::CALC_SSAO                                },
        { "CALC_HBAO",                                   FragmentSource_PostProcessing::CALC_HBAO                                },
        { "CALC_BLUR",                                   FragmentSource_PostProcessing::CALC_BLUR                                },
        { "CALC_GAUSSIAN_BLUR",                          FragmentSource_PostProcessing::CALC_GAUSSIAN_BLUR                       },
        { "CALC_TONE_MAPPING_AND_GAMMA_CORRECTION",      FragmentSource_PostProcessing::CALC_TONE_MAPPING_AND_GAMMA_CORRECTION   },
+       { "CALC_BRDF_LUT",                               FragmentSource_PostProcessing::CALC_BRDF_LUT                            }
 
     };
 
@@ -2551,7 +2591,14 @@ namespace OGLResources
         static const TextureType _textureType = TextureType::Texture2D;
 
     public:
-        OGLTexture2D(int width, int height, TextureInternalFormat internalFormat) : _width(width), _height(height)
+        OGLTexture2D(int width, int height, TextureInternalFormat internalFormat) :
+            OGLTexture2D(width, height, internalFormat, TextureFiltering::Nearest, TextureFiltering::Nearest)
+        { 
+        
+        }
+
+        OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, TextureFiltering minFilter, TextureFiltering magFilter) 
+            : _width(width), _height(height)
         {
             OGLResource::Create(OGLResourceType::TEXTURE);
 
@@ -2561,7 +2608,7 @@ namespace OGLResources
 
             OGLTextureUtils::SetParameters(
                 OGLResource::ID(), _textureType,
-                TextureFiltering::Nearest, TextureFiltering::Nearest,
+                minFilter, magFilter,
                 TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
 
             OGLUtils::CheckOGLErrors();

@@ -100,9 +100,12 @@ struct Environment
 	glm::vec3 EquatorColor;
 	std::optional<OGLResources::OGLTextureCubemap> Skybox;
 
-	// IrradianceMap
+	// Diffuse IBL
 	float intensity;
 	std::optional<OGLResources::OGLTextureCubemap> IrradianceMap;
+
+	// Specular IBL
+	std::optional<OGLResources::OGLTexture2D> LUT;
 };
 
 struct Texture

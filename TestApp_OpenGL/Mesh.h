@@ -1671,10 +1671,61 @@ public:
         InitAo(maxAODirectionsToSample);
     }
 
+    void IntegrateBRDFintoLUT( SceneParams& sceneParams)
+    {
+        OGLResources::FrameBuffer fbo = OGLResources::FrameBuffer(512, 512, true, 1, true, TextureInternalFormat::Rg_16f);
+
+        PostProcessingShader shader = PostProcessingShader(
+            std::vector<std::string>(
+                {/* NO VERTEX_SHADER EXPANSIONS */ }),
+            std::vector<std::string>(
+                {
+                "DEFS_BRDF_LUT",
+                "CALC_BRDF_LUT"
+                }
+        ));
+
+        fbo.Bind();
+        shader.SetCurrent();
+
+        glViewport(0, 0, 512, 512);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glUniform2i(shader.UniformLocation("u_screenSize"), 512, 512);
+
+        glDisable(GL_DEPTH_TEST);
+
+        DrawQuad();
+
+        glEnable(GL_DEPTH_TEST);
+
+        glViewport(0, 0, sceneParams.viewportWidth, sceneParams.viewportHeight);
+        fbo.UnBind();
+
+        sceneParams.environment.LUT =
+            OGLTexture2D(512, 512, TextureInternalFormat::Rg_16f, TextureFiltering::Linear, TextureFiltering::Linear);
+
+        
+        glCopyImageSubData(
+            // Source
+            fbo.ColorTextureId(), GL_TEXTURE_2D, 0, 0, 0, 0, 
+
+            // Dest
+            sceneParams.environment.LUT.value().ID(), GL_TEXTURE_2D, 0, 0, 0, 0, 
+
+            // Size
+            512, 512, 1);
+
+       
+        // Release graphics resources
+        shader.~PostProcessingShader();
+        fbo.~FrameBuffer();
+
+    }
+
     void BlurTexture(const FrameBuffer& fbo, int attachment, int radius, int width, int height) const
     {
         // Blur pass
-        glDepthMask(GL_FALSE);
+        glDisable(GL_DEPTH_TEST);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, fbo.ColorTextureId(attachment));
@@ -1704,7 +1755,7 @@ public:
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, 0);
 
-        glDepthMask(GL_TRUE);
+        glEnable(GL_DEPTH_TEST);
 
         fbo.CopyFromOtherFbo(nullptr, true, attachment, false, glm::vec2(0.0, 0.0), glm::vec2(width, height));
 
@@ -1713,7 +1764,7 @@ public:
     void ApplyToneMappingAndGammaCorrection(const FrameBuffer& fbo, int attachment, bool toneMapping, float exposure, bool gammaCorrection, float gamma) const
     {
 
-        glDepthMask(GL_FALSE);
+        glDisable(GL_DEPTH_TEST);
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, fbo.ColorTextureId(attachment));
@@ -1731,7 +1782,7 @@ public:
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, 0);
 
-        glDepthMask(GL_TRUE);
+        glEnable(GL_DEPTH_TEST);
 
     }
 
@@ -1743,7 +1794,7 @@ public:
         // Extract view positions from depth
         // the fbo should contain relevant depth information
         // at the end the fbo contains the same depth information + not blurred ao map in COLOR_ATTACHMENT0
-        glDepthMask(GL_FALSE);
+        glDisable(GL_DEPTH_TEST);
 
         fbo.Bind(false, true);
 
@@ -1807,6 +1858,8 @@ public:
         glBindTexture(GL_TEXTURE_2D, 0);
 
         fbo.CopyFromOtherFbo(nullptr, true, 0, false, glm::vec2(0.0, 0.0), glm::vec2(width, height));
+
+        glEnable(GL_DEPTH_TEST);
     }
 };
 
