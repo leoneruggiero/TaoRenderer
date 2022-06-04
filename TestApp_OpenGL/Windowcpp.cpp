@@ -20,6 +20,7 @@
 #include "SceneUtils.h"
 #include "FrameBuffer.h"
 #include "Scene.h"
+#include <gli/gli.hpp>
 
 
 #if GFX_STOPWATCH
@@ -82,6 +83,7 @@ AOType AOShaderFromItem(const char* item)
     else return AOType::NONE;
 }
 
+
 void ShowStatsWindow()
 {
 #if GFX_STOPWATCH
@@ -113,7 +115,7 @@ void ShowStatsWindow()
         float fac = (float)q.value / totTime;
 
         ImVec2 screenPos = ImGui::GetCursorScreenPos();
-        ImVec2 barSize = ImVec2(ImGui::GetFontSize() * barWidth_font * fac, ImGui::GetFrameHeight());
+        ImVec2 barSize = ImVec2(ImGui::GetFontSize() * barWidth_font * fac, ImGui::GetFontSize());
 
         ImVec2 p0 = ImVec2(screenPos.x + ImGui::GetFontSize() * lineWidth_font - barSize.x, screenPos.y - barSize.y);
         ImVec2 p1 = ImVec2(p0.x + barSize.x, p0.y + barSize.y);
@@ -126,7 +128,7 @@ void ShowStatsWindow()
                 120))
         );
 
-        ImGui::InvisibleButton("##gradient1", ImVec2(20, 20));
+        //ImGui::InvisibleButton("##gradient1", ImVec2(20, 20));
 
         cnt++;
     }
@@ -915,7 +917,7 @@ void SetupScene(
 )
 {
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 5.0f);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 5.0f);
     //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
@@ -927,13 +929,13 @@ void SetupScene(
     //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
      //LoadSceneFromPath("../../Assets/Models/Dragon.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
      //LoadSceneFromPath("../../Assets/Models/Sponza.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
-    LoadSceneFromPath("../../Assets/Models/Knob.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
+    //LoadSceneFromPath("../../Assets/Models/Knob.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("../../Assets/Models/trees.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
