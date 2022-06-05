@@ -402,9 +402,21 @@ namespace FragmentSource_Geometry
     uniform sampler2D Roughness;
     uniform sampler2D AmbientOcclusion;
 
+    // Diffuse IBL
+    // -----------
     uniform bool u_hasIrradianceMap;
     uniform float u_environmentIntensity;
     uniform samplerCube IrradianceMap;
+
+    // Specular IBL
+    // -----------
+    uniform bool u_hasRadianceMap; 
+    uniform bool u_hasBrdfLut;
+    uniform int u_radiance_minLevel;
+    uniform int u_radiance_maxLevel;
+    uniform samplerCube RadianceMap; // Convoluted radiance for specular indirect
+    uniform sampler2D BrdfLut;
+    
 
     uniform bool u_doGammaCorrection;
     uniform float u_gamma;
@@ -461,16 +473,43 @@ namespace FragmentSource_Geometry
        return G_GGXS(n, v, roughness) * G_GGXS(n, l, roughness);    
     }
 
-    // Diffuse indirect (irradiance map)
+    // Diffuse indirect 
     // ---------------------------------------------------
     vec3 ComputeDiffuseIndirectIllumination(vec3 normal, vec3 kd, vec3 albedo)
     {
         vec3 irradiance = vec3(1,1,1); // White environment by default
 
         if(u_hasIrradianceMap)
-            irradiance = texture(IrradianceMap, normalize(normal)).rbg;
+        {
+            vec3 d = normalize(normal);
+            d = vec3(d.x, -d.z, d.y);
+            irradiance = texture(IrradianceMap, d).rbg;
+        }
 
         return albedo * irradiance* kd * u_environmentIntensity;
+    }
+
+    // Specular indirect 
+    // ---------------------------------------------------
+    vec3 ComputeSpecularIndirectIllumination(vec3 N, vec3 V,  float roughness, vec3 ks)
+    {
+        vec3 specular = vec3(1,1,1); // White environment by default
+
+        if(u_hasRadianceMap && u_hasBrdfLut)
+        {
+            vec3 d = reflect(normalize(V), normalize(N));
+            d = vec3(d.x, -d.z, d.y);
+
+            float LoD = mix(float(u_radiance_minLevel), float(u_radiance_maxLevel), roughness);
+            
+            vec3 Li = textureLod(RadianceMap, d, LoD).rgb;
+            vec2 scaleBias = texture(BrdfLut, vec2(clamp(dot(N, V), 0.0, 1.0), roughness)).rg;
+
+            specular = Li * (ks * scaleBias.x + scaleBias.y);
+
+        }
+
+        return specular * u_environmentIntensity;
     }
 
 )";
@@ -833,10 +872,14 @@ namespace FragmentSource_Geometry
         vec3 direct = (diffuse + reflected) * NdotL * Li ;
 
         // Indirect diffuse
-        vec3 indirectF = FresnelRoughness(max(0.0, dot(worldNormal, viewDir)), vec3(F0_DIELECTRIC), roughness);
-        indirectF = mix(indirectF, diffuseColor.rgb, metallic);
+        vec3 indirectFs = FresnelRoughness(max(0.0, dot(worldNormal, viewDir)), vec3(F0_DIELECTRIC), roughness);
+        indirectFs = mix(indirectFs, diffuseColor.rgb, metallic);
+        vec3 indirectFd = 1.0 - indirectFs;	
+
         ambient = 
-            vec4(ComputeDiffuseIndirectIllumination(worldNormal, 1.0-indirectF, diffuseColor.rgb), 1.0);
+            vec4(
+                ComputeDiffuseIndirectIllumination(worldNormal, indirectFd, diffuseColor.rgb) +
+                ComputeSpecularIndirectIllumination(worldNormal, viewDir, roughness, indirectFs), 1.0);
 
         finalColor = vec4( direct /*ambient will be added later in the shader*/, 1.0);
 
@@ -2888,7 +2931,7 @@ namespace OGLResources
                 if (compressed)
                     throw "Compressed formats are not allowed.";
 
-                Texture = flip(Texture);
+                //Texture = flip(Texture);
 
                 int width = Texture.extent().x;
                 int height = Texture.extent().y;
@@ -2957,6 +3000,11 @@ namespace OGLResources
             _minLevel = other._minLevel;
             _maxLevel = other._maxLevel;
         };
+
+        int Width() const { return _width; }
+        int Height() const { return _height; }
+        int MinLevel() const { return _minLevel; }
+        int MaxLevel() const { return _maxLevel; }
 
         void Bind() const
         {

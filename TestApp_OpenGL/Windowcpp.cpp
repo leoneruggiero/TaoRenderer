@@ -494,7 +494,7 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
     Mesh teapotMesh = reader.Meshes()[0];
 
     MeshRenderer plane = MeshRenderer(planeMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get());
-    plane.SetMaterial(MaterialsCollection::MatteGray);
+    plane.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0 ,1.0), 0.05, 0.0 });
     plane.Renderer::SetTransformation(glm::vec3(-4, -4, -0.5), 0, glm::vec3(1.0, 0, 0), glm::vec3(1, 1, 1));
     
     
@@ -514,7 +514,7 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
     teapot1.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.3, 0.0 });
     teapot2.SetMaterial(Material{ glm::vec4(0.9, 0.5, 0.0 ,1.0), 0.1, 0.0 });
     teapot3.SetMaterial(Material{ glm::vec4(0.8, 0.3, 0.5 ,1.0), 0.5, 0.0 });
-    teapot4.SetMaterial(Material{ glm::vec4(0.89, 0.92, 0.1 ,1.0), 0.2, 0.0 });
+    teapot4.SetMaterial(Material{ glm::vec4(0.89, 0.92, 0.84 ,1.0), 0.5, 1.0 });
     teapot5.SetMaterial(Material{ glm::vec4(0.4, 0.4, 0.9 ,1.0), 0.6, 0.0 });
 
 
@@ -924,7 +924,7 @@ void SetupScene(
     //LoadSceneFromPath("../../Assets/Models/aoTest.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
-    //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
+     //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
      //LoadSceneFromPath("../../Assets/Models/Dragon.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
      //LoadSceneFromPath("../../Assets/Models/Sponza.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("../../Assets/Models/Knob.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
@@ -1229,10 +1229,10 @@ void DrawEnvironment(
     glUniformMatrix4fv(environmentShader.UniformLocation("u_model"), 1, GL_FALSE, glm::value_ptr(transf));
     glUniformMatrix4fv(environmentShader.UniformLocation("u_projection"), 1, GL_FALSE, glm::value_ptr(proj));
 
-    if (sceneParams.environment.useSkyboxTexture && sceneParams.environment.Skybox.has_value())
+    if (sceneParams.environment.useSkyboxTexture && sceneParams.environment.RadianceMap.has_value())
     {
         glActiveTexture(GL_TEXTURE0);
-        sceneParams.environment.Skybox.value().Bind();
+        sceneParams.environment.RadianceMap.value().Bind();
         glUniform1i(environmentShader.UniformLocation("EnvironmentMap"), 0);
         glUniform1i(environmentShader.UniformLocation("u_hasEnvironmentMap"), true);
 
@@ -1404,7 +1404,7 @@ int main()
         OGLTextureCubemap("../../Assets/Environments/Outdoor/IrradianceMap", TextureFiltering::Linear, TextureFiltering::Linear);
 
     sceneParams.environment.RadianceMap =
-        OGLTextureCubemap("../../Assets/Environments/Outdoor/Radiance", TextureFiltering::Linear, TextureFiltering::Linear);
+        OGLTextureCubemap("../../Assets/Environments/Outdoor/Radiance", TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
 
     float l = 2.0;
     std::vector<glm::vec3> vertices =
@@ -1578,8 +1578,10 @@ int main()
     // be kept in sync with the PBR shaders
     postProcessingUnit.IntegrateBRDFintoLUT(sceneParams);
 
+    glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_FRAMEBUFFER_SRGB);
+
     // Render Loop
     while (!glfwWindowShouldClose(window))
     {

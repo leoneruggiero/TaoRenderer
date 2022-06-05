@@ -287,6 +287,29 @@ public:
         }
         else
             glUniform1ui(UniformLocation("u_hasIrradianceMap"), false);
+
+        if (sceneParams.environment.RadianceMap.has_value() && sceneParams.environment.LUT.has_value())
+        {
+            glUniform1ui(UniformLocation("u_hasRadianceMap"), true);
+            glUniform1ui(UniformLocation("u_hasBrdfLut"), true);
+            glUniform1i(UniformLocation("u_radiance_minLevel"), sceneParams.environment.RadianceMap.value().MinLevel());
+            glUniform1i(UniformLocation("u_radiance_maxLevel"), sceneParams.environment.RadianceMap.value().MaxLevel());
+
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::RadianceMap);
+            sceneParams.environment.RadianceMap.value().Bind();
+            glUniform1i(UniformLocation("RadianceMap"), TextureBinding::RadianceMap);
+
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::BrdfLut);
+            sceneParams.environment.LUT.value().Bind();
+            glUniform1i(UniformLocation("BrdfLut"), TextureBinding::BrdfLut);
+        }
+        else
+        {
+            glUniform1ui(UniformLocation("u_hasRadianceMap"), false);
+            glUniform1ui(UniformLocation("u_hasBrdfLut"), false);
+        }
+
+        
     }
 
 };

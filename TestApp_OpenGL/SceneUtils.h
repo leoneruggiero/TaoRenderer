@@ -34,7 +34,9 @@ enum TextureBinding
 	Normals = 7,
 	Roughness = 8,
 	Metallic = 9,
-	IrradianceMap = 10
+	IrradianceMap = 10,
+	RadianceMap = 11,
+	BrdfLut = 12
 };
 
 enum VertexInputType
