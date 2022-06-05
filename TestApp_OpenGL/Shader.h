@@ -10,8 +10,12 @@
 #include <vector>
 #include <optional>
 #include <map>
-#include "stb_image.h"
+#include "FileUtils.h"
 
+// Texture loading
+// ---------------
+#include "stb_image.h"
+#include <gli/gli.hpp>
 
 
 namespace VertexSource_Environment
@@ -1717,8 +1721,13 @@ namespace OGLTextureUtils
         case(TextureType::Texture2D):
         case(TextureType::CubeMap):
 
-            glTexImage2D(target, level, internalFormat,
-                width, height, 0, format, type, data);
+            //if (level == 0)
+                glTexImage2D(target, level, internalFormat,
+                    width, height, 0, format, type, data);
+            //else
+            //    glTexSubImage2D(target, level, 0, 0,
+            //        width, height, format, type, data);
+
             break;
 
         case(TextureType::Texture1D):
@@ -1756,6 +1765,16 @@ namespace OGLTextureUtils
             return false;
             break;
         }
+    }
+
+    void SetMinMaxLevel(unsigned int texture, TextureType textureType, int minLevel, int maxLevel)
+    {
+        glBindTexture(textureType, texture);
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, minLevel);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, maxLevel);
+
+        glBindTexture(textureType, 0);
     }
 
     void SetParameters(unsigned int texture, TextureType textureType, TextureFiltering minfilter, TextureFiltering magfilter, TextureWrap wrapS, TextureWrap wrapT)
@@ -2784,21 +2803,27 @@ namespace OGLResources
 
     private:
         int
-            _width, _height;
+            _width, _height, _minLevel, _maxLevel;
 
         static const TextureType _textureType = TextureType::CubeMap;
 
-    public:
 
-        OGLTextureCubemap(const char* folderPath, TextureFiltering minFilter, TextureFiltering magFilter)
+        TextureInternalFormat ResolveFormat(int numChannels)
         {
+            // LOL...
+            switch (numChannels)
+            {
+            case(1): return TextureInternalFormat::R_16f; break;
+            case(3): return TextureInternalFormat::Rgb_16f; break;
+            case(4): return TextureInternalFormat::Rgba_16f; break;
+            default:
+                return (TextureInternalFormat)0;
+                throw "Unsupported texture format."; break;
+            }
+        }
 
-            OGLResource::Create(OGLResourceType::TEXTURE);
-
-            OGLUtils::CheckOGLErrors();
-
-            TextureInternalFormat internalFormat;
-
+        void LoadFromPath_HDR(const char* folderPath)
+        {
             std::string path(folderPath);
 
             for (int i = 0; i < 6; i++)
@@ -2816,26 +2841,16 @@ namespace OGLResources
                 }
 
                 int width, height, nrChannels;
-
                 unsigned char*
                     data = stbi_load((path + fileName).c_str(), &width, &height, &nrChannels, 0);
 
-                
                 if (!data)
                 {
                     std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << (path + fileName) << "\n" << std::endl;;
                     throw "Texture data loading failed";
                 }
 
-                switch (nrChannels)
-                {
-                case(1): internalFormat = TextureInternalFormat::R_16f; break;
-                case(3): internalFormat = TextureInternalFormat::Rgb_16f; break;
-                case(4): internalFormat = TextureInternalFormat::Rgba_16f; break;
-                default:
-                    std::cout << "\n" << "Texture data loading failed: " << stbi_failure_reason() << "\n" << "PATH: " << (path + fileName) << "\n" << std::endl;
-                    throw "Unsupported texture format."; break;
-                }
+                TextureInternalFormat internalFormat = ResolveFormat(nrChannels);
 
                 OGLTextureUtils::Init(
                     OGLResource::ID(), _textureType, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
@@ -2843,6 +2858,87 @@ namespace OGLResources
 
                 stbi_image_free(data);
             }
+
+            
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void LoadFromPath_DDS(const char* folderPath)
+        {
+            
+            std::string path(folderPath);
+            
+            for (int i = 0; i < 6; i++)
+            {
+                std::string fileName;
+                switch (i)
+                {
+                case(0): fileName = "/posx.dds"; break;
+                case(1): fileName = "/negx.dds"; break;
+                case(2): fileName = "/posy.dds"; break;
+                case(3): fileName = "/negy.dds"; break;
+                case(4): fileName = "/posz.dds"; break;
+                case(5): fileName = "/negz.dds"; break;
+                default: throw "no...."; break;
+                }
+                
+                gli::texture2d Texture(gli::load_dds((path + "\\" + fileName).c_str()));
+
+                bool const compressed(gli::is_compressed(Texture.format()));
+                if (compressed)
+                    throw "Compressed formats are not allowed.";
+
+                Texture = flip(Texture);
+
+                int width = Texture.extent().x;
+                int height = Texture.extent().y;
+                int ncolors = component_count(Texture.format());
+
+                TextureInternalFormat internalFormat = ResolveFormat(ncolors);
+
+                gli::gl GL(gli::gl::PROFILE_GL33);
+                gli::gl::format const Format(GL.translate(Texture.format(), Texture.swizzles()));
+
+                _width = width; _height = height;
+
+                if ((_minLevel == 0 && _maxLevel == 0) &&
+                    (Texture.base_level()!= 0 || Texture.max_level()!=0))
+                {
+                    _minLevel = Texture.base_level();
+                    _maxLevel = Texture.max_level();
+
+                    SetMinMaxLevel(OGLResource::ID(), _textureType, _minLevel, _maxLevel);
+                }
+
+
+                for (int level = _minLevel; level <= _maxLevel; level++)
+                {
+                    
+                    OGLTextureUtils::Init(
+                        OGLResource::ID(), _textureType, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                        level, internalFormat, Texture[level].extent().x, Texture[level].extent().y, OGLTextureUtils::ResolveFormat(internalFormat), Format.Type, Texture.data(0,0,level));
+                    
+                }
+
+                OGLUtils::CheckOGLErrors();
+            }
+        }
+
+    public:
+
+        OGLTextureCubemap(const char* folderPath, TextureFiltering minFilter, TextureFiltering magFilter) 
+            : _width(0), _height(0), _minLevel(0), _maxLevel(0)
+        {
+
+            OGLResource::Create(OGLResourceType::TEXTURE);
+
+            if (ContainsExtension(folderPath, ".hdr"))
+                LoadFromPath_HDR(folderPath);
+
+            else if (ContainsExtension(folderPath, ".dds"))
+                LoadFromPath_DDS(folderPath);
+            else
+                throw "Unsupported file format.";
 
             OGLTextureUtils::SetParameters(
                 OGLResource::ID(), _textureType,
@@ -2858,6 +2954,8 @@ namespace OGLResources
         {
             _width = other._width;
             _height = other._height;
+            _minLevel = other._minLevel;
+            _maxLevel = other._maxLevel;
         };
 
         void Bind() const
@@ -2877,6 +2975,8 @@ namespace OGLResources
                 OGLResource::operator=(std::move(other));
                 _height = other._height;
                 _width = other._width;
+                _minLevel = other._minLevel;
+                _maxLevel = other._maxLevel;
             }
             return *this;
         };

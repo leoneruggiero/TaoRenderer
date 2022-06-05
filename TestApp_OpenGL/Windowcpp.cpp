@@ -20,7 +20,7 @@
 #include "SceneUtils.h"
 #include "FrameBuffer.h"
 #include "Scene.h"
-#include <gli/gli.hpp>
+
 
 
 #if GFX_STOPWATCH
@@ -127,8 +127,6 @@ void ShowStatsWindow()
                 PROFILER_COLORS_4RGB[(cnt % 4)*3 + 2],
                 120))
         );
-
-        //ImGui::InvisibleButton("##gradient1", ImVec2(20, 20));
 
         cnt++;
     }
@@ -1404,6 +1402,9 @@ int main()
 
     sceneParams.environment.IrradianceMap =
         OGLTextureCubemap("../../Assets/Environments/Outdoor/IrradianceMap", TextureFiltering::Linear, TextureFiltering::Linear);
+
+    sceneParams.environment.RadianceMap =
+        OGLTextureCubemap("../../Assets/Environments/Outdoor/Radiance", TextureFiltering::Linear, TextureFiltering::Linear);
 
     float l = 2.0;
     std::vector<glm::vec3> vertices =

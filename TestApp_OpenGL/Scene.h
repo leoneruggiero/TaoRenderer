@@ -106,6 +106,7 @@ struct Environment
 
 	// Specular IBL
 	std::optional<OGLResources::OGLTexture2D> LUT;
+	std::optional<OGLResources::OGLTextureCubemap> RadianceMap;
 };
 
 struct Texture
