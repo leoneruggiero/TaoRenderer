@@ -1325,18 +1325,23 @@ public:
         if (_material.Textures != nullptr)
         {
             std::string path = std::string(MaterialsFolder) + "/" + _material.Textures;
+            std::string ext = ".png";
 
-            if(exists((path + "/Albedo.png").c_str()))
-                _albedo = OGLTexture2D((path + "/Albedo.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+            // wow
+            if (ContainsExtension(path, ".jpg"))
+                ext = ".jpg";
 
-            if (exists((path + "/Roughness.png").c_str()))
-                _roughness = OGLTexture2D((path + "/Roughness.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+            if(exists((path + "/Albedo" + ext).c_str()))
+                _albedo = OGLTexture2D((path + "/Albedo" + ext).c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
 
-            if (exists((path + "/Metallic.png").c_str()))
-                _metallic = OGLTexture2D((path + "/Metallic.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+            if (exists((path + "/Roughness" + ext).c_str()))
+                _roughness = OGLTexture2D((path + "/Roughness" + ext).c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
 
-            if (exists((path + "/Normals.png").c_str()))
-                _normals = OGLTexture2D((path + "/Normals.png").c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+            if (exists((path + "/Metallic" + ext).c_str()))
+                _metallic = OGLTexture2D((path + "/Metallic" + ext).c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+
+            if (exists((path + "/Normals" + ext).c_str()))
+                _normals = OGLTexture2D((path + "/Normals" + ext).c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
         }
     }
 

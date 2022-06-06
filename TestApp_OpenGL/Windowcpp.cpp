@@ -327,6 +327,39 @@ void LoadScene_PbrTestTeapots(SceneMeshCollection& sceneMeshCollection, std::map
     }
 }
 
+void LoadScene_PbrTestKnobs(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
+{
+
+    FileReader reader = FileReader("../../Assets/Models/Knob.obj");
+    reader.Load();
+    std::vector<Mesh> meshes = reader.Meshes();
+
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            for (int m = 0; m < meshes.size(); m++)
+            {
+                MeshRenderer mr
+                {
+                    meshes.at(m),
+                    (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
+                    (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get()
+                };
+
+                glm::mat4 t = glm::mat4(1.0);
+                t = glm::translate(t, glm::vec3(4.0 * i, 4.0 * j, -0.1));
+                t = glm::translate(t, glm::vec3(-3.0f, -3.0f, 0.0f));
+
+                mr.SetTransformation(t);
+                mr.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0, 1.0), (i + 1) / 3.0f, (j + 1) / 3.0f });
+
+                sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(mr)));
+            }
+        }
+    }
+}
+
 void LoadScene_NormalMapping(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
 {
     
@@ -494,7 +527,7 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
     Mesh teapotMesh = reader.Meshes()[0];
 
     MeshRenderer plane = MeshRenderer(planeMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get());
-    plane.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0 ,1.0), 0.05, 0.0 });
+    plane.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0 ,1.0), 0.8, 0.0 });
     plane.Renderer::SetTransformation(glm::vec3(-4, -4, -0.5), 0, glm::vec3(1.0, 0, 0), glm::vec3(1, 1, 1));
     
     
@@ -511,7 +544,7 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
     teapot4.Renderer::Transform(glm::vec3(-0.5, -0.6, 2.3), 1.4, glm::vec3(1, -0.5, 1.6), glm::vec3(1, 1, 1));
     teapot5.Renderer::Transform(glm::vec3(1.6, 0.8, 0.5), 0.6, glm::vec3(1,1.0,2.0), glm::vec3(1, 1, 1));
 
-    teapot1.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.3, 0.0 });
+    teapot1.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.9, 0.0 });
     teapot2.SetMaterial(Material{ glm::vec4(0.9, 0.5, 0.0 ,1.0), 0.1, 0.0 });
     teapot3.SetMaterial(Material{ glm::vec4(0.8, 0.3, 0.5 ,1.0), 0.5, 0.0 });
     teapot4.SetMaterial(Material{ glm::vec4(0.89, 0.92, 0.84 ,1.0), 0.5, 1.0 });
@@ -844,7 +877,7 @@ void LoadSceneFromPath(const char* path, SceneMeshCollection& sceneMeshCollectio
     {
         Mesh mesh = reader.Meshes()[i];
         sceneMeshCollection.AddToCollection(
-            std::make_shared<MeshRenderer>(glm::vec3(0, 0, 0), glm::pi<float>() * 0, glm::vec3(1, 0, 0), glm::vec3(0.6, 0.6, 0.6),
+            std::make_shared<MeshRenderer>(glm::vec3(0, 0, 0), glm::pi<float>() * 0, glm::vec3(1, 0, 0), glm::vec3(1.0, 1.0, 1.0),
                 mesh, shadersCollection->at("LIT_WITH_SHADOWS_SSAO").get(), shadersCollection->at("LIT_WITH_SSAO").get()));
 
         sceneMeshCollection.at(sceneMeshCollection.size() - 1).get()->SetTransformation(reader.Transformations().at(i));
@@ -896,8 +929,8 @@ void LoadScene_TechnoDemon(SceneMeshCollection& sceneMeshCollection, std::map<st
     // ---------------------- //
 
     
-    Material matBody = Material{ glm::vec4(1.0),0.4, 0.0, "TechnoDemon_Body" };
-    Material matArm = Material{ glm::vec4(1.0),0.6, 0.0, "TechnoDemon_Arm" };
+    Material matBody = Material{ glm::vec4(1.0),0.9, 0.0, "TechnoDemon_Body" };
+    Material matArm = Material{ glm::vec4(1.0),0.2, 1.0, "TechnoDemon_Arm" };
   
     sceneMeshCollection.at(5).get()->SetMaterial(matBody);
     sceneMeshCollection.at(6).get()->SetMaterial(matArm);
@@ -908,6 +941,39 @@ void LoadScene_TechnoDemon(SceneMeshCollection& sceneMeshCollection, std::map<st
     LoadPlane(sceneMeshCollection, shadersCollection, 5.0);
 }
 
+void LoadScene_UtilityKnife(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
+{
+
+    LoadSceneFromPath("../../Assets/Models/UtilityKnife.fbx", sceneMeshCollection, shadersCollection);
+
+    // ___ Transformation ___ //
+    // ---------------------- //
+    glm::mat4 tr = glm::mat4(1.0);
+    tr = glm::scale(tr, glm::vec3(0.15f));
+    tr = glm::rotate(tr, glm::pi<float>() / 4.0f, glm::vec3(1.0, 0.0, 0.0));
+    tr = glm::rotate(tr, glm::pi<float>() / 8.0f, glm::vec3(0.0, 0.0, -1.0));
+    
+    for (int i = 0; i < sceneMeshCollection.size(); i++)
+        sceneMeshCollection.at(i).get()->SetTransformation(tr);
+
+    sceneMeshCollection.UpdateBBox();
+
+
+    // ___ Material ___ //
+    // ---------------- //
+    Material mat_0 = Material{ glm::vec4(1.0),1.0, 0.0, "UtilityKnife" };
+    for (int i = 0; i < sceneMeshCollection.size(); i++)
+        sceneMeshCollection.at(i).get()->SetMaterial(mat_0);
+   
+    // Plane
+    // --------------
+    float size = 8.0f;
+    Mesh planeMesh = Mesh::Box(1, 1, 1);
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-size / 2.0f, -size / 2.0f, -2.5f), 0.0, glm::vec3(0, 0, 1), glm::vec3(size, size, size / 20.0f), planeMesh,
+    (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
+    (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
+}
+
 void SetupScene(
     SceneMeshCollection& sceneMeshCollection, 
     std::map<std::string, std::shared_ptr<MeshShader>> *meshShadersCollection,
@@ -915,12 +981,14 @@ void SetupScene(
 )
 {
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    //LoadPlane(sceneMeshCollection, meshShadersCollection, 5.0f);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 10.0);
     //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
     //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
+    LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/aoTest.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
@@ -933,7 +1001,7 @@ void SetupScene(
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1232,7 +1300,7 @@ void DrawEnvironment(
     if (sceneParams.environment.useSkyboxTexture && sceneParams.environment.RadianceMap.has_value())
     {
         glActiveTexture(GL_TEXTURE0);
-        sceneParams.environment.RadianceMap.value().Bind();
+        sceneParams.environment.Skybox.value().Bind();
         glUniform1i(environmentShader.UniformLocation("EnvironmentMap"), 0);
         glUniform1i(environmentShader.UniformLocation("u_hasEnvironmentMap"), true);
 
