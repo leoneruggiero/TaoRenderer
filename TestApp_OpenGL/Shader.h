@@ -1270,13 +1270,15 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
             D = smpl - p;
             float l=length(D);
 
-            vec3 tangent = normalize(D - normal * dot(D, normal)); 
+            vec3 directionImage3d = vec3(directionImage, 0.0);
+            vec3 tangent = normalize(directionImage3d - normal * dot(directionImage3d, normal));
+
             float t = atan2(tangent.z,length(tangent.xy));
             float m = t;
 
             float h = atan2(D.z,length(D.xy));
 
-            if(h + bias <  m)
+            if((h + bias <  m)&&dot(directionImage3d, normal) > 0.01)
             {
                 m = h;
                 wao += ((sin(t) - sin(m)) - ao) * Attenuation(l, radius);

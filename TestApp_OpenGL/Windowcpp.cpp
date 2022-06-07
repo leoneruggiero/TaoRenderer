@@ -562,13 +562,19 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
 
 }
 
-void LoadPlane(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection, float size)
+void LoadPlane(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection, float size, float height)
 {
-    
+
     Mesh planeMesh = Mesh::Box(1, 1, 1);
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-size/2.0f, -size/2.0f, -size/20.0f), 0.0, glm::vec3(0, 0, 1), glm::vec3(size, size, size/20.0f), planeMesh,
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-size / 2.0f, -size / 2.0f, -size / 20.0f + height), 0.0, glm::vec3(0, 0, 1), glm::vec3(size, size, size / 20.0f), planeMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
+
+}
+void LoadPlane(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection, float size)
+{
+
+    LoadPlane(sceneMeshCollection, shadersCollection, size, 0.0f);
 
 }
 
@@ -981,18 +987,18 @@ void SetupScene(
 )
 {
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    //LoadPlane(sceneMeshCollection, meshShadersCollection, 10.0);
+    LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, 0.0f);
     //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
     //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
-    LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/aoTest.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
-     //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
+    //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
      //LoadSceneFromPath("../../Assets/Models/Dragon.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
      //LoadSceneFromPath("../../Assets/Models/Sponza.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("../../Assets/Models/Knob.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
