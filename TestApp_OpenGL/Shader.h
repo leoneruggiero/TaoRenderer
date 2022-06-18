@@ -88,7 +88,7 @@ namespace FragmentSource_Environment
                 ? texture(EnvironmentMap, (fpwN * vec3(1.0, -1.0, -1.0))).rgb
                 : mix(u_equator_color, poleColor, abs(f));
         
-        if(u_doGammaCorrection && u_hasEnvironmentMap)
+        if(u_doGammaCorrection/* && u_hasEnvironmentMap*/)
             col = pow(col, vec3(u_gamma));
         
         gl_FragColor = vec4(col, 1.0);

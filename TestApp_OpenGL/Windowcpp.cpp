@@ -980,6 +980,39 @@ void LoadScene_UtilityKnife(SceneMeshCollection& sceneMeshCollection, std::map<s
     (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
 }
 
+void LoadScene_RadialEngine(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
+{
+
+    LoadSceneFromPath("../../Assets/Models/RadialEngine.fbx", sceneMeshCollection, shadersCollection);
+
+    // ___ Transformation ___ //
+    // ---------------------- //
+    glm::mat4 tr = glm::mat4(1.0);
+    tr = glm::translate(tr, glm::vec3(0, 0, -1.0));
+    tr = glm::scale(tr, glm::vec3(0.015f));
+    tr = glm::rotate(tr, glm::pi<float>() / 2.0f, glm::vec3(1.0, 0.0, 0.0));
+
+    for (int i = 0; i < sceneMeshCollection.size(); i++)
+        sceneMeshCollection.at(i).get()->SetTransformation(tr);
+
+    sceneMeshCollection.UpdateBBox();
+
+
+    // ___ Material ___ //
+    // ---------------- //
+    Material mat_0 = Material{ glm::vec4(1.0),1.0, 0.0, "RadialEngine" };
+    for (int i = 0; i < sceneMeshCollection.size(); i++)
+        sceneMeshCollection.at(i).get()->SetMaterial(mat_0);
+
+    // Plane
+    // --------------
+    float size = 8.0f;
+    Mesh planeMesh = Mesh::Box(1, 1, 1);
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-size / 2.0f, -size / 2.0f, -2.5f), 0.0, glm::vec3(0, 0, 1), glm::vec3(size, size, size / 20.0f), planeMesh,
+        (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
+        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
+}
+
 void SetupScene(
     SceneMeshCollection& sceneMeshCollection, 
     std::map<std::string, std::shared_ptr<MeshShader>> *meshShadersCollection,
@@ -987,16 +1020,17 @@ void SetupScene(
 )
 {
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, 0.0f);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, 0.0f);
     //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
-    LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
     //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_RadialEngine(sceneMeshCollection, meshShadersCollection);
     //LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/aoTest.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
-    //LoadSceneFromPath("./Assets/Models/Trex.obj", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64, "Trex"});
+    //LoadSceneFromPath("../../Assets/Models/RadialEngine.fbx", sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
     //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
      //LoadSceneFromPath("../../Assets/Models/Dragon.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
@@ -1007,13 +1041,13 @@ void SetupScene(
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Bunny(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Jinx(sceneMeshCollection, shadersCollection, sceneBoundingBox);
-    //LoadScene_Engine(sceneMeshCollection, shadersCollection, sceneBoundingBox);
+    //LoadScene_Engine(sceneMeshCollection, meshShadersCollection, sceneBoundingBox);
     //LoadScene_Knob(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_AoTest(sceneMeshCollection, shadersCollection);
     //LoadScene_Porsche(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1309,13 +1343,15 @@ void DrawEnvironment(
         sceneParams.environment.Skybox.value().Bind();
         glUniform1i(environmentShader.UniformLocation("EnvironmentMap"), 0);
         glUniform1i(environmentShader.UniformLocation("u_hasEnvironmentMap"), true);
-
-        glUniform1ui(environmentShader.UniformLocation("u_doGammaCorrection"), sceneParams.postProcessing.GammaCorrection);
-        glUniform1f(environmentShader.UniformLocation("u_gamma"), 2.2f);
     }
     else
         glUniform1i(environmentShader.UniformLocation("u_hasEnvironmentMap"), false);
 
+    // Gamma correction
+    glUniform1ui(environmentShader.UniformLocation("u_doGammaCorrection"), sceneParams.postProcessing.GammaCorrection);
+    glUniform1f(environmentShader.UniformLocation("u_gamma"), 2.2f);
+
+    //  Equator and Poles colors to be interpolated
     glUniform3fv(environmentShader.UniformLocation("u_equator_color"), 1,  glm::value_ptr(sceneParams.environment.EquatorColor));
     glUniform3fv(environmentShader.UniformLocation("u_north_color"), 1, glm::value_ptr(sceneParams.environment.NorthColor));
     glUniform3fv(environmentShader.UniformLocation("u_south_color"), 1, glm::value_ptr(sceneParams.environment.SouthColor));
@@ -1528,8 +1564,8 @@ int main()
     ShaderBase environmentShader = ShaderBase(VertexSource_Environment::EXP_VERTEX, FragmentSource_Environment::EXP_FRAGMENT);
     
     // Initial skybox default params
-    sceneParams.environment.NorthColor = glm::vec3(0.2, 0.2, 0.2);
-    sceneParams.environment.EquatorColor = glm::vec3(0.2, 0.2, 0.2);
+    sceneParams.environment.NorthColor = glm::vec3(0.8, 0.8, 0.8);
+    sceneParams.environment.EquatorColor = glm::vec3(0.5, 0.5, 0.5);
     sceneParams.environment.SouthColor = glm::vec3(0.2, 0.2, 0.2);
 
 
