@@ -42,6 +42,8 @@ void processInput(GLFWwindow* window);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_scroll_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
+void keyboard_button_callback(GLFWwindow* window, int key, int scancode, int action, int mods);
+
 
 Camera camera = Camera( 5, 0, 0);
 
@@ -1028,7 +1030,7 @@ void SetupScene(
     //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
     //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
     //LoadScene_RadialEngine(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
+    LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/aoTest.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("../../Assets/Models/RadialEngine.fbx", sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("./Assets/Models/Draenei.fbx", sceneMeshCollection, shadersCollection, Material{glm::vec4(1.0), glm::vec4(1.0), 64});
@@ -1041,7 +1043,7 @@ void SetupScene(
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1489,6 +1491,7 @@ int main()
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, mouse_scroll_callback);
     glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetKeyCallback(window, keyboard_button_callback);
 
     sceneParams.viewportWidth = 200;
     sceneParams.viewportHeight = 800;
@@ -1918,9 +1921,30 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     else if (button == GLFW_MOUSE_BUTTON_MIDDLE && action == GLFW_RELEASE)
     {
         firstMouse = true;
-        camera.Reset();
     }
 }
+
+void keyboard_button_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+    if (action == GLFW_PRESS)
+    {
+        ViewType vt;
+
+        switch (key)
+        {
+        case GLFW_KEY_KP_1: vt = ViewType::Top; break;
+        case GLFW_KEY_KP_3: vt = ViewType::Right; break;
+        case GLFW_KEY_KP_7: vt = ViewType::Front; break;
+        case GLFW_KEY_KP_9: vt = ViewType::Back; break;
+        default:
+            vt = ViewType::Top;
+            break;
+        }
+
+        camera.SetView(vt);
+    }
+}
+
 
 
 
