@@ -122,6 +122,7 @@ struct SceneParams
 	glm::mat4 viewMatrix;
 	float cameraNear, cameraFar;
 	int viewportWidth, viewportHeight;
+	glm::ivec2 mousePosition;
 	SceneLights sceneLights;
 	ScenePostProcessing postProcessing;
 	DrawParams drawParams;

@@ -1003,6 +1003,8 @@ namespace VertexSource_PostProcessing
     #version 430 core
     layout(location = 0) in vec3 position;
     
+#define DEBUG_AO 1
+
     void main()
     {
         gl_Position = vec4(position.xyz, 1.0);
@@ -1079,6 +1081,10 @@ namespace FragmentSource_PostProcessing
     uniform float u_near;
     uniform float u_far;
     uniform mat4  u_proj;
+
+#if DEBUG_AO
+    uniform ivec2 u_mousePos;
+#endif
 
     #define SQRT_TWO 1.41421356237;
     #define PI 3.14159265358979323846
@@ -1293,18 +1299,21 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
     // A lot of problems at grazing angles...
     vec3 EyeNormal_dz(vec2 uvCoords, vec3 eyePos)
     {
-        ivec2 fetchCoords = ivec2(gl_FragCoord.xy);
-
-        float p_dzdx = texelFetchOffset(u_viewPosTexture,  fetchCoords , 0, ivec2( 2,  0)).z - eyePos.z;
-        float p_dzdy = texelFetchOffset(u_viewPosTexture,  fetchCoords , 0, ivec2( 0,  2)).z - eyePos.z;
-        float m_dzdx = -texelFetchOffset(u_viewPosTexture, fetchCoords , 0, ivec2(-2,  0)).z + eyePos.z;
-        float m_dzdy = -texelFetchOffset(u_viewPosTexture, fetchCoords , 0, ivec2( 0, -2)).z + eyePos.z;
+        vec2 texSize = textureSize(u_viewPosTexture, 0).xy;
+        ivec2 fetchCoords = ivec2(uvCoords * texSize);
+        
+        int searchRadius = 3;
+        
+        float p_dzdx =  texelFetchOffset(u_viewPosTexture, fetchCoords , 0, ivec2( searchRadius,  0)).z - eyePos.z;
+        float p_dzdy =  texelFetchOffset(u_viewPosTexture, fetchCoords , 0, ivec2( 0,  searchRadius)).z - eyePos.z;
+        float m_dzdx = -texelFetchOffset(u_viewPosTexture, fetchCoords , 0, ivec2(-searchRadius,  0)).z + eyePos.z;
+        float m_dzdy = -texelFetchOffset(u_viewPosTexture, fetchCoords , 0, ivec2( 0, -searchRadius)).z + eyePos.z;
         
         bool px = abs(p_dzdx)<abs(m_dzdx);
         bool py = abs(p_dzdy)<abs(m_dzdy);
 
-        vec3 i = texelFetch(u_viewPosTexture, ivec2((gl_FragCoord.x + (px?+2:-2) ), gl_FragCoord.y),0).xyz - eyePos ;
-        vec3 j = texelFetch(u_viewPosTexture, ivec2(gl_FragCoord.x, (gl_FragCoord.y + (py?+2:-2))),0).xyz  - eyePos ; 
+        vec3 i = texelFetch(u_viewPosTexture, fetchCoords + ivec2(px ? +searchRadius : -searchRadius, 0),0).xyz - eyePos ;
+        vec3 j = texelFetch(u_viewPosTexture, fetchCoords + ivec2(0, py ? +searchRadius : -searchRadius),0).xyz - eyePos ; 
 
                 
 
@@ -1312,6 +1321,62 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
         normal.z*=-1;
         return - normal;
     }
+
+#if DEBUG_AO
+
+    // DEBUG DRAW UTILS
+    // ----------------
+
+    vec4 Blend(vec4 src, vec4 dst)
+    {
+        return src.a*src + (1.0 - src.a) * dst; 
+    }
+
+    // Screen Space disk
+    vec4 DrawDiskSS(float radius, ivec2 center, ivec2 coords, vec4 color)
+    {
+        float distance = length(center - coords) / radius;
+        return  color * (1.0 - step(1.0, distance));
+    }
+    
+    // Screen Space segment
+    vec4 DrawSegmentSS(ivec2 p0, ivec2 p1, ivec2 coords, vec4 color)
+    {
+        vec2 segDir = normalize(p1-p0);
+        float projDot = dot(segDir, coords-p0);
+        
+        if(projDot < 0.0 || projDot > length(p1-p0))
+            return vec4(0.0); 
+
+        vec2 proj = segDir * projDot;
+        vec2 perp = (coords-p0) - proj;
+
+        float distance = length(perp);
+        return color * (1.0 - step(2.0, distance));
+    }
+
+    // View Space segment
+    vec4 DrawPointVS(vec3 p, ivec2 coords, mat4 proj, vec2 screenSize, vec4 color)
+    {
+        vec4 pClip = proj * vec4(p, 1.0);
+        ivec2 pProj = ivec2( ((pClip.xy / pClip.w) + vec2(1.0)) * 0.5 *  screenSize.xy);
+       
+        return DrawDiskSS(5.0, pProj, coords, color);
+    }
+
+    // View Space segment
+    vec4 DrawSegmentVS(vec3 p0, vec3 p1, ivec2 coords, mat4 proj, vec2 screenSize, vec4 color)
+    {
+        vec4 p0Clip = proj * vec4(p0, 1.0);
+        vec4 p1Clip = proj * vec4(p1, 1.0);
+
+        ivec2 p0Proj = ivec2( ((p0Clip.xy / p0Clip.w).xy + 1.0) * 0.5 * screenSize.xy);
+        ivec2 p1Proj = ivec2( ((p1Clip.xy / p1Clip.w).xy + 1.0) * 0.5 * screenSize.xy);
+
+        return DrawSegmentSS(p0Proj, p1Proj, coords, color);
+    }
+
+#endif
 
 )";
 
@@ -1432,7 +1497,7 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
     vec4 projectedRadius = (u_proj * vec4(u_radius, 0, -eyePos.z, 1));
     float radiusImage = (projectedRadius.x/projectedRadius.w)*0.5;
     
-    float offset = RandomValue() * PI;
+    float offset = RandomValue() * increment;
 
     for(int k=0; k < u_numSamples; k++)
     {
@@ -1446,6 +1511,55 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
 
    
     FragColor = vec4(vec3(1.0-ao),1.0); 
+)";
+
+    const std::string CALC_GTAO =
+        R"(
+    
+    // u_viewPosTexture contains view position with reverse Z (why? TODO: please high priority)
+
+    vec2 texSize=textureSize(u_viewPosTexture, 0);
+    vec2 uvCoords = gl_FragCoord.xy / texSize;
+
+    vec3 eyePos = texture(u_viewPosTexture, uvCoords).rgb ;
+    
+    if(eyePos.z>u_far-0.001)
+        {
+            FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+            return;
+        }
+
+    vec3 normal = EyeNormal_dz(uvCoords, eyePos);
+    
+    vec4 projectedRadius = (u_proj * vec4(u_radius, 0, -eyePos.z, 1));
+    float radiusImage = (projectedRadius.x/projectedRadius.w)*0.5;
+    
+    vec4 res  = vec4(0,0,0,0);    
+
+#if DEBUG_AO
+
+    vec2 uvCoords_mouse = u_mousePos / texSize;
+    vec3 eyePos_mouse = texture(u_viewPosTexture, uvCoords_mouse).rgb;
+    vec3 normal_mouse = EyeNormal_dz(uvCoords_mouse, eyePos_mouse);
+    vec4 projectedRadius_mouse = (u_proj * vec4(u_radius, 0, -eyePos_mouse.z, 1));
+    float radiusImage_mouse = (projectedRadius_mouse.x / projectedRadius_mouse.w) * 0.5;
+    
+    res += vec4(normal, 1.0);
+    if(eyePos_mouse.z < u_far - 0.001)
+    {
+        res = Blend(DrawDiskSS(
+                radiusImage_mouse * texSize.x, 
+                u_mousePos, ivec2(gl_FragCoord.xy), vec4(1.0, 0.0, 0.0, 0.8)), res);
+
+        res = Blend(DrawSegmentVS(
+                eyePos_mouse*vec3(1.0, 1.0, -1.0), 
+                eyePos_mouse*vec3(1.0, 1.0, -1.0) + normal_mouse, ivec2(gl_FragCoord.xy), 
+                u_proj, texSize, vec4(abs(normal_mouse), 1.0)), res);
+    }
+
+#endif
+
+    FragColor = res; 
 )";
     const std::string CALC_POSITIONS =
         R"(
@@ -1592,6 +1706,9 @@ R"(
     const std::string EXP_FRAGMENT =
         R"(
     #version 430 core
+
+    #define DEBUG_AO 1
+
     out vec4 FragColor;
 
     //[DEFS_SSAO]
@@ -1606,6 +1723,7 @@ R"(
         //[CALC_POSITIONS]
         //[CALC_SSAO]
         //[CALC_HBAO]
+        //[CALC_GTAO]
         //[CALC_BLUR]
         //[CALC_GAUSSIAN_BLUR]
         //[CALC_TONE_MAPPING_AND_GAMMA_CORRECTION]
@@ -1623,6 +1741,7 @@ R"(
        { "CALC_POSITIONS",                              FragmentSource_PostProcessing::CALC_POSITIONS                           },
        { "CALC_SSAO",                                   FragmentSource_PostProcessing::CALC_SSAO                                },
        { "CALC_HBAO",                                   FragmentSource_PostProcessing::CALC_HBAO                                },
+       { "CALC_GTAO",                                   FragmentSource_PostProcessing::CALC_GTAO                                },
        { "CALC_BLUR",                                   FragmentSource_PostProcessing::CALC_BLUR                                },
        { "CALC_GAUSSIAN_BLUR",                          FragmentSource_PostProcessing::CALC_GAUSSIAN_BLUR                       },
        { "CALC_TONE_MAPPING_AND_GAMMA_CORRECTION",      FragmentSource_PostProcessing::CALC_TONE_MAPPING_AND_GAMMA_CORRECTION   },

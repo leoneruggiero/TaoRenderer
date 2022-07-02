@@ -1683,7 +1683,7 @@ public:
         _blurShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_GAUSSIAN_BLUR", "CALC_GAUSSIAN_BLUR"}),
         _viewFromDepthShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_POSITIONS"}),
         _ssaoShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_SSAO"}),
-        _hbaoShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_HBAO"}),
+        _hbaoShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_GTAO"}),
         _toneMappingAndGammaCorrection(
             std::vector<std::string>{},
             std::vector<std::string>{"DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION", "CALC_TONE_MAPPING_AND_GAMMA_CORRECTION"}),
@@ -1875,6 +1875,9 @@ public:
         glUniform1f(aoShader.UniformLocation("u_near"), sceneParams.cameraNear);
         glUniform1f(aoShader.UniformLocation("u_far"), sceneParams.cameraFar);
         glUniformMatrix4fv(aoShader.UniformLocation("u_proj"), 1, GL_FALSE, glm::value_ptr(sceneParams.projectionMatrix));
+
+        // Debug
+        glUniform2iv(aoShader.UniformLocation("u_mousePos"), 1, glm::value_ptr(sceneParams.mousePosition));
 
         DrawQuad();
 

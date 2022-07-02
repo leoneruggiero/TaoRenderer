@@ -33,9 +33,12 @@ class Camera
 {
 
 private:
+
     // Lock user input during animations
     bool _locked = false;
+
     Timer _animationTimer;
+
     // calculates the front vector from the Camera's (updated) Euler Angles
     void updateCameraVectors()
     {
