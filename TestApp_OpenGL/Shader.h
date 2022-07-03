@@ -1104,9 +1104,6 @@ namespace FragmentSource_PostProcessing
 #ifndef UTILITY
 #define UTILITY
 
-    // *** UTILITY ***//
-    // --------------------------------------------------------- //
-
     float RandomValue()
     {
         // Using 3 textures with convenient resolution (like 9x9, 10x10, 11x11) to get a non repeating (almost) noise pattern 
@@ -1145,22 +1142,16 @@ namespace FragmentSource_PostProcessing
         return rotation * direction;
     }
     
-    // --------------------------------------------------------- //
 #endif
 
-    float EyeDepth(float depthValue, float near, float far)
+float EyeDepth(float depthValue, float near, float far)
 {
     //http://www.songho.ca/opengl/gl_projectionmatrix.html
-
     float d = (depthValue * 2.0) - 1.0;
-    //float res = (2.0 * near) / ( far + near - d * ( far - near));
-
     float res = (2.0 * far * near) /  ( ( far - near ) * (d  - ((far + near)/(far - near)) ) );
    
-    return -res;
+    return res;
 }
-
-
 
 vec2 TexCoords(vec3 viewCoords, mat4 projMatrix)
 {
@@ -1170,14 +1161,13 @@ vec2 TexCoords(vec3 viewCoords, mat4 projMatrix)
         return samplePoint_ndc.xy;
 }
 
-vec3 EyeCoords(float xNdc, float yNdc, float zEye)
+vec3 EyeCoords(vec2 xyNdc, float zEye)
 {
     //http://www.songho.ca/opengl/gl_projectionmatrix.html
 
-    float xC = xNdc * zEye;
-    float yC = yNdc * zEye;
-    float xEye= (xC - u_proj[0][2] * zEye) / u_proj[0][0];
-    float yEye= (yC - u_proj[1][2] * zEye) / u_proj[1][1];
+    vec2 xyClip = xyNdc * zEye;
+    float xEye= (- xyClip.x + u_proj[0][2] * zEye) / u_proj[0][0];
+    float yEye= (- xyClip.y + u_proj[1][2] * zEye) / u_proj[1][1];
 
     return vec3(xEye, yEye, zEye);
 }
@@ -1318,8 +1308,7 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
                 
 
         vec3 normal = normalize( cross( (px^^py ? j : i), (px^^py ? i : j)) ); 
-        normal.z*=-1;
-        return - normal;
+        return  normal;
     }
 
 #if DEBUG_AO
@@ -1329,7 +1318,7 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
 
     vec4 Blend(vec4 src, vec4 dst)
     {
-        return src.a*src + (1.0 - src.a) * dst; 
+        return src.a * src + (1.0 - src.a) * dst; 
     }
 
     // Screen Space disk
@@ -1516,22 +1505,20 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
     const std::string CALC_GTAO =
         R"(
     
-    // u_viewPosTexture contains view position with reverse Z (why? TODO: please high priority)
-
     vec2 texSize=textureSize(u_viewPosTexture, 0);
     vec2 uvCoords = gl_FragCoord.xy / texSize;
 
     vec3 eyePos = texture(u_viewPosTexture, uvCoords).rgb ;
     
-    if(eyePos.z>u_far-0.001)
-        {
-            FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-            return;
-        }
+    if( -eyePos.z > u_far - 0.001)
+    {
+        FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+        return;
+    }
 
     vec3 normal = EyeNormal_dz(uvCoords, eyePos);
     
-    vec4 projectedRadius = (u_proj * vec4(u_radius, 0, -eyePos.z, 1));
+    vec4 projectedRadius = (u_proj * vec4(u_radius, 0, eyePos.z, 1));
     float radiusImage = (projectedRadius.x/projectedRadius.w)*0.5;
     
     vec4 res  = vec4(0,0,0,0);    
@@ -1541,19 +1528,19 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
     vec2 uvCoords_mouse = u_mousePos / texSize;
     vec3 eyePos_mouse = texture(u_viewPosTexture, uvCoords_mouse).rgb;
     vec3 normal_mouse = EyeNormal_dz(uvCoords_mouse, eyePos_mouse);
-    vec4 projectedRadius_mouse = (u_proj * vec4(u_radius, 0, -eyePos_mouse.z, 1));
+    vec4 projectedRadius_mouse = (u_proj * vec4(u_radius, 0, eyePos_mouse.z, 1));
     float radiusImage_mouse = (projectedRadius_mouse.x / projectedRadius_mouse.w) * 0.5;
     
     res += vec4(normal, 1.0);
-    if(eyePos_mouse.z < u_far - 0.001)
+    if( -eyePos_mouse.z < u_far - 0.001)
     {
         res = Blend(DrawDiskSS(
                 radiusImage_mouse * texSize.x, 
-                u_mousePos, ivec2(gl_FragCoord.xy), vec4(1.0, 0.0, 0.0, 0.8)), res);
+                u_mousePos, ivec2(gl_FragCoord.xy), vec4(1.0, 0.0, 0.0, 0.4)), res);
 
         res = Blend(DrawSegmentVS(
-                eyePos_mouse*vec3(1.0, 1.0, -1.0), 
-                eyePos_mouse*vec3(1.0, 1.0, -1.0) + normal_mouse, ivec2(gl_FragCoord.xy), 
+                eyePos_mouse, eyePos_mouse + normal_mouse, 
+                ivec2(gl_FragCoord.xy), 
                 u_proj, texSize, vec4(abs(normal_mouse), 1.0)), res);
     }
 
@@ -1568,9 +1555,8 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
 
     float depthValue = texture(u_depthTexture, gl_FragCoord.xy/vec2(texSize) ).r;
     float zEye =  EyeDepth( depthValue, u_near, u_far );
-    vec3 eyePos = EyeCoords(((gl_FragCoord.x/float(texSize.x)) * 2.0)  - 1.0, ((gl_FragCoord.y/float(texSize.y)) * 2.0)  - 1.0, zEye);
+    vec3 eyePos = EyeCoords((gl_FragCoord.xy/texSize.xy) * 2.0 - 1.0, zEye);
 
-    
     FragColor = vec4(eyePos, 1.0); 
 
 )";
