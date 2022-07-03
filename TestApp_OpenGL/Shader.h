@@ -1144,6 +1144,62 @@ namespace FragmentSource_PostProcessing
     
 #endif
 
+#if DEBUG_AO
+
+    // DEBUG DRAW UTILS
+    // ----------------
+
+    vec4 Blend(vec4 src, vec4 dst)
+    {
+        return src.a * src + (1.0 - src.a) * dst; 
+    }
+
+    // Screen Space disk
+    vec4 DrawDiskSS(float radius, ivec2 center, ivec2 coords, vec4 color)
+    {
+        float distance = length(center - coords) / radius;
+        return  color * (1.0 - step(1.0, distance));
+    }
+    
+    // Screen Space segment
+    vec4 DrawSegmentSS(ivec2 p0, ivec2 p1, ivec2 coords, vec4 color)
+    {
+        vec2 segDir = normalize(p1-p0);
+        float projDot = dot(segDir, coords-p0);
+        
+        if(projDot < 0.0 || projDot > length(p1-p0))
+            return vec4(0.0); 
+
+        vec2 proj = segDir * projDot;
+        vec2 perp = (coords-p0) - proj;
+
+        float distance = length(perp);
+        return color * (1.0 - step(2.0, distance));
+    }
+
+    // View Space segment
+    vec4 DrawPointVS(vec3 p, ivec2 coords, mat4 proj, vec2 screenSize, vec4 color)
+    {
+        vec4 pClip = proj * vec4(p, 1.0);
+        ivec2 pProj = ivec2( ((pClip.xy / pClip.w) + vec2(1.0)) * 0.5 *  screenSize.xy);
+       
+        return DrawDiskSS(5.0, pProj, coords, color);
+    }
+
+    // View Space segment
+    vec4 DrawSegmentVS(vec3 p0, vec3 p1, ivec2 coords, mat4 proj, vec2 screenSize, vec4 color)
+    {
+        vec4 p0Clip = proj * vec4(p0, 1.0);
+        vec4 p1Clip = proj * vec4(p1, 1.0);
+
+        ivec2 p0Proj = ivec2( ((p0Clip.xy / p0Clip.w).xy + 1.0) * 0.5 * screenSize.xy);
+        ivec2 p1Proj = ivec2( ((p1Clip.xy / p1Clip.w).xy + 1.0) * 0.5 * screenSize.xy);
+
+        return DrawSegmentSS(p0Proj, p1Proj, coords, color);
+    }
+
+#endif
+
 float EyeDepth(float depthValue, float near, float far)
 {
     //http://www.songho.ca/opengl/gl_projectionmatrix.html
@@ -1242,6 +1298,59 @@ float OcclusionInDirection(vec3 p, vec3 direction, float radius, int numSteps, s
 
 }
 
+float OcclusionInDirection_GTAO(ivec2 cTexCoord, vec3 cPosV, vec3 cNormalV, int sliceCount
+#if DEBUG_AO
+    , vec2 texSize, inout vec4 debugView
+#endif
+)
+{
+    // https://www.activision.com/cdn/research/Practical_Real_Time_Strategies_for_Accurate_Indirect_Occlusion_NEW%20VERSION_COLOR.pdf
+    // Algorithm 1
+    
+    vec3 viewV = normalize(-cPosV); 
+    float visibility = 0.0; // AO 
+    
+    for(int i = 0; i < sliceCount; i++)
+    {
+        float phi =  i * PI/sliceCount;
+        vec2 omega = vec2(cos(phi), sin(phi));
+
+        vec3 directionV = vec3(omega, 0.0);
+        vec3 orthoDirectionV = directionV - dot(directionV, viewV)*viewV;
+        vec3 axisV = cross(directionV, viewV);
+        vec3 projNormalV = cNormalV - axisV*dot(cNormalV, axisV);
+        
+        float sgnGamma = sign(dot(orthoDirectionV, projNormalV));
+        float cosGamma = clamp( dot(projNormalV, viewV)/length(projNormalV), 0.0, 1.0);
+        float gamma = sgnGamma * acos(cosGamma); // TODO: fast acos
+
+#if DEBUG_AO
+
+        // Marching direction
+        debugView = Blend(DrawSegmentVS(
+                    cPosV, cPosV + directionV, 
+                    ivec2(gl_FragCoord.xy), 
+                    u_proj, texSize, vec4(0.0, 1.0, 0.0, 0.6)), debugView);
+
+        // Normal
+        debugView = Blend(DrawSegmentVS(
+                    cPosV, cPosV + cNormalV, 
+                    ivec2(gl_FragCoord.xy), 
+                    u_proj, texSize, vec4(cNormalV, 1.0)), debugView);
+
+        // Projected Normal
+        debugView = Blend(DrawSegmentVS(
+                    cPosV, cPosV + projNormalV, 
+                    ivec2(gl_FragCoord.xy), 
+                    u_proj, texSize, vec4(cNormalV, 0.6)), debugView);
+
+#endif
+
+    }
+
+    return 0.0;   
+}
+
 //https://www.researchgate.net/publication/215506032_Image-space_horizon-based_ambient_occlusion
 //https://developer.download.nvidia.com/presentations/2008/SIGGRAPH/HBAO_SIG08b.pdf
 float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float radius, float radiusImage, int numSteps, sampler2D viewCoordsTex, mat4 projMatrix)
@@ -1310,63 +1419,6 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
         vec3 normal = normalize( cross( (px^^py ? j : i), (px^^py ? i : j)) ); 
         return  normal;
     }
-
-#if DEBUG_AO
-
-    // DEBUG DRAW UTILS
-    // ----------------
-
-    vec4 Blend(vec4 src, vec4 dst)
-    {
-        return src.a * src + (1.0 - src.a) * dst; 
-    }
-
-    // Screen Space disk
-    vec4 DrawDiskSS(float radius, ivec2 center, ivec2 coords, vec4 color)
-    {
-        float distance = length(center - coords) / radius;
-        return  color * (1.0 - step(1.0, distance));
-    }
-    
-    // Screen Space segment
-    vec4 DrawSegmentSS(ivec2 p0, ivec2 p1, ivec2 coords, vec4 color)
-    {
-        vec2 segDir = normalize(p1-p0);
-        float projDot = dot(segDir, coords-p0);
-        
-        if(projDot < 0.0 || projDot > length(p1-p0))
-            return vec4(0.0); 
-
-        vec2 proj = segDir * projDot;
-        vec2 perp = (coords-p0) - proj;
-
-        float distance = length(perp);
-        return color * (1.0 - step(2.0, distance));
-    }
-
-    // View Space segment
-    vec4 DrawPointVS(vec3 p, ivec2 coords, mat4 proj, vec2 screenSize, vec4 color)
-    {
-        vec4 pClip = proj * vec4(p, 1.0);
-        ivec2 pProj = ivec2( ((pClip.xy / pClip.w) + vec2(1.0)) * 0.5 *  screenSize.xy);
-       
-        return DrawDiskSS(5.0, pProj, coords, color);
-    }
-
-    // View Space segment
-    vec4 DrawSegmentVS(vec3 p0, vec3 p1, ivec2 coords, mat4 proj, vec2 screenSize, vec4 color)
-    {
-        vec4 p0Clip = proj * vec4(p0, 1.0);
-        vec4 p1Clip = proj * vec4(p1, 1.0);
-
-        ivec2 p0Proj = ivec2( ((p0Clip.xy / p0Clip.w).xy + 1.0) * 0.5 * screenSize.xy);
-        ivec2 p1Proj = ivec2( ((p1Clip.xy / p1Clip.w).xy + 1.0) * 0.5 * screenSize.xy);
-
-        return DrawSegmentSS(p0Proj, p1Proj, coords, color);
-    }
-
-#endif
-
 )";
 
     const std::string CALC_GAUSSIAN_BLUR =
@@ -1513,7 +1565,7 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
     if( -eyePos.z > u_far - 0.001)
     {
         FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-        return;
+        //return;
     }
 
     vec3 normal = EyeNormal_dz(uvCoords, eyePos);
@@ -1521,29 +1573,16 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
     vec4 projectedRadius = (u_proj * vec4(u_radius, 0, eyePos.z, 1));
     float radiusImage = (projectedRadius.x/projectedRadius.w)*0.5;
     
-    vec4 res  = vec4(0,0,0,0);    
-
+    vec4 res  = vec4(vec3(-eyePos.z/u_far), 1.0);    
+    
 #if DEBUG_AO
 
-    vec2 uvCoords_mouse = u_mousePos / texSize;
-    vec3 eyePos_mouse = texture(u_viewPosTexture, uvCoords_mouse).rgb;
-    vec3 normal_mouse = EyeNormal_dz(uvCoords_mouse, eyePos_mouse);
-    vec4 projectedRadius_mouse = (u_proj * vec4(u_radius, 0, eyePos_mouse.z, 1));
-    float radiusImage_mouse = (projectedRadius_mouse.x / projectedRadius_mouse.w) * 0.5;
-    
-    res += vec4(normal, 1.0);
-    if( -eyePos_mouse.z < u_far - 0.001)
-    {
-        res = Blend(DrawDiskSS(
-                radiusImage_mouse * texSize.x, 
-                u_mousePos, ivec2(gl_FragCoord.xy), vec4(1.0, 0.0, 0.0, 0.4)), res);
+    vec2 mouseTexCoord = u_mousePos/texSize;
+    vec3 mousePosV = texture(u_viewPosTexture, mouseTexCoord).rgb;
+    vec3 mouseNormalV = EyeNormal_dz(mouseTexCoord, mousePosV);
 
-        res = Blend(DrawSegmentVS(
-                eyePos_mouse, eyePos_mouse + normal_mouse, 
-                ivec2(gl_FragCoord.xy), 
-                u_proj, texSize, vec4(abs(normal_mouse), 1.0)), res);
-    }
-
+    OcclusionInDirection_GTAO(u_mousePos, mousePosV, mouseNormalV, 1, texSize, res);
+   
 #endif
 
     FragColor = res; 
