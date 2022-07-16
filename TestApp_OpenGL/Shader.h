@@ -1363,12 +1363,12 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
        
        float wao = 0;
        float ao = 0;
-       vec2 fragCoord = TexCoords(p*vec3(1.0, 1.0, -1.0), projMatrix);    
+       vec2 fragCoord = TexCoords(p, projMatrix);    
 
        vec3 D = vec3(0.0, 0.0, 0.0);
        for (int i=1; i<=numSteps; i++)
        {
-            float offset = RandomValue(vec2(fragCoord + (directionImage * increment * i)) * texSize) * increment; 
+            float offset = 0.0;//RandomValue(vec2(fragCoord + (directionImage * increment * i)) * texSize) * increment; 
             vec2 sampleUV = fragCoord + (directionImage * (increment + abs(offset)) * i) * vec2(1.0, (texSize.x/texSize.y));
             
             vec3 smpl =  texture(viewCoordsTex, sampleUV).xyz;
@@ -1378,10 +1378,10 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
             vec3 directionImage3d = vec3(directionImage, 0.0);
             vec3 tangent = normalize(directionImage3d - normal * dot(directionImage3d, normal));
 
-            float t = atan2(tangent.z,length(tangent.xy));
+            float t = min(tangent.z,length(tangent.xy));
             float m = t;
 
-            float h = atan2(D.z,length(D.xy));
+            float h = min(-D.z,length(D.xy));
 
             if((h + bias <  m)&&dot(directionImage3d, normal) > 0.01)
             {
@@ -1513,19 +1513,18 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
     const std::string CALC_HBAO =
         R"(
     
-    //TODO: please agree on what you consider view space, if you need to debug invert the z when showing the result
     vec2 texSize=textureSize(u_viewPosTexture, 0);
     vec2 uvCoords = gl_FragCoord.xy / texSize;
 
     vec3 eyePos = texture(u_viewPosTexture, uvCoords).rgb;
     
-    if(eyePos.z>u_far-0.001)
-        {
-            FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-            return;
-        }
+    if(-eyePos.z>u_far-0.1)
+    {
+        FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
 
-    vec3 normal = EyeNormal_dz(uvCoords, eyePos)  * vec3(1.0, 1.0, -1.0);
+    vec3 normal = EyeNormal_dz(uvCoords, eyePos);
     
     vec3 rotationVec = vec3(1.0,0.0,0.0); //texture(u_rotVecs, uvCoords * texSize/NOISE_SIZE).rgb;
     vec3 tangent     = normalize(rotationVec - normal * dot(rotationVec, normal));
@@ -1535,10 +1534,10 @@ float OcclusionInDirection_NEW(vec3 p, vec3 normal, vec2 directionImage, float r
     float ao;
     float increment = ((2.0*PI)/u_numSamples);
     
-    vec4 projectedRadius = (u_proj * vec4(u_radius, 0, -eyePos.z, 1));
+    vec4 projectedRadius = (u_proj * vec4(u_radius, 0, eyePos.z, 1));
     float radiusImage = (projectedRadius.x/projectedRadius.w)*0.5;
     
-    float offset = RandomValue() * increment;
+    float offset = 0.0;//RandomValue() * increment;
 
     for(int k=0; k < u_numSamples; k++)
     {

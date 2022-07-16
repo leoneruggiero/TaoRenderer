@@ -389,6 +389,24 @@ void LoadScene_NormalMapping(SceneMeshCollection& sceneMeshCollection, std::map<
 
 }
 
+void LoadScene_Hilbert(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<WiresShader>>* shadersCollection)
+{
+
+    Wire hilbertWire = Wire(GetHilberCurve2D(4, 1.0f), WireNature::LINE_STRIP);
+    Wire hilbertPointsWire = Wire(GetHilberCurve2D(4, 1.0f), WireNature::POINTS);
+
+    WiresRenderer hilbert = WiresRenderer(hilbertWire, shadersCollection->at("LINE_STRIP").get());
+    WiresRenderer hilbertPoints = WiresRenderer(hilbertPointsWire, shadersCollection->at("POINTS").get());
+
+    hilbert.SetColor(glm::vec4(1.0, 0.2, 0.1, 1.0));
+    hilbertPoints.SetColor(glm::vec4(0.8, 0.5, 0.0, 1.0));
+
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(hilbert)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(hilbertPoints)));
+  
+
+}
+
 void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<WiresShader>>* shadersCollection)
 {
    
@@ -1021,8 +1039,9 @@ void SetupScene(
     std::map<std::string, std::shared_ptr<WiresShader>>* wiresShadersCollection
 )
 {
+    LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 5.0, 0.0f);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 5.0, 0.0f);
     //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
@@ -1037,7 +1056,7 @@ void SetupScene(
     //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
      //LoadSceneFromPath("../../Assets/Models/Dragon.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
      //LoadSceneFromPath("../../Assets/Models/Sponza.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
-    LoadSceneFromPath("../../Assets/Models/Knob.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
+    //LoadSceneFromPath("../../Assets/Models/Knob.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("../../Assets/Models/trees.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
@@ -1666,7 +1685,7 @@ int main()
 
     // AmbientOcclusion Map
     // --------------------
-    FrameBuffer ssaoFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 2, true);
+    FrameBuffer ssaoFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 2, true, TextureInternalFormat::Rgb_16f);
 
     // Tone-mapping and gamma correction
     // ---------------------------------
@@ -1728,7 +1747,7 @@ int main()
         
         // Resize the ssao framebuffer if needed (window resized)
         if (ssaoFBO.Height() != sceneParams.viewportHeight || ssaoFBO.Width() != sceneParams.viewportWidth)
-            ssaoFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 2, true);
+            ssaoFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 2, true, TextureInternalFormat::Rgb_16f);
 
         AmbienOcclusionPass(sceneParams, sceneMeshCollection, sceneUniformBuffers, *MeshShaders.at("VIEWNORMALS").get(), ssaoFBO, postProcessingUnit);
 

@@ -56,6 +56,74 @@ namespace Utils
 		}
 	};
 
+	unsigned int MirrorAtCenter(unsigned int x, unsigned int n)
+	{
+		unsigned int mask = (1u << n) - 1;
+		return mask & ~x;
+	}
+
+	std::vector<glm::uvec2> GetHilbertCurve2D(unsigned int order)
+	{
+		if (order == 1)
+			return std::vector<glm::uvec2>
+		{
+				glm::uvec2(0, 0),
+				glm::uvec2(0, 1),
+				glm::uvec2(1, 1),
+				glm::uvec2(1, 0)
+		};
+		else
+		{
+			std::vector<glm::uvec2> quadT = GetHilbertCurve2D(order - 1);
+			std::vector<glm::uvec2> quadB = GetHilbertCurve2D(order - 1);
+			
+			/* Flip bottom quadrant */
+			for (auto &p : quadB)
+			{
+				unsigned int buff = p.x;
+				p.x = p.y;
+				p.y = buff;
+			}
+
+			/* Translate top quadrant */
+			for (auto &p : quadT)
+				p.y += 1u << (order - 1);
+
+			std::vector<glm::uvec2> half{};
+			half.insert(half.end(), quadB.begin(), quadB.end());
+			half.insert(half.end(), quadT.begin(), quadT.end());
+
+			std::vector<glm::uvec2> res{};
+			res.insert(res.begin(), half.begin(), half.end());
+
+			/* Flip and translate half */
+			for (auto &p : half)
+			{
+				p.x = MirrorAtCenter(p.x, order - 1);
+				p.x += 1u << (order - 1);
+			}
+			std::reverse(half.begin(), half.end());
+			res.insert(res.end(), half.begin(), half.end());
+
+			return res;
+		}
+	}
+	
+	std::vector<glm::vec3> GetHilberCurve2D(unsigned int order, float size)
+	{
+		std::vector<glm::vec3> res{};
+		res.reserve(1u << (order + 1));
+		for (auto const& u2 : GetHilbertCurve2D(order))
+			res.push_back(
+				glm::vec3(
+					(float)u2.x * size / (1u << (order + 1)),
+					(float)u2.y * size / (1u << (order + 1)),
+					0.0f
+				));
+
+		return res;
+	}
+	
 	/// <summary>
 	/// Returns a <see cref="std::vector"/> of uniformly distributed samples between min and max.
 	/// </summary>

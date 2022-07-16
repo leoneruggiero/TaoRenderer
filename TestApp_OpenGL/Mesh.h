@@ -1683,7 +1683,7 @@ public:
         _blurShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_GAUSSIAN_BLUR", "CALC_GAUSSIAN_BLUR"}),
         _viewFromDepthShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_POSITIONS"}),
         _ssaoShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_SSAO"}),
-        _hbaoShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_GTAO"}),
+        _hbaoShader(std::vector<std::string>{}, std::vector<std::string>{"DEFS_SSAO", "CALC_HBAO"}),
         _toneMappingAndGammaCorrection(
             std::vector<std::string>{},
             std::vector<std::string>{"DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION", "CALC_TONE_MAPPING_AND_GAMMA_CORRECTION"}),
