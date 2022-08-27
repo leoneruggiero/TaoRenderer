@@ -6,19 +6,14 @@
 #include <optional>
 #include "Shader.h"
 
-
 struct PointLight
 {
+	// Alpha is intensity
+	glm::vec4 Color;
+
 	glm::vec3 Position;
 
-	// Alpha is intensity
-	glm::vec4 Diffuse;
-	glm::vec4 Specular;
-
-	// Faloff
-	float Constant = 1.0;
-	float Linear;
-	float Quadratic;
+	float Radius;
 };
 
 struct DirectionalLight
@@ -70,11 +65,9 @@ struct Spotlight
 
 struct SceneLights
 {
-	// ambientLight
 	AmbientLight Ambient;
-
-	// directionalLight
 	DirectionalLight Directional;
+	PointLight Points[16]; // See MAX_POINT_LIGHTS defined in glsl code.
 };
 
 struct ScenePostProcessing

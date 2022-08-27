@@ -290,6 +290,7 @@ void LoadScene_PbrTestSpheres(SceneMeshCollection& sceneMeshCollection, std::map
 
             glm::mat4 t = glm::mat4(1.0);
             t = glm::translate(t, glm::vec3(2.0 * i, 2.0 * j, 0.0));
+            t = glm::translate(t, glm::vec3(-4.0, -4.0, 0.0));
 
             mr.SetTransformation(t);
             mr.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0, 1.0), (i+1) / 5.0f, (j+1) / 5.0f });
@@ -319,7 +320,7 @@ void LoadScene_PbrTestTeapots(SceneMeshCollection& sceneMeshCollection, std::map
 
             glm::mat4 t = glm::mat4(1.0);
             t = glm::translate(t, glm::vec3(2.0 * i, 2.0 * j, -0.1));
-            t = glm::translate(t, glm::vec3(-5.0f, -5.0f, 0.0f));
+            t = glm::translate(t, glm::vec3(-4.0f, -4.0f, 0.0f));
 
             mr.SetTransformation(t);
             mr.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0, 1.0), (i + 1) / 5.0f, (j + 1) / 5.0f });
@@ -1039,11 +1040,11 @@ void SetupScene(
     std::map<std::string, std::shared_ptr<WiresShader>>* wiresShadersCollection
 )
 {
-    LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
+    //LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    //LoadPlane(sceneMeshCollection, meshShadersCollection, 5.0, 0.0f);
+    LoadPlane(sceneMeshCollection, meshShadersCollection, 10.0, 0.0f);
     //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
@@ -1306,14 +1307,28 @@ void UpdateMatricesUBO(UniformBufferObject& ubo, const SceneParams& sceneParams)
 
 void UpdateLightsUBO(UniformBufferObject& ubo, SceneLights& lights, Camera& camera)
 {
-    ubo.SetData<float>(20, NULL);
+    ubo.SetData<float>(148, NULL);
 
+    // Directional Light
     ubo.SetSubData(0, 4, glm::value_ptr(lights.Directional.Direction));
     ubo.SetSubData(4, 4, glm::value_ptr(lights.Directional.Diffuse));
     ubo.SetSubData(8, 4, glm::value_ptr(lights.Directional.Specular));
 
+    // Ambient light
     ubo.SetSubData(12, 4, glm::value_ptr(lights.Ambient.Ambient));
-    ubo.SetSubData(16, 4, glm::value_ptr(camera.Position));
+
+    // Point Lights (See MAX_POINT_LIGHTS in glsl code)
+    for (int i = 0; i < 16; i++)
+    {
+        ubo.SetSubData(16 + i * 8, 4, glm::value_ptr(lights.Points[i].Color));
+        ubo.SetSubData(20 + i * 8, 3, glm::value_ptr(lights.Points[i].Position));
+
+        float invSqrRadius = 1.0f / (lights.Points[i].Radius * lights.Points[i].Radius);
+        ubo.SetSubData(23 + i * 8, 1, &invSqrRadius);
+    }
+
+    // Eye position
+    ubo.SetSubData(144, 4, glm::value_ptr(camera.Position));
 }
 
 void UpdateShadowsUBO(UniformBufferObject& ubo, SceneLights& lights)
@@ -1649,6 +1664,24 @@ int main()
     sceneParams.sceneLights.Directional.Bias = 0.002f;
     sceneParams.sceneLights.Directional.SlopeBias = 0.015f;
     sceneParams.sceneLights.Directional.Softness = 0.01f;
+
+    sceneParams.sceneLights.Points[0].Color = glm::vec4(1.0, 1.0, 1.0, 15.0);
+    sceneParams.sceneLights.Points[0].Position = glm::vec3(0.0, 0.0, 2.0);
+    sceneParams.sceneLights.Points[0].Radius = 20.0;
+
+    sceneParams.sceneLights.Points[1].Color = glm::vec4(1.0, 0.5, 1.0, 15.0);
+    sceneParams.sceneLights.Points[1].Position = glm::vec3(3.0, 0.0, 4.0);
+    sceneParams.sceneLights.Points[1].Radius = 20.0;
+
+    sceneParams.sceneLights.Points[2].Color = glm::vec4(0.0, 0.0, 1.0, 12.0);
+    sceneParams.sceneLights.Points[2].Position = glm::vec3(0.0, 4.0, 4.0);
+    sceneParams.sceneLights.Points[2].Radius = 20.0;
+
+    sceneParams.sceneLights.Points[3].Color = glm::vec4(0.0, 1.0, 0.0, 14.0);
+    sceneParams.sceneLights.Points[3].Position = glm::vec3(3.0, -3.0, 2.0);
+    sceneParams.sceneLights.Points[3].Radius = 20.0;
+
+
     sceneParams.drawParams.doShadows = true;
 
     // Shadow Map
@@ -1706,7 +1739,7 @@ int main()
     
     BindUBOs(sceneUniformBuffers);
 
-    // This should (does it?) computed at each startup, since it should (does it?) 
+    // This should (does it?) be computed at each startup, since it should (does it?) 
     // be kept in sync with the PBR shaders
     postProcessingUnit.IntegrateBRDFintoLUT(sceneParams);
 

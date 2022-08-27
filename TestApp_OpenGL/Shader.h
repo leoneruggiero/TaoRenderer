@@ -473,6 +473,32 @@ namespace FragmentSource_Geometry
        return G_GGXS(n, v, roughness) * G_GGXS(n, l, roughness);    
     }
 
+    // Direct Illumination
+    // -------------------
+    vec3 ComputeDirectIllumination(vec3 Li, vec3  Wi, vec3 Wo, vec3 surfNormal, float surfRoughness, float surfMetallic, vec3 surfDiffuse)
+    {
+        // Halfway vector
+	    vec3 h = normalize(Wo - Wi);
+        float cosTheta = max(0.0, dot(h, Wo));
+
+        vec3 F = Fresnel(cosTheta, vec3(F0_DIELECTRIC));
+        F = mix(F, surfDiffuse, surfMetallic);
+
+        float D = NDF_GGXTR(surfNormal, h, surfRoughness);
+        float G = G_GGXS(surfNormal,  -Wi, Wo, surfRoughness);
+        
+        vec3 ks = F ;
+        vec3 kd = 1.0 - ks; 
+    
+        float NdotL = max(0.0, dot(surfNormal, -Wi));
+        float NdotV = max(0.0, dot(Wo, surfNormal));
+        
+        vec3 diffuse = (kd  * surfDiffuse / PI);
+        vec3 reflected = ((F * D * G) / (4.0 * NdotL * NdotV + 0.0001));
+        
+        return (diffuse + reflected) * NdotL * Li ;
+    }
+
     // Diffuse indirect 
     // ---------------------------------------------------
     vec3 ComputeDiffuseIndirectIllumination(vec3 normal, vec3 kd, vec3 albedo)
@@ -766,6 +792,9 @@ namespace FragmentSource_Geometry
 
     const std::string DEFS_LIGHTS =
         R"(
+
+    #define MAX_POINT_LIGHTS 16
+
     struct DirectionalLight
     {
 	    vec3 Direction; // 16 byte
@@ -774,20 +803,47 @@ namespace FragmentSource_Geometry
                         // => 48 byte
     };
 
-    struct SceneLights
+    struct PointLight
     {
-        DirectionalLight Directional;    // 48 byte
-	    vec4 Ambient;                    // 16 byte
-                                         // => 64 byte      
+	    vec4 Color;             // 16 byte
+	    vec3 Position;          // 12 byte
+	    float InvSqrRadius;     // 4  byte
+                                // => 32 byte
     };
 
-   
+    struct SceneLights
+    {
+        DirectionalLight Directional;           // 48  byte
+	    vec4 Ambient;                           // 16  byte
+        PointLight[MAX_POINT_LIGHTS] Points;    // 512 byte
+                                                // => 576 byte      
+    };
+
     layout(std140) uniform blk_PerFrameData_Lights
     {
-        uniform SceneLights lights;     // 64 byte
-        uniform vec3 eyeWorldPos;       // 16 byte
-                                        // => 80 byte
+        uniform SceneLights lights;     // 576 byte
+        uniform vec3 eyeWorldPos;       // 16  byte
+                                        // => 592 byte
     };
+
+    // From: https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
+    // Compute attenuation for punctual light sources
+    float SmoothDistanceAtt ( float squaredDistance , float invSqrAttRadius )
+    {
+        float factor = squaredDistance * invSqrAttRadius ;
+        float smoothFactor = clamp (1.0 - factor * factor, 0.0, 1.0);
+        return smoothFactor * smoothFactor;
+    }
+    
+    float GetDistanceAtt ( vec3 unormalizedLightVector , float invSqrAttRadius )
+    {
+         float sqrDist = dot ( unormalizedLightVector , unormalizedLightVector );
+         float attenuation = 1.0 / (max ( sqrDist , 0.01 * 0.01) );
+         attenuation *= SmoothDistanceAtt ( sqrDist , invSqrAttRadius );
+    
+         return attenuation;
+     }
+
 
 )";
 
@@ -849,27 +905,15 @@ namespace FragmentSource_Geometry
         // Incoming directionl light + shadow contribution
         Li = lights.Directional.Diffuse.rgb *  lights.Directional.Diffuse.a * shadow;
         
-        // Halfway vector
-	    vec3 h = normalize(viewDir - normalize(lights.Directional.Direction));
-        float cosTheta = max(0.0, dot(h, viewDir));
-
-        vec3 F = Fresnel(cosTheta, vec3(F0_DIELECTRIC));
-        F = mix(F, diffuseColor.rgb, metallic);
-
-        float D = NDF_GGXTR(worldNormal, h, roughness);
-        float G = G_GGXS(worldNormal,  normalize(-lights.Directional.Direction), viewDir, roughness);
-        
-        vec3 ks = F ;
-        vec3 kd = 1.0 - ks; 
-    
-        float NdotL = max(0.0, dot(worldNormal, normalize(-lights.Directional.Direction)));
-        float NdotV = max(0.0, dot(viewDir, worldNormal));
-        
-        vec3 diffuse = (kd  * diffuseColor.rgb / PI);
-        vec3 reflected = ((F * D * G) / (4.0 * NdotL * NdotV + 0.0001));
-        
         // Direct lighting contribution
-        vec3 direct = (diffuse + reflected) * NdotL * Li ;
+        vec3 direct = ComputeDirectIllumination(Li, normalize(lights.Directional.Direction), viewDir, worldNormal, roughness, metallic, diffuseColor.rgb);
+        
+        for(int i=0; i<MAX_POINT_LIGHTS; i++)
+        {
+            vec3 lightVec = fs_in.fragPosWorld - lights.Points[i].Position;
+            Li = lights.Points[i].Color.rgb *  lights.Points[i].Color.a * GetDistanceAtt(lightVec, lights.Points[i].InvSqrRadius);
+            direct += ComputeDirectIllumination(Li, normalize(lightVec), viewDir, worldNormal, roughness, metallic, diffuseColor.rgb);
+        }
 
         // Indirect diffuse
         vec3 indirectFs = FresnelRoughness(max(0.0, dot(worldNormal, viewDir)), vec3(F0_DIELECTRIC), roughness);
