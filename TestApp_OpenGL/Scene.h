@@ -9,7 +9,7 @@
 struct PointLight
 {
 	static const int MAX_POINT_LIGHTS = 3;
-
+	
 	float Bias;
 	float SlopeBias;
 
@@ -22,6 +22,13 @@ struct PointLight
 	std::vector<glm::mat4> LightSpaceMatrix;
 	unsigned int ShadowMapId;
 	
+	void ComputeRadius()
+	{
+		// Using attenuation formula from: https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
+		float threshold = 5E-3;
+		Radius = glm::sqrt(glm::max(Color.x, Color.y, Color.z) * Color.w / threshold);
+	}
+
 	PointLight() : Color(0.0, 0.0, 0.0, 0.0), Position(0.0, 0.0, 0.0), Radius(0.0), ShadowMapId(0)
 	{
 		for(auto &m: LightSpaceMatrix)
@@ -32,11 +39,11 @@ struct PointLight
 	{
 		Color = color;
 		Position = position;
-		// Using attenuation formula from: https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
-		float threshold = 5E-3;
-		Radius = glm::sqrt(glm::max(color.x, color.y, color.z) * color.w / threshold);
+
 		Bias = 0.02f;
 		SlopeBias = 0.4f;
+
+		ComputeRadius();
 	}
 };
 

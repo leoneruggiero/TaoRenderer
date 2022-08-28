@@ -170,6 +170,8 @@ void ShowImGUIWindow()
         }
         if (ImGui::BeginTabItem("Lights"))
         {
+            // Ambient Light
+            // -------------
             if (ImGui::CollapsingHeader("Ambient", ImGuiTreeNodeFlags_None))
             {
                 ImGui::DragFloat("Environment", (float*)&(sceneParams.environment.intensity), 0.1, 0.0, 1.0);
@@ -195,6 +197,8 @@ void ShowImGUIWindow()
                 ImGui::DragFloat("AOStrength", &sceneParams.sceneLights.Ambient.aoStrength, 0.1f, 0.0f, 5.0f);
             }
 
+            // Directional Light
+            // -----------------
             if (ImGui::CollapsingHeader("Directional", ImGuiTreeNodeFlags_None))
             {
                 ImGui::DragFloat3("Direction", (float*)&(sceneParams.sceneLights.Directional.Direction), 0.05f, -1.0f, 1.0f);
@@ -208,6 +212,28 @@ void ShowImGUIWindow()
                     ImGui::DragFloat("Bias", &sceneParams.sceneLights.Directional.Bias, 0.001f, 0.0f, 0.05f);
                     ImGui::DragFloat("SlopeBias", &sceneParams.sceneLights.Directional.SlopeBias, 0.001f, 0.0f, 0.05f);
                     ImGui::DragFloat("Softness", &sceneParams.sceneLights.Directional.Softness, 0.00005f, 0.0f, 0.05f);
+                }
+            }
+
+            // Point Lights
+            // ------------
+            for (int i = 0; i < PointLight::MAX_POINT_LIGHTS; i++)
+            {
+                if (ImGui::CollapsingHeader((std::string("Point") + std::to_string(i)).c_str(), ImGuiTreeNodeFlags_None))
+                {
+                    ImGui::DragFloat3("Position", (float*)&(sceneParams.sceneLights.Points[i].Position), 0.1f);
+
+                    if (ImGui::ColorEdit3("Color", (float*)&(sceneParams.sceneLights.Points[i].Color)) ||
+                        ImGui::DragFloat("Intensity", (float*)&(sceneParams.sceneLights.Points[i].Color.a), 0.1, 0.0, 100.0))
+                    {
+                        sceneParams.sceneLights.Points[i].ComputeRadius();
+                    }
+
+                    if (ImGui::CollapsingHeader("Shadows", ImGuiTreeNodeFlags_None))
+                    {
+                        ImGui::DragFloat("Bias", &sceneParams.sceneLights.Points[i].Bias, 0.001f, 0.0f, 0.05f);
+                        ImGui::DragFloat("SlopeBias", &sceneParams.sceneLights.Points[i].SlopeBias, 0.001f, 0.0f, 0.05f);
+                    }
                 }
             }
 
@@ -1044,8 +1070,8 @@ void SetupScene(
 
     //LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    //LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, -1.5f);
-    //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
+    LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, -1.5f);
+    LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
@@ -1065,7 +1091,7 @@ void SetupScene(
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1732,9 +1758,9 @@ int main()
     sceneParams.sceneLights.Directional.SlopeBias = 0.015f;
     sceneParams.sceneLights.Directional.Softness = 0.01f;
     
-    sceneParams.sceneLights.Points[0] = PointLight(glm::vec4(1.0, 0.9, 0.9, 15.0), glm::vec3( 0.0, 0.0, 5.0));
-    sceneParams.sceneLights.Points[1] = PointLight(glm::vec4(1.0, 0.0, 0.0, 12.0), glm::vec3(1.0, 1.0, 3.0));
-    sceneParams.sceneLights.Points[2] = PointLight(glm::vec4(0.0, 0.0, 1.0, 12.0), glm::vec3(-1.0, 1.0, 3.0));
+    sceneParams.sceneLights.Points[0] = PointLight(glm::vec4(1.0, 0.9, 0.9, 15.0), glm::vec3( 2.0, 0.0, 5.0));
+    //sceneParams.sceneLights.Points[1] = PointLight(glm::vec4(1.0, 0.0, 0.0, 12.0), glm::vec3(1.0, 1.0, 3.0));
+    //sceneParams.sceneLights.Points[2] = PointLight(glm::vec4(0.0, 0.0, 1.0, 12.0), glm::vec3(-1.0, 1.0, 3.0));
    
     sceneParams.drawParams.doShadows = true;
 

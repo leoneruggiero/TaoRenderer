@@ -605,6 +605,7 @@ namespace Utils
 
 		glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), 1.0f, near, far);
 
+		shadowTransforms.clear();
 		shadowTransforms.push_back(shadowProj * glm::lookAt(position, position + glm::vec3( 1.0,  0.0,  0.0), glm::vec3(0.0, -1.0,  0.0)));
 		shadowTransforms.push_back(shadowProj * glm::lookAt(position, position + glm::vec3(-1.0,  0.0,  0.0), glm::vec3(0.0, -1.0,  0.0)));
 		shadowTransforms.push_back(shadowProj * glm::lookAt(position, position + glm::vec3( 0.0,  1.0,  0.0), glm::vec3(0.0,  0.0,  1.0)));
