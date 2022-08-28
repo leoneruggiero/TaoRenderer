@@ -8,12 +8,36 @@
 
 struct PointLight
 {
+	static const int MAX_POINT_LIGHTS = 3;
+
+	float Bias;
+	float SlopeBias;
+
 	// Alpha is intensity
 	glm::vec4 Color;
-
 	glm::vec3 Position;
-
 	float Radius;
+
+	// ShadowData
+	std::vector<glm::mat4> LightSpaceMatrix;
+	unsigned int ShadowMapId;
+	
+	PointLight() : Color(0.0, 0.0, 0.0, 0.0), Position(0.0, 0.0, 0.0), Radius(0.0), ShadowMapId(0)
+	{
+		for(auto &m: LightSpaceMatrix)
+			m = glm::mat4(1.0f);
+	}
+
+	PointLight(glm::vec4 color, glm::vec3 position) : PointLight()
+	{
+		Color = color;
+		Position = position;
+		// Using attenuation formula from: https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
+		float threshold = 5E-3;
+		Radius = glm::sqrt(glm::max(color.x, color.y, color.z) * color.w / threshold);
+		Bias = 0.02f;
+		SlopeBias = 0.4f;
+	}
 };
 
 struct DirectionalLight
@@ -67,7 +91,7 @@ struct SceneLights
 {
 	AmbientLight Ambient;
 	DirectionalLight Directional;
-	PointLight Points[16]; // See MAX_POINT_LIGHTS defined in glsl code.
+	PointLight Points[PointLight::MAX_POINT_LIGHTS]; // See MAX_POINT_LIGHTS defined in glsl code.
 };
 
 struct ScenePostProcessing

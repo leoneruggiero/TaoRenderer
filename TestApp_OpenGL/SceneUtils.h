@@ -24,7 +24,7 @@ enum UBOBinding
 
 enum TextureBinding
 {
-	ShadowMap = 0,
+	ShadowMapDirectional = 0,
 	AoMap = 1,
 	NoiseMap0 = 2,
 	NoiseMap1 = 3,
@@ -36,7 +36,10 @@ enum TextureBinding
 	Metallic = 9,
 	IrradianceMap = 10,
 	RadianceMap = 11,
-	BrdfLut = 12
+	BrdfLut = 12,
+	ShadowMapPoint0 = 13,
+	ShadowMapPoint1 = 14,
+	ShadowMapPoint2 = 15
 };
 
 enum VertexInputType

@@ -18,6 +18,81 @@
 #include <gli/gli.hpp>
 
 
+namespace VertexSource_Shadows
+{
+    const std::string EXP_VERTEX =
+        R"(
+        #version 330 core
+
+        layout(location = 0) in vec3 position;
+        layout(location = 2) in vec2 textureCoordinates;
+    
+        uniform mat4 model;             
+    
+        void main()
+        {
+            gl_Position = model * vec4(position.x, position.y, position.z, 1.0);
+        
+            //vs_out.textureCoordinates = textureCoordinates;
+        }
+    )";
+}
+
+namespace GeometrySource_Shadows
+{
+    // From: https://learnopengl.com/Advanced-Lighting/Shadows/Point-Shadows
+    const std::string EXP_GEOMETRY =
+        R"(
+        #version 330 core
+        layout (triangles) in;
+        layout (triangle_strip, max_vertices=18) out;
+
+        uniform mat4 shadowTransforms[6];
+
+        out vec4 FragPos; // FragPos from GS (output per emitvertex)
+
+        void main()
+        {
+            for(int face = 0; face < 6; ++face)
+            {
+                gl_Layer = face; // built-in variable that specifies to which face we render.
+                for(int i = 0; i < 3; ++i) // for each triangle vertex
+                {
+                    FragPos = gl_in[i].gl_Position;
+                    gl_Position = shadowTransforms[face] * FragPos;
+                    EmitVertex();
+                }    
+                EndPrimitive();
+            }
+        }  
+        )";
+}
+
+namespace FragmentSource_Shadows
+{
+    // From: https://learnopengl.com/Advanced-Lighting/Shadows/Point-Shadows
+    const std::string EXP_FRAGMENT =
+        R"(
+        #version 330 core
+        in vec4 FragPos;
+
+        uniform vec3 lightPos;
+        uniform float far;
+
+        void main()
+        {
+        // get distance between fragment and light source
+        float lightDistance = length(FragPos.xyz - lightPos);
+    
+        // map to [0;1] range by dividing by far plane distance
+        lightDistance = lightDistance / far;
+    
+        // write this as modified depth
+        gl_FragDepth = lightDistance;
+        }  
+        )";
+}
+
 namespace VertexSource_Environment
 {
     const std::string EXP_VERTEX =
@@ -322,20 +397,27 @@ namespace VertexSource_Geometry
         R"(
     out vec4 posLightSpace;
 
-layout (std140) uniform blk_PerFrameData_Shadows
+    #ifndef MAX_POINT_LIGHTS
+    #define MAX_POINT_LIGHTS 3  
+    #endif
+
+    layout (std140) uniform blk_PerFrameData_Shadows
     {
-        uniform mat4 LightSpaceMatrix;          // 64 byte
-        uniform float bias;                     // 4 byte
-        uniform float slopeBias;                // 4 byte
-        uniform float softness;                 // 4 byte
-        uniform float shadowMapToWorldFactor;   // 4 byte
-                                                // => 80 byte
+        uniform mat4 LightSpaceMatrix_directional;          // 64 byte
+        uniform float bias_directional;                     // 4  byte
+        uniform float slopeBias_directional;                // 4  byte
+        //PAD                                               // 8  byte
+        uniform float bias_point[MAX_POINT_LIGHTS];         // 48 byte
+        uniform float slopeBias_point[MAX_POINT_LIGHTS];    // 48 byte
+        uniform float softness;                             // 4  byte
+        uniform float shadowMapToWorldFactor;               // 4  byte
+                                                            // => 188 byte
     };
 )";
 
     const std::string CALC_SHADOWS =
         R"(
-    posLightSpace = LightSpaceMatrix * model * vec4(position.x, position.y, position.z, 1.0);
+    posLightSpace = LightSpaceMatrix_directional * model * vec4(position.x, position.y, position.z, 1.0);
 )";
 
     static std::map<std::string, std::string> Expansions = {
@@ -563,8 +645,9 @@ namespace FragmentSource_Geometry
     
     in vec4 posLightSpace;
 
-    uniform sampler2D shadowMap;
-  
+    uniform sampler2D shadowMap_directional;
+    uniform samplerCube shadowMap_point[MAX_POINT_LIGHTS];
+
     uniform sampler2D noiseTex_0;
     uniform sampler2D noiseTex_1;
     uniform sampler2D noiseTex_2;    
@@ -581,12 +664,15 @@ namespace FragmentSource_Geometry
 
     layout (std140) uniform blk_PerFrameData_Shadows
     {
-        uniform mat4 LightSpaceMatrix;          // 64 byte
-        uniform float bias;                     // 4 byte
-        uniform float slopeBias;                // 4 byte
-        uniform float softness;                 // 4 byte
-        uniform float shadowMapToWorldFactor;   // 4 byte
-                                                // => 80 byte
+        uniform mat4 LightSpaceMatrix_directional;          // 64 byte
+        uniform float bias_directional;                     // 4  byte
+        uniform float slopeBias_directional;                // 4  byte
+        //PAD                                               // 8  byte
+        uniform float bias_point[MAX_POINT_LIGHTS];         // 48 byte
+        uniform float slopeBias_point[MAX_POINT_LIGHTS];    // 48 byte
+        uniform float softness;                             // 4  byte
+        uniform float shadowMapToWorldFactor;               // 4  byte
+                                                            // => 188 byte
     };
 
 #ifndef UTILITY
@@ -647,7 +733,7 @@ namespace FragmentSource_Geometry
 	    return uvLightSize ;// / receiverDistance;//(receiverDistance - near) / receiverDistance;
     }
 
-     float ShadowBias(float angle)
+     float ShadowBias(float angle, float bias, float slopeBias)
     {
         return max(bias, slopeBias*(1.0 - cos(angle)));
     } 
@@ -674,7 +760,7 @@ namespace FragmentSource_Geometry
             vec2 sampleOffset  = PoissonSample(i);
             sampleOffset = Rotate2D(sampleOffset, noise);
 		    float z=texture(shadowMap, shadowCoords.xy + (sampleOffset * searchWidth)).r;
-            float bias =  ShadowBias(angle);// + SlopeBiasForMultisampling(angle, length(sampleOffset) * searchWidth, shadowMapToWorldFactor);
+            float bias =  ShadowBias(angle, bias_directional, slopeBias_directional);// + SlopeBiasForMultisampling(angle, length(sampleOffset) * searchWidth, shadowMapToWorldFactor);
 
             if (z + bias <= shadowCoords.z )
             {
@@ -706,7 +792,7 @@ namespace FragmentSource_Geometry
 		    float closestDepth=texture(shadowMap, shadowCoords.xy + sampleOffset).r;
 
             sum+= 
-                (closestDepth + ShadowBias(angle) + SlopeBiasForMultisampling(angle, length(sampleOffset) * uvRadius, shadowMapToWorldFactor)) <= shadowCoords.z 
+                (closestDepth + ShadowBias(angle, bias_directional, slopeBias_directional) + SlopeBiasForMultisampling(angle, length(sampleOffset) * uvRadius, shadowMapToWorldFactor)) <= shadowCoords.z 
                 ? 0.0 
                 : 1.0;
         }
@@ -730,13 +816,30 @@ namespace FragmentSource_Geometry
         //return (blockerDistance / shadowCoords.z);
     }
 
-    float ShadowCalculation(vec4 fragPosLightSpace)
+    float ComputeDirectionalShadow(vec4 fragPosLightSpace)
     {
         vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     
         projCoords=projCoords*0.5 + vec3(0.5, 0.5, 0.5);
 
-        return PCSS_DirectionalLight(projCoords, shadowMap, softness);
+        return PCSS_DirectionalLight(projCoords, shadowMap_directional, softness);
+    }
+
+    float ComputePointShadow(int index, vec3 fragPosWorld, vec3 worldNormal)
+    {
+        if(lights.Points[index].Color.w == 0.0) return 1.0;
+
+        float far = lights.Points[index].Radius;
+        vec3 lightVec = fragPosWorld - lights.Points[index].Position;
+        float closestPoint = texture(shadowMap_point[index], lightVec).r * far;
+        
+        vec3 worldNormal_normalized = normalize(worldNormal);
+        float angle = acos(abs(dot(worldNormal_normalized, normalize(lightVec))));
+
+        return  
+                (closestPoint + ShadowBias(angle, bias_point[index], slopeBias_point[index])) <= length(lightVec)
+                ? 0.0 
+                : 1.0;
     }
     
 )";
@@ -793,7 +896,7 @@ namespace FragmentSource_Geometry
     const std::string DEFS_LIGHTS =
         R"(
 
-    #define MAX_POINT_LIGHTS 16
+    #define MAX_POINT_LIGHTS 3
 
     struct DirectionalLight
     {
@@ -807,23 +910,25 @@ namespace FragmentSource_Geometry
     {
 	    vec4 Color;             // 16 byte
 	    vec3 Position;          // 12 byte
-	    float InvSqrRadius;     // 4  byte
-                                // => 32 byte
+        float Radius;	        // 4  byte
+        float InvSqrRadius;     // 16 byte
+        
+                                // => 48 byte
     };
 
     struct SceneLights
     {
         DirectionalLight Directional;           // 48  byte
 	    vec4 Ambient;                           // 16  byte
-        PointLight[MAX_POINT_LIGHTS] Points;    // 512 byte
-                                                // => 576 byte      
+        PointLight[MAX_POINT_LIGHTS] Points;    // 144 byte
+                                                // => 208 byte      
     };
 
     layout(std140) uniform blk_PerFrameData_Lights
     {
-        uniform SceneLights lights;     // 576 byte
+        uniform SceneLights lights;     // 208 byte
         uniform vec3 eyeWorldPos;       // 16  byte
-                                        // => 592 byte
+                                        // => 224 byte
     };
 
     // From: https://seblagarde.files.wordpress.com/2015/07/course_notes_moving_frostbite_to_pbr_v32.pdf
@@ -902,8 +1007,11 @@ namespace FragmentSource_Geometry
             ? normalize(fs_in.TBN * (texture(Normals, fs_in.textureCoordinates).rgb*2.0-1.0))
             : normalize (fs_in.worldNormal);
         
+        // Incoming light
+        vec3 Li = vec3(0);
+
         // Incoming directionl light + shadow contribution
-        Li = lights.Directional.Diffuse.rgb *  lights.Directional.Diffuse.a * shadow;
+        Li = lights.Directional.Diffuse.rgb *  lights.Directional.Diffuse.a * shadow_dir;
         
         // Direct lighting contribution
         vec3 direct = ComputeDirectIllumination(Li, normalize(lights.Directional.Direction), viewDir, worldNormal, roughness, metallic, diffuseColor.rgb);
@@ -911,7 +1019,7 @@ namespace FragmentSource_Geometry
         for(int i=0; i<MAX_POINT_LIGHTS; i++)
         {
             vec3 lightVec = fs_in.fragPosWorld - lights.Points[i].Position;
-            Li = lights.Points[i].Color.rgb *  lights.Points[i].Color.a * GetDistanceAtt(lightVec, lights.Points[i].InvSqrRadius);
+            Li = lights.Points[i].Color.rgb *  lights.Points[i].Color.a * GetDistanceAtt(lightVec, lights.Points[i].InvSqrRadius) * shadow_point[i];
             direct += ComputeDirectIllumination(Li, normalize(lightVec), viewDir, worldNormal, roughness, metallic, diffuseColor.rgb);
         }
 
@@ -961,7 +1069,11 @@ namespace FragmentSource_Geometry
 
     const std::string CALC_SHADOWS =
         R"(
-        shadow = ShadowCalculation(posLightSpace);
+        shadow_dir = ComputeDirectionalShadow(posLightSpace);
+        for(int i=0; i<MAX_POINT_LIGHTS; i++)
+        {
+            shadow_point[i] = ComputePointShadow(i, fs_in.fragPosWorld, fs_in.worldNormal);
+        }
 )";
 
     const std::string CALC_SSAO =
@@ -974,6 +1086,10 @@ namespace FragmentSource_Geometry
     const std::string EXP_FRAGMENT =
     R"(
     #version 330 core
+    
+    #ifndef MAX_POINT_LIGHTS
+    #define MAX_POINT_LIGHTS 3
+    #endif
 
     in VS_OUT
     {
@@ -997,9 +1113,9 @@ namespace FragmentSource_Geometry
         vec4 ambient=vec4(0.0f, 0.0f, 0.0f, 0.0f);
         vec4 directional=vec4(0.0f, 0.0f, 0.0f, 0.0f);
 
-        // Incoming light (directional only)
-        vec3 Li = vec3(0);
-        float shadow = 1.0;        
+        // Shadow values for all the shadow casters
+        float shadow_dir = 1.0;        
+        float shadow_point[MAX_POINT_LIGHTS];
 
         //[CALC_SHADOWS]
         //[CALC_LIT_MAT]
@@ -3181,6 +3297,33 @@ namespace OGLResources
 
         }
 
+        OGLTextureCubemap(int width, int height, TextureInternalFormat internalFormat, TextureFiltering minFilter, TextureFiltering magFilter, TextureWrap wrapU, TextureWrap wrapV)
+            : _width(width), _height(height), _minLevel(0), _maxLevel(0)
+        {
+
+            OGLResource::Create(OGLResourceType::TEXTURE);
+
+            for (int i = 0; i < 6; i++)
+            {
+                OGLTextureUtils::Init(
+                    OGLResource::ID(), _textureType, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i,
+                    0, internalFormat, width, height, OGLTextureUtils::ResolveFormat(internalFormat), GL_UNSIGNED_BYTE, NULL);
+            }
+
+            OGLTextureUtils::SetParameters(
+                OGLResource::ID(), _textureType,
+                minFilter, magFilter,
+                wrapU, wrapV);
+
+            OGLUtils::CheckOGLErrors();
+
+        }
+
+        OGLTextureCubemap(int width, int height, TextureInternalFormat internalFormat)
+            : OGLTextureCubemap(width, height, internalFormat, TextureFiltering::Nearest, TextureFiltering::Nearest, TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge)
+        {
+
+        }
 
         OGLTextureCubemap(OGLTextureCubemap&& other) noexcept : OGLResource(std::move(other))
         {
@@ -3225,25 +3368,42 @@ namespace OGLResources
 
     };
 
+    template <typename T = OGLTexture2D>
     class FrameBuffer : public OGLResource
     {
     private:
-        std::optional<OGLTexture2D> _depthTexture;
-        std::vector<OGLTexture2D> _colorTextures;
+        std::optional<T> _depthTexture;
+        std::vector<T> _colorTextures;
+        
         int
             _width, _height;
 
+        
+        T GetTexture(TextureInternalFormat format) 
+        {
+            if constexpr (std::is_same<T, OGLTexture2D>::value)
+            {
+                return OGLTexture2D(_width, _height, format);
+            }
+            else if constexpr (std::is_same<T, OGLTextureCubemap>::value)
+            {
+                return OGLTextureCubemap(_width, _height, format);
+            }
+            else
+                throw "really don't know what I'm doing...";
+        };
 
-        void Initialize(int width, int height, bool depth, bool color, int colorAttachments, TextureInternalFormat colorTextureFormat)
+        
+        void Initialize(bool depth, bool color, int colorAttachments, TextureInternalFormat colorTextureFormat)
         {
 
             if (depth)
-                _depthTexture = OGLTexture2D(width, height, TextureInternalFormat::Depth_Component);
+                _depthTexture = GetTexture(TextureInternalFormat::Depth_Component);
 
             if (color)
             {
                 for (int i = 0; i < colorAttachments; i++)
-                    _colorTextures.push_back(OGLTexture2D(width, height, colorTextureFormat));
+                    _colorTextures.push_back(GetTexture(colorTextureFormat));
             }
 
             Bind();
@@ -3252,16 +3412,16 @@ namespace OGLResources
             {
                 for (int i = 0; i < colorAttachments; i++)
                 {
-                    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, GL_TEXTURE_2D, _colorTextures.at(i).ID(), 0);
+                    glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, _colorTextures.at(i).ID(), 0);
                 }
 
                 if (depth)
-                    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _depthTexture.value().ID(), 0);
+                    glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, _depthTexture.value().ID(), 0);
 
             }
             else if (depth)
             {
-                glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _depthTexture.value().ID(), 0);
+                glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, _depthTexture.value().ID(), 0);
 
                 glDrawBuffer(GL_NONE);
                 glReadBuffer(GL_NONE);
@@ -3273,30 +3433,34 @@ namespace OGLResources
             UnBind();
 
         }
+
     public:
         FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth)
             :_width(width), _height(height)
         {
             OGLResource::Create(OGLResourceType::FRAMEBUFFER);
 
-            Initialize(_width, _height, depth, color, colorAttachments, TextureInternalFormat::Rgba_32f);
+            Initialize( depth, color, colorAttachments, TextureInternalFormat::Rgba_32f);
         }
 
+       
         FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth, TextureInternalFormat colorTextureFormat)
             :_width(width), _height(height)
         {
             OGLResource::Create(OGLResourceType::FRAMEBUFFER);
 
-            Initialize(_width, _height, depth, color, colorAttachments, colorTextureFormat);
+            Initialize(depth, color, colorAttachments, colorTextureFormat);
         }
+
+       
 
         FrameBuffer(FrameBuffer&& other) noexcept : OGLResource(std::move(other))
         {
             _width = other._width;
             _height = other._height;
 
-            _colorTextures = std::vector<OGLTexture2D>(std::move(other._colorTextures));
-            _depthTexture = std::optional<OGLTexture2D>(std::move(other._depthTexture));
+            _colorTextures = std::vector<T>(std::move(other._colorTextures));
+            _depthTexture = std::optional<T>(std::move(other._depthTexture));
         };
 
 
@@ -3309,8 +3473,8 @@ namespace OGLResources
                 _height = other._height;
                 _width = other._width;
 
-                _colorTextures = std::vector<OGLTexture2D>(std::move(other._colorTextures));
-                _depthTexture = std::optional<OGLTexture2D>(std::move(other._depthTexture));
+                _colorTextures = std::vector<T>(std::move(other._colorTextures));
+                _depthTexture = std::optional<T>(std::move(other._depthTexture));
             }
             return *this;
 
@@ -3415,5 +3579,8 @@ namespace OGLResources
 
     };
 
+    
+
+    
 }
 #endif

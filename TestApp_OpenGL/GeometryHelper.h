@@ -14,6 +14,92 @@
 
 namespace Utils
 {
+	/// <summary>
+	/// Returns a list of 3D points representing the frustum's corners in world space.
+	/// </summary>
+	/// <param name="viewProjMatrix"></param>
+	/// <returns>The list of 3D points.</returns>
+	std::vector<glm::vec3> GetFrustumCorners(glm::mat4 viewProjMatrix)
+	{
+		glm::mat4 viewProjMatrixInv = glm::inverse(viewProjMatrix);
+
+		// CCW from low-left corner
+		std::vector<glm::vec3> cornerPts = std::vector<glm::vec3>
+		{
+			// Near
+			glm::vec3(-1, -1, -1),
+			glm::vec3(1, -1, -1),
+			glm::vec3(1,  1, -1),
+			glm::vec3(-1,  1, -1),
+
+			// Far
+			glm::vec3(-1, -1,  1),
+			glm::vec3(1, -1,  1),
+			glm::vec3(1,  1,  1),
+			glm::vec3(-1,  1,  1)
+		};
+
+		for (auto& v : cornerPts)
+		{
+			glm::vec4 v4 = viewProjMatrixInv * glm::vec4(v.x, v.y, v.z, 1.0);
+			v = glm::vec3(v4.x / v4.w, v4.y / v4.w, v4.z / v4.w);
+		}
+
+		return cornerPts;
+	}
+	/// <summary>
+	/// Returns a list of 3D points representing the frustum's corners in world space.
+	/// </summary>
+	/// <param name="viewMatrix"></param>
+	/// <param name="projectionMatrix"></param>
+	/// <returns>The list of 3D points.</returns>
+	std::vector<glm::vec3> GetFrustumCorners(glm::mat4 viewMatrix, glm::mat4 projectionMatrix)
+	{
+		return GetFrustumCorners(projectionMatrix * viewMatrix);
+	}
+
+	/// <summary>
+	/// Returns a list of 3D lines representing the frustum's edges in world space.
+	/// </summary>
+	/// <param name="viewProjMatrix"></param>
+	/// <returns> The list of 3D lines in the form start = list[i], end = list[i+1] for each i%2==0 with i less than listLen. </returns>
+	std::vector<glm::vec3> GetFrustumEdges(glm::mat4 viewProjMatrix)
+	{
+		std::vector<glm::vec3> cornerPts = GetFrustumCorners(viewProjMatrix);
+
+		std::vector<glm::vec3> edgesPts = std::vector<glm::vec3>
+		{
+			cornerPts[0], cornerPts[1],
+			cornerPts[1], cornerPts[2],
+			cornerPts[2], cornerPts[3],
+			cornerPts[3], cornerPts[0],
+
+			cornerPts[4], cornerPts[5],
+			cornerPts[5], cornerPts[6],
+			cornerPts[6], cornerPts[7],
+			cornerPts[7], cornerPts[4],
+
+			cornerPts[0], cornerPts[4],
+			cornerPts[1], cornerPts[5],
+			cornerPts[2], cornerPts[6],
+			cornerPts[3], cornerPts[7],
+		};
+
+		return edgesPts;
+	}
+
+	/// <summary>
+	/// Returns a list of 3D lines representing the frustum's edges in world space.
+	/// </summary>
+	/// <param name="viewMatrix"></param>
+	/// <param name="projectionMatrix"></param>
+	/// <returns> The list of 3D lines in the form start = list[i], end = list[i+1] for each i%2==0 with i less than listLen. </returns>
+	std::vector<glm::vec3> GetFrustumEdges(glm::mat4 viewMatrix, glm::mat4 projectionMatrix)
+	{
+		return GetFrustumEdges(projectionMatrix * viewMatrix);
+	}
+
+	
 	// TODO: Arbitrary regions.
 	// TODO: Region definition.
 	enum class DomainType2D
@@ -511,7 +597,23 @@ namespace Utils
 	};
 
 
-	void GetShadowMatrices(glm::vec3 position, glm::vec3 direction, std::vector<glm::vec3> bboxPoints, glm::mat4 &view, glm::mat4 &proj)
+	void GetPointShadowMatrices(glm::vec3 position, float radius, float& near, float& far, std::vector<glm::mat4>& shadowTransforms)
+	{
+		
+		near = 1E-1;
+		far = radius;
+
+		glm::mat4 shadowProj = glm::perspective(glm::radians(90.0f), 1.0f, near, far);
+
+		shadowTransforms.push_back(shadowProj * glm::lookAt(position, position + glm::vec3( 1.0,  0.0,  0.0), glm::vec3(0.0, -1.0,  0.0)));
+		shadowTransforms.push_back(shadowProj * glm::lookAt(position, position + glm::vec3(-1.0,  0.0,  0.0), glm::vec3(0.0, -1.0,  0.0)));
+		shadowTransforms.push_back(shadowProj * glm::lookAt(position, position + glm::vec3( 0.0,  1.0,  0.0), glm::vec3(0.0,  0.0,  1.0)));
+		shadowTransforms.push_back(shadowProj * glm::lookAt(position, position + glm::vec3( 0.0, -1.0,  0.0), glm::vec3(0.0,  0.0, -1.0)));
+		shadowTransforms.push_back(shadowProj * glm::lookAt(position, position + glm::vec3( 0.0,  0.0,  1.0), glm::vec3(0.0, -1.0,  0.0)));
+		shadowTransforms.push_back(shadowProj * glm::lookAt(position, position + glm::vec3( 0.0,  0.0, -1.0), glm::vec3(0.0, -1.0,  0.0)));
+	}
+
+	void GetDirectionalShadowMatrices(glm::vec3 position, glm::vec3 direction, std::vector<glm::vec3> bboxPoints, glm::mat4 &view, glm::mat4 &proj)
 	{
 		glm::vec3 center = (position + direction);
 		glm::vec3 worldZ = glm::vec3(0.0f, 0.0f, 1.0f);
@@ -545,7 +647,7 @@ namespace Utils
 		);
 	}
 
-	void GetTightNearFar(std::vector<glm::vec3> bboxPoints, glm::mat4 view, float& near, float& far)
+	void GetTightNearFar(std::vector<glm::vec3> bboxPoints, glm::mat4 view, float tol, float& near, float& far)
 	{
 		
 		// this containter stores the bbox points in camera space
@@ -562,9 +664,13 @@ namespace Utils
 
 		std::pair<glm::vec3, glm::vec3> boxExt = BoundingBox<glm::vec3>::GetMinMax(projPoints);
 
-		near = glm::max(0.1f, boxExt.first.z);
-		far = glm::max(0.1f, boxExt.second.z);
-		
+		near = glm::max(0.001f, boxExt.first.z - tol);
+		far = glm::max(0.001f, boxExt.second.z + tol);
+	}
+
+	void GetTightNearFar(std::vector<glm::vec3> bboxPoints, glm::mat4 view, float& near, float& far)
+	{
+		GetTightNearFar(bboxPoints, view, 0.0f, near, far);
 	}
 
 	// https://stackoverflow.com/questions/17294629/merging-flattening-sub-vectors-into-a-single-vector-c-converting-2d-to-1d

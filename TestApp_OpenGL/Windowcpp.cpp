@@ -32,7 +32,8 @@ using namespace OGLResources;
 // CONSTANTS ======================================================
 const char* glsl_version = "#version 130";
 
-const unsigned int shadowMapResolution = 2048;
+const unsigned int directionalShadowMapResolution = 2048;
+const unsigned int pointShadowMapResolution = 512;
 const int SSAO_MAX_SAMPLES = 64;
 const int SSAO_BLUR_MAX_RADIUS = 16;
 
@@ -289,11 +290,11 @@ void LoadScene_PbrTestSpheres(SceneMeshCollection& sceneMeshCollection, std::map
             };
 
             glm::mat4 t = glm::mat4(1.0);
-            t = glm::translate(t, glm::vec3(2.0 * i, 2.0 * j, 0.0));
-            t = glm::translate(t, glm::vec3(-4.0, -4.0, 0.0));
+            t = glm::translate(t, glm::vec3(2.5 * i, 2.5 * j, 0.0));
+            t = glm::translate(t, glm::vec3(-5.0, -5.0, 0.0));
 
             mr.SetTransformation(t);
-            mr.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0, 1.0), (i+1) / 5.0f, (j+1) / 5.0f });
+            mr.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0, 1.0), (i+1) / 5.0f, (j+1) / 5.0f });
 
             sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(mr)));
         }
@@ -1040,11 +1041,12 @@ void SetupScene(
     std::map<std::string, std::shared_ptr<WiresShader>>* wiresShadersCollection
 )
 {
+
     //LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 10.0, 0.0f);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, -1.5f);
     //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
-    LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
@@ -1063,7 +1065,7 @@ void SetupScene(
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
-    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1296,18 +1298,24 @@ void FreeUBOs(std::vector<UniformBufferObject>& uboCollection)
 {
     uboCollection.clear();
 }
-void UpdateMatricesUBO(UniformBufferObject& ubo, const SceneParams& sceneParams)
+
+void UpdateMatricesUBO(UniformBufferObject& ubo, const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far)
 {
     ubo.SetData<float>(34, NULL);
-    ubo.SetSubData(0 , 16, glm::value_ptr(sceneParams.viewMatrix));
-    ubo.SetSubData(16, 16, glm::value_ptr(sceneParams.projectionMatrix));
-    ubo.SetSubData(32, 1, &sceneParams.cameraNear);
-    ubo.SetSubData(33, 1, &sceneParams.cameraFar);
+    ubo.SetSubData(0, 16, glm::value_ptr(viewMatrix));
+    ubo.SetSubData(16, 16, glm::value_ptr(projectionMatrix));
+    ubo.SetSubData(32, 1, &near);
+    ubo.SetSubData(33, 1, &far);
+}
+
+void UpdateMatricesUBO(UniformBufferObject& ubo, const SceneParams& sceneParams)
+{
+    UpdateMatricesUBO(ubo, sceneParams.viewMatrix, sceneParams.projectionMatrix, sceneParams.cameraNear, sceneParams.cameraFar);
 }
 
 void UpdateLightsUBO(UniformBufferObject& ubo, SceneLights& lights, Camera& camera)
 {
-    ubo.SetData<float>(148, NULL);
+    ubo.SetData<float>(56, NULL);
 
     // Directional Light
     ubo.SetSubData(0, 4, glm::value_ptr(lights.Directional.Direction));
@@ -1318,28 +1326,35 @@ void UpdateLightsUBO(UniformBufferObject& ubo, SceneLights& lights, Camera& came
     ubo.SetSubData(12, 4, glm::value_ptr(lights.Ambient.Ambient));
 
     // Point Lights (See MAX_POINT_LIGHTS in glsl code)
-    for (int i = 0; i < 16; i++)
+    for (int i = 0; i < PointLight::MAX_POINT_LIGHTS; i++)
     {
-        ubo.SetSubData(16 + i * 8, 4, glm::value_ptr(lights.Points[i].Color));
-        ubo.SetSubData(20 + i * 8, 3, glm::value_ptr(lights.Points[i].Position));
+        ubo.SetSubData(16 + i * 12, 4, glm::value_ptr(lights.Points[i].Color));
+        ubo.SetSubData(20 + i * 12, 3, glm::value_ptr(lights.Points[i].Position));
+        ubo.SetSubData(23 + i * 12, 1, &lights.Points[i].Radius);
 
         float invSqrRadius = 1.0f / (lights.Points[i].Radius * lights.Points[i].Radius);
-        ubo.SetSubData(23 + i * 8, 1, &invSqrRadius);
+        ubo.SetSubData(24 + i * 12, 1, &invSqrRadius);
     }
 
     // Eye position
-    ubo.SetSubData(144, 4, glm::value_ptr(camera.Position));
+    ubo.SetSubData(52, 4, glm::value_ptr(camera.Position));
 }
 
 void UpdateShadowsUBO(UniformBufferObject& ubo, SceneLights& lights)
 {
-    ubo.SetData<float>(20, NULL);
+    ubo.SetData<float>(46, NULL);
 
     ubo.SetSubData(0, 16, glm::value_ptr(lights.Directional.LightSpaceMatrix));
     ubo.SetSubData(16, 1, &lights.Directional.Bias);
     ubo.SetSubData(17, 1, &lights.Directional.SlopeBias);
-    ubo.SetSubData(18, 1, &lights.Directional.Softness);
-    ubo.SetSubData(19, 1, &lights.Directional.ShadowMapToWorld);
+    ubo.SetSubData(20, 1, &lights.Points[0].Bias);
+    ubo.SetSubData(24, 1, &lights.Points[1].Bias);
+    ubo.SetSubData(28, 1, &lights.Points[2].Bias);
+    ubo.SetSubData(32, 1, &lights.Points[0].SlopeBias);
+    ubo.SetSubData(36, 1, &lights.Points[1].SlopeBias);
+    ubo.SetSubData(40, 1, &lights.Points[2].SlopeBias);
+    ubo.SetSubData(44, 1, &lights.Directional.Softness);
+    ubo.SetSubData(45, 1, &lights.Directional.ShadowMapToWorld);
 }
 
 void UpdateAoUBO(UniformBufferObject& ubo, SceneLights& lights)
@@ -1412,19 +1427,15 @@ void DrawEnvironment(
 #endif
 }
 
-void ShadowPass(
-    SceneParams& sceneParams, const SceneMeshCollection& sceneMeshCollection, 
-    std::vector<UniformBufferObject>& sceneUniformBuffers, const MeshShader& shaderForShadows, const FrameBuffer& shadowFBO)
-{
-#if GFX_STOPWATCH
-    Profiler::Instance().StartNamedStopWatch("Shadows");
-#endif
 
+void ComputeDirectionalShadowMap(SceneParams& sceneParams, const SceneMeshCollection& sceneMeshCollection,
+    std::vector<UniformBufferObject>& sceneUniformBuffers, const ShaderBase& shaderForShadows, const FrameBuffer<OGLTexture2D>& shadowFBO)
+{
     glm::mat4
         viewShadow, projShadow;
 
-    Utils::GetShadowMatrices(sceneParams.sceneLights.Directional.Position, sceneParams.sceneLights.Directional.Direction, sceneMeshCollection.GetSceneBBPoints(), viewShadow, projShadow);
-    
+    Utils::GetDirectionalShadowMatrices(sceneParams.sceneLights.Directional.Position, sceneParams.sceneLights.Directional.Direction, sceneMeshCollection.GetSceneBBPoints(), viewShadow, projShadow);
+
     sceneParams.sceneLights.Directional.LightSpaceMatrix = projShadow * viewShadow;
     sceneParams.viewMatrix = viewShadow;
     sceneParams.projectionMatrix = projShadow;
@@ -1433,19 +1444,73 @@ void ShadowPass(
 
     shadowFBO.Bind(true, true);
 
-    glViewport(0, 0, shadowMapResolution, shadowMapResolution);
+    glViewport(0, 0, directionalShadowMapResolution, directionalShadowMapResolution);
     glClear(GL_DEPTH_BUFFER_BIT);
 
     OGLUtils::CheckOGLErrors();
 
     for (int i = 0; i < sceneMeshCollection.size(); i++)
     {
-        sceneMeshCollection.at(i).get()->DrawCustom((ShaderBase *)&shaderForShadows);
+        sceneMeshCollection.at(i).get()->DrawCustom(&shaderForShadows);
     }
 
     sceneParams.sceneLights.Directional.ShadowMapId = shadowFBO.DepthTextureId();
     shadowFBO.UnBind();
+}
+
+void ComputePointShadowMap(PointLight& light, const SceneMeshCollection& sceneMeshCollection,
+    std::vector<UniformBufferObject>& sceneUniformBuffers, const ShaderBase& shaderForShadows, const FrameBuffer<OGLTextureCubemap>& shadowFBO)
+{
+    if (light.Color.w == 0.0f)
+        return;
+
+    std::vector<glm::mat4> shadowTransforms;
     
+    float near;
+    float far;
+
+    Utils::GetPointShadowMatrices(light.Position, light.Radius, near, far,light.LightSpaceMatrix);
+
+    shaderForShadows.SetCurrent();
+
+    glUniform1f(shaderForShadows.UniformLocation("far"), far);
+    glUniform3fv(shaderForShadows.UniformLocation("lightPos"), 1, glm::value_ptr(light.Position));
+    glUniformMatrix4fv(shaderForShadows.UniformLocation("shadowTransforms[0]"), 1, false, glm::value_ptr(light.LightSpaceMatrix[0]));
+    glUniformMatrix4fv(shaderForShadows.UniformLocation("shadowTransforms[1]"), 1, false, glm::value_ptr(light.LightSpaceMatrix[1]));
+    glUniformMatrix4fv(shaderForShadows.UniformLocation("shadowTransforms[2]"), 1, false, glm::value_ptr(light.LightSpaceMatrix[2]));
+    glUniformMatrix4fv(shaderForShadows.UniformLocation("shadowTransforms[3]"), 1, false, glm::value_ptr(light.LightSpaceMatrix[3]));
+    glUniformMatrix4fv(shaderForShadows.UniformLocation("shadowTransforms[4]"), 1, false, glm::value_ptr(light.LightSpaceMatrix[4]));
+    glUniformMatrix4fv(shaderForShadows.UniformLocation("shadowTransforms[5]"), 1, false, glm::value_ptr(light.LightSpaceMatrix[5]));
+
+    shadowFBO.Bind(true, true);
+
+    glViewport(0, 0, pointShadowMapResolution, pointShadowMapResolution);
+    glClear(GL_DEPTH_BUFFER_BIT);
+
+    OGLUtils::CheckOGLErrors();
+
+    for (int i = 0; i < sceneMeshCollection.size(); i++)
+    {
+        sceneMeshCollection.at(i).get()->DrawCustom((ShaderBase*)&shaderForShadows);
+    }
+
+    light.ShadowMapId = shadowFBO.DepthTextureId();
+    shadowFBO.UnBind();
+}
+
+void ShadowPass(
+    SceneParams& sceneParams, const SceneMeshCollection& sceneMeshCollection, std::vector<UniformBufferObject>& sceneUniformBuffers,
+    const MeshShader& shadowShaderDirectional, const ShaderBase& shadowShaderPoint , const FrameBuffer<OGLTexture2D>& directionalShadowFBO, const std::vector<FrameBuffer<OGLTextureCubemap>>& pointShadowFBOs)
+{
+#if GFX_STOPWATCH
+    Profiler::Instance().StartNamedStopWatch("Shadows");
+#endif
+
+    ComputeDirectionalShadowMap(sceneParams, sceneMeshCollection, sceneUniformBuffers, shadowShaderDirectional, directionalShadowFBO);
+    
+    for(int i =0; i<PointLight::MAX_POINT_LIGHTS; i++)
+        ComputePointShadowMap(sceneParams.sceneLights.Points[i], sceneMeshCollection, sceneUniformBuffers, shadowShaderPoint, pointShadowFBOs[i]);
+
 #if GFX_STOPWATCH
     Profiler::Instance().StopNamedStopWatch("Shadows");
 #endif
@@ -1453,7 +1518,7 @@ void ShadowPass(
 
 void AmbienOcclusionPass(
     SceneParams& sceneParams, const SceneMeshCollection& sceneMeshCollection, std::vector<UniformBufferObject>& sceneUniformBuffers, 
-    const MeshShader& shaderForDepthPass, const FrameBuffer& ssaoFBO, const PostProcessingUnit& postProcessingUnit)
+    const MeshShader& shaderForDepthPass, const FrameBuffer<OGLTexture2D>& ssaoFBO, const PostProcessingUnit& postProcessingUnit)
 {
 
 #if GFX_STOPWATCH 
@@ -1467,7 +1532,7 @@ void AmbienOcclusionPass(
 
 
     sceneParams.viewMatrix = camera.GetViewMatrix();
-    Utils::GetTightNearFar(sceneMeshCollection.GetSceneBBPoints(), sceneParams.viewMatrix, sceneParams.cameraNear, sceneParams.cameraFar);
+    Utils::GetTightNearFar(sceneMeshCollection.GetSceneBBPoints(), sceneParams.viewMatrix, 0.001f, sceneParams.cameraNear, sceneParams.cameraFar);
 
     sceneParams.projectionMatrix = glm::perspective(glm::radians(fov), sceneParams.viewportWidth / (float)sceneParams.viewportHeight, sceneParams.cameraNear, sceneParams.cameraFar); //TODO: near is brutally hard coded in PCSS calculations (#define NEAR 0.1)
 
@@ -1540,6 +1605,10 @@ int main()
     static std::map<std::string, std::shared_ptr<MeshShader>> MeshShaders = InitializeMeshShaders();
     static std::map<std::string, std::shared_ptr<WiresShader>> WiresShaders = InitializeWiresShaders();
     static std::map<std::string, std::shared_ptr<ShaderBase>> PostProcessingShaders = InitializePostProcessingShaders();
+    static ShaderBase PointLightShadowMapShader = ShaderBase(
+        VertexSource_Shadows::EXP_VERTEX,
+        GeometrySource_Shadows::EXP_GEOMETRY,
+        FragmentSource_Shadows::EXP_FRAGMENT);
 
     // Environment
     std::string currPath = std::filesystem::current_path().string();
@@ -1608,14 +1677,12 @@ int main()
 
     // Setup Scene
     SceneMeshCollection sceneMeshCollection;
-
     SetupScene(sceneMeshCollection, &MeshShaders, &WiresShaders);
 
     camera.CameraOrigin = sceneMeshCollection.GetSceneBBCenter();
     camera.ProcessMouseMovement(0, 0); //TODO: camera.Update()
 
     // DEBUG
-
     Mesh lightArrow{ Mesh::Arrow(0.3, 1, 0.5, 0.5, 16) };
     MeshRenderer lightMesh =
         MeshRenderer(glm::vec3(0, 0, 0), 0, glm::vec3(0, 1, 1), glm::vec3(0.3, 0.3, 0.3),
@@ -1664,29 +1731,21 @@ int main()
     sceneParams.sceneLights.Directional.Bias = 0.002f;
     sceneParams.sceneLights.Directional.SlopeBias = 0.015f;
     sceneParams.sceneLights.Directional.Softness = 0.01f;
-
-    sceneParams.sceneLights.Points[0].Color = glm::vec4(1.0, 1.0, 1.0, 15.0);
-    sceneParams.sceneLights.Points[0].Position = glm::vec3(0.0, 0.0, 2.0);
-    sceneParams.sceneLights.Points[0].Radius = 20.0;
-
-    sceneParams.sceneLights.Points[1].Color = glm::vec4(1.0, 0.5, 1.0, 15.0);
-    sceneParams.sceneLights.Points[1].Position = glm::vec3(3.0, 0.0, 4.0);
-    sceneParams.sceneLights.Points[1].Radius = 20.0;
-
-    sceneParams.sceneLights.Points[2].Color = glm::vec4(0.0, 0.0, 1.0, 12.0);
-    sceneParams.sceneLights.Points[2].Position = glm::vec3(0.0, 4.0, 4.0);
-    sceneParams.sceneLights.Points[2].Radius = 20.0;
-
-    sceneParams.sceneLights.Points[3].Color = glm::vec4(0.0, 1.0, 0.0, 14.0);
-    sceneParams.sceneLights.Points[3].Position = glm::vec3(3.0, -3.0, 2.0);
-    sceneParams.sceneLights.Points[3].Radius = 20.0;
-
-
+    
+    sceneParams.sceneLights.Points[0] = PointLight(glm::vec4(1.0, 0.9, 0.9, 15.0), glm::vec3( 0.0, 0.0, 5.0));
+    sceneParams.sceneLights.Points[1] = PointLight(glm::vec4(1.0, 0.0, 0.0, 12.0), glm::vec3(1.0, 1.0, 3.0));
+    sceneParams.sceneLights.Points[2] = PointLight(glm::vec4(0.0, 0.0, 1.0, 12.0), glm::vec3(-1.0, 1.0, 3.0));
+   
     sceneParams.drawParams.doShadows = true;
 
-    // Shadow Map
+    // Shadow Maps
     // ----------------------
-    FrameBuffer shadowFBO = FrameBuffer(shadowMapResolution, shadowMapResolution, false, 0, true);
+    FrameBuffer directionalShadowFBO = FrameBuffer(directionalShadowMapResolution, directionalShadowMapResolution, false, 0, true);
+    std::vector<FrameBuffer<OGLTextureCubemap>> pointShadowFBOs = std::vector<FrameBuffer<OGLTextureCubemap>>{};
+    for (int i = 0; i < 16; i++)
+    {
+        pointShadowFBOs.push_back(FrameBuffer<OGLTextureCubemap>(pointShadowMapResolution, pointShadowMapResolution, false, 0, true));
+    }
 
     // Noise Textures for PCSS 
     // ----------------------
@@ -1747,6 +1806,7 @@ int main()
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_FRAMEBUFFER_SRGB);
 
+
     // Render Loop
     while (!glfwWindowShouldClose(window))
     {
@@ -1773,7 +1833,7 @@ int main()
             sceneMeshCollection.GetSceneBBCenter() - (glm::normalize(sceneParams.sceneLights.Directional.Direction) * sceneMeshCollection.GetSceneBBSize() * 0.5f);
 
         if (sceneParams.drawParams.doShadows)
-            ShadowPass(sceneParams, sceneMeshCollection, sceneUniformBuffers, *MeshShaders.at("UNLIT").get(), shadowFBO);
+            ShadowPass(sceneParams, sceneMeshCollection, sceneUniformBuffers, *MeshShaders.at("UNLIT").get(), PointLightShadowMapShader, directionalShadowFBO, pointShadowFBOs);
         
 
         // AO PASS ////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1803,7 +1863,7 @@ int main()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         sceneParams.viewMatrix = camera.GetViewMatrix();
-        Utils::GetTightNearFar(sceneMeshCollection.GetSceneBBPoints(), sceneParams.viewMatrix, sceneParams.cameraNear, sceneParams.cameraFar);
+        Utils::GetTightNearFar(sceneMeshCollection.GetSceneBBPoints(), sceneParams.viewMatrix, 0.001f, sceneParams.cameraNear, sceneParams.cameraFar);
         sceneParams.projectionMatrix = glm::perspective(glm::radians(fov), sceneParams.viewportWidth / (float)sceneParams.viewportHeight, sceneParams.cameraNear, sceneParams.cameraFar); 
 
         UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams);
@@ -1876,7 +1936,6 @@ int main()
         }
         // Front and back buffers swapping
         glfwSwapBuffers(window);
-
     }
 
     // TODO: Why do I have to call clear() EXPLICITLY????
@@ -1888,12 +1947,14 @@ int main()
     MeshShaders.clear();
     WiresShaders.clear();
     PostProcessingShaders.clear();
+    PointLightShadowMapShader.~ShaderBase();
     sceneParams.noiseTextures.~vector();
     sceneParams.poissonSamples.~optional();
     sceneMeshCollection.~SceneMeshCollection();
     lightMesh.~MeshRenderer();
     ssaoFBO.~FrameBuffer();
-    shadowFBO.~FrameBuffer();
+    directionalShadowFBO.~FrameBuffer();
+    pointShadowFBOs.clear();
     mainFBO.~FrameBuffer();
     grid.~WiresRenderer();
     lightMesh.~MeshRenderer();

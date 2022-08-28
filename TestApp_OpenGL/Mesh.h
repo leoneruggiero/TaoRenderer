@@ -81,7 +81,7 @@ public:
 
     unsigned int ShaderProgramId() { return _shaderProgram.ID(); };
 
-    virtual void SetMatrices(glm::mat4 modelMatrix) const {};
+    virtual void SetMatrices(glm::mat4 modelMatrix) const { glUniformMatrix4fv(UniformLocation("model"), 1, GL_FALSE, glm::value_ptr(modelMatrix)); };
 };
 
 class WiresShader : public ShaderBase
@@ -245,9 +245,13 @@ public:
         // TODO bind texture once for all
         if (sceneParams.sceneLights.Directional.ShadowMapId)
         {
-            glActiveTexture(GL_TEXTURE0 + TextureBinding::ShadowMap);
+            // Directional light shadow map
+            // ----------------------------
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::ShadowMapDirectional);
             glBindTexture(GL_TEXTURE_2D, sceneParams.sceneLights.Directional.ShadowMapId);
-            glUniform1i(UniformLocation("shadowMap"), TextureBinding::ShadowMap);
+            glUniform1i(UniformLocation("shadowMap_directional"), TextureBinding::ShadowMapDirectional);
+            
+            OGLUtils::CheckOGLErrors();
 
             // Noise textures for PCSS calculations
             // ------------------------------------
@@ -268,6 +272,21 @@ public:
                 sceneParams.poissonSamples.value().Bind();
             glUniform1i(UniformLocation("poissonSamples"), TextureBinding::PoissonSamples);
 
+        }
+
+        for (int i = 0; i < PointLight::MAX_POINT_LIGHTS; i++)
+        {
+            if (sceneParams.sceneLights.Points[i].ShadowMapId)
+            {
+                // Point light shadow map
+                // ----------------------------
+                glActiveTexture(GL_TEXTURE0 + TextureBinding::ShadowMapPoint0 + i);
+                OGLUtils::CheckOGLErrors();
+                glBindTexture(GL_TEXTURE_CUBE_MAP, sceneParams.sceneLights.Points[i].ShadowMapId);
+                OGLUtils::CheckOGLErrors();
+                glUniform1i(UniformLocation(std::string("shadowMap_point[") + std::to_string(i) + std::string("]")), TextureBinding::ShadowMapPoint0 + i);
+                OGLUtils::CheckOGLErrors();
+            }
         }
 
         if (sceneParams.sceneLights.Ambient.AoMapId)
@@ -1090,7 +1109,7 @@ public:
 
     // Draw with a custom shader
     // --------------------------------------------------------------
-    virtual void DrawCustom(ShaderBase* shader) const = 0;
+    virtual void DrawCustom(const ShaderBase* shader) const = 0;
 
     virtual void SetMaterial(Material mat) = 0;
 
@@ -1301,7 +1320,7 @@ public:
         OGLUtils::CheckOGLErrors();
     }
 
-    void DrawCustom(ShaderBase* shader) const override
+    void DrawCustom(const ShaderBase* shader) const override
     {
 
         shader->SetCurrent();
@@ -1487,7 +1506,7 @@ public:
         OGLUtils::CheckOGLErrors();
     }
 
-    void DrawCustom(ShaderBase* shader) const override
+    void DrawCustom(const ShaderBase* shader) const override
     {
         shader->SetCurrent();
 
@@ -1750,7 +1769,7 @@ public:
 
     }
 
-    void BlurTexture(const FrameBuffer& fbo, int attachment, int radius, int width, int height) const
+    void BlurTexture(const FrameBuffer<OGLTexture2D>& fbo, int attachment, int radius, int width, int height) const
     {
         // Blur pass
         glDisable(GL_DEPTH_TEST);
@@ -1789,7 +1808,7 @@ public:
 
     }
 
-    void ApplyToneMappingAndGammaCorrection(const FrameBuffer& fbo, int attachment, bool toneMapping, float exposure, bool gammaCorrection, float gamma) const
+    void ApplyToneMappingAndGammaCorrection(const FrameBuffer<OGLTexture2D>& fbo, int attachment, bool toneMapping, float exposure, bool gammaCorrection, float gamma) const
     {
 
         glDisable(GL_DEPTH_TEST);
@@ -1814,7 +1833,7 @@ public:
 
     }
 
-    void ComputeAO(AOType aoType, const FrameBuffer& fbo, const SceneParams& sceneParams, int width, int height) const
+    void ComputeAO(AOType aoType, const FrameBuffer<OGLTexture2D>& fbo, const SceneParams& sceneParams, int width, int height) const
     {
         if (aoType == AOType::NONE)
             return;
