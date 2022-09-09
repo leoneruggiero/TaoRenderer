@@ -12,6 +12,120 @@
 #include <limits>
 #include <algorithm>
 
+
+namespace Curves
+{
+	class CubicBezier
+	{
+		// Based on chapter 11.3 from "Mathematics for 3D Game Programming and Computer Graphics, 3rd Edition, Eric Lengyel"
+		// Naming conventions follow the ones in the book for this topic.
+
+	private:
+
+		// Geometrical constraints (4 3d points)
+		glm::vec3
+			_p0, _p1, _p2, _p3;
+		
+		// Geometry matrix (derived from the 4 geometrical constraints)
+		glm::mat4x3 _Gb;
+
+		// Basis matrix (same for all the possible cubic bezier)
+		static constexpr glm::mat4 _Mb =
+
+			glm::mat4(
+				{  1.0f,  0.0f,  0.0f,  0.0f },
+				{ -3.0f,  3.0f,  0.0f,  0.0f },
+				{  3.0f, -6.0f,  3.0f,  0.0f },
+				{ -1.0f,  3.0f, -3.0f,  1.0f }
+		);
+
+		glm::mat4x3 GeometryMatrixFromPoints(glm::vec3 p0, glm::vec3 p1, glm::vec3 p2, glm::vec3 p3)
+		{
+			return glm::mat4x3(p0, p1, p2, p3);
+		}
+
+	public:
+
+		/// <summary>
+		/// Standard cubic bezier definition. 
+		/// </summary>
+		/// <param name="p0">First control point.</param>
+		/// <param name="p1">Second control point.</param>
+		/// <param name="p2">Third control point.</param>
+		/// <param name="p3">Fourth control point.</param>
+		CubicBezier(glm::vec3 p0, glm::vec3 p1, glm::vec3 p2, glm::vec3 p3)
+			: _p0(p0), _p1(p1), _p2(p2), _p3(p3)
+		{
+			_Gb = GeometryMatrixFromPoints(_p0, _p1, _p2, _p3);
+		};
+
+		/// <summary>
+		/// Returns the point on the curve at the specified parameter.
+		/// </summary>
+		/// <param name="t"> The parameter value.</param>
+		/// <returns> The 3d point on the curve at parameter t.</returns>
+		glm::vec3 PointAt(float t)
+		{
+			return
+				_Gb * _Mb * glm::vec4(1.0f, t, t * t, t * t * t);
+		}
+
+		/// <summary>
+		/// Returns a list of 3d points sampled on the curve at constant parameter increments.
+		/// </summary>
+		/// <param name="n"> The number of points. </param>
+		/// <returns>A list of 3d points.</returns>
+		std::vector<glm::vec3> ToPoints(int n)
+		{
+			int numSteps = n - 1;
+			float stepSize = 1.0f / (n - 1);
+			std::vector<glm::vec3> pointList = std::vector<glm::vec3>(n);
+
+			for (int i = 0; i <= numSteps; i++)
+				pointList[i] = PointAt(i * stepSize);
+
+			return pointList;
+		}
+
+		/// <summary>
+		/// Returns a list of line segments sampled on the curve at constant parameter increments.
+		/// </summary>
+		/// <param name="n"> The number of segments. </param>
+		/// <returns>A list of line segments. Each segment is defined by list[i], list[i+1] with i in the range [0, 2n-1].</returns>
+		std::vector<glm::vec3> ToLineSegments(int n)
+		{
+			std::vector<glm::vec3> pointList = ToPoints(n + 1);
+			std::vector<glm::vec3> lineSegmentList = std::vector<glm::vec3>(n * 2);
+
+			for (int i = 0; i < n-1; i++)
+			{
+				lineSegmentList[(i * 2)    ] = pointList[i];
+				lineSegmentList[(i * 2) + 1] = pointList[i + 1];
+			}
+
+			return lineSegmentList;
+
+		}
+
+		/// <summary>
+		/// Returns the first control point.
+		/// </summary>
+		glm::vec3 P0() { return _p0; }
+		/// <summary>
+		/// Returns the second control point.
+		/// </summary>
+		glm::vec3 P1() { return _p1; }
+		/// <summary>
+		/// Returns the third control point.
+		/// </summary>
+		glm::vec3 P2() { return _p2; }
+		/// <summary>
+		/// Returns the fourth control point.
+		/// </summary>
+		glm::vec3 P3() { return _p3; }
+	};
+}
+
 namespace Utils
 {
 	/// <summary>

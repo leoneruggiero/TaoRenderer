@@ -566,6 +566,89 @@ void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std
    
 }
 
+void LoadScene_CubicBezier(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<WiresShader>>* shadersCollection)
+{
+
+    // Curve 0
+    // -------
+    Curves::CubicBezier cb0 = Curves::CubicBezier(
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 0.0f),
+        glm::vec3(2.0f, 1.0f, 0.0f)
+        );
+
+    Wire cb0Wire = Wire(cb0.ToPoints(30), WireNature::LINE_STRIP);
+    Wire cb0PointsWire = Wire(std::vector<glm::vec3>{cb0.P0(), cb0.P1(), cb0.P2(), cb0.P3()}, WireNature::POINTS);
+    WiresRenderer cb0WR = WiresRenderer(cb0Wire, shadersCollection->at("LINE_STRIP").get());
+    WiresRenderer cb0PointsWR = WiresRenderer(cb0PointsWire, shadersCollection->at("POINTS").get());
+    cb0PointsWR.SetColor(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+    cb0WR.SetColor(glm::vec4(0.1f, 1.0f, 0.2f, 1.0f));
+    
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(cb0WR)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(cb0PointsWR)));
+
+    // Curve 1
+    // -------
+    Curves::CubicBezier cb1 = Curves::CubicBezier(
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 0.0f),
+        glm::vec3(0.5f, 0.5f, 0.0f)
+    );
+
+    Wire cb1Wire = Wire(cb1.ToPoints(30), WireNature::LINE_STRIP);
+    Wire cb1PointsWire = Wire(std::vector<glm::vec3>{cb1.P0(), cb1.P1(), cb1.P2(), cb1.P3()}, WireNature::POINTS);
+    WiresRenderer cb1WR = WiresRenderer(cb1Wire, shadersCollection->at("LINE_STRIP").get());
+    WiresRenderer cb1PointsWR = WiresRenderer(cb1PointsWire, shadersCollection->at("POINTS").get());
+    cb1PointsWR.SetColor(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+    cb1WR.SetColor(glm::vec4(0.1f, 1.0f, 0.2f, 1.0f));
+    cb1PointsWR.Translate(glm::vec3(4.0f, 0.0f, 0.0f));
+    cb1WR.Translate(glm::vec3(4.0f, 0.0f, 0.0f));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(cb1WR)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(cb1PointsWR)));
+
+    // Curve 2
+    // -------
+    Curves::CubicBezier cb2 = Curves::CubicBezier(
+        glm::vec3(0.0f, 0.3f, 0.0f),
+        glm::vec3(1.0f,-1.0f, 0.0f),
+        glm::vec3(1.0f, 1.0f, 0.0f),
+        glm::vec3(0.0f,-0.3f, 0.0f)
+    );
+
+    Wire cb2Wire = Wire(cb2.ToPoints(30), WireNature::LINE_STRIP);
+    Wire cb2PointsWire = Wire(std::vector<glm::vec3>{cb2.P0(), cb2.P1(), cb2.P2(), cb2.P3()}, WireNature::POINTS);
+    WiresRenderer cb2WR = WiresRenderer(cb2Wire, shadersCollection->at("LINE_STRIP").get());
+    WiresRenderer cb2PointsWR = WiresRenderer(cb2PointsWire, shadersCollection->at("POINTS").get());
+    cb2PointsWR.SetColor(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+    cb2WR.SetColor(glm::vec4(0.1f, 1.0f, 0.2f, 1.0f));
+    cb2PointsWR.Translate(glm::vec3(0.0f, -4.0f, 0.0f));
+    cb2WR.Translate(glm::vec3(0.0f, -4.0f, 0.0f));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(cb2WR)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(cb2PointsWR)));
+
+    // Curve 3
+    // -------
+    Curves::CubicBezier cb3 = Curves::CubicBezier(
+        glm::vec3(0.0f, 0.0f, 0.0f),
+        glm::vec3(1.0f, 0.0f, 0.0f),
+        glm::vec3(0.0f, 1.5f, 0.0f),
+        glm::vec3(1.0f, 1.5f, 0.0f)
+    );
+
+    Wire cb3Wire = Wire(cb3.ToPoints(30), WireNature::LINE_STRIP);
+    Wire cb3PointsWire = Wire(std::vector<glm::vec3>{cb3.P0(), cb3.P1(), cb3.P2(), cb3.P3()}, WireNature::POINTS);
+    WiresRenderer cb3WR = WiresRenderer(cb3Wire, shadersCollection->at("LINE_STRIP").get());
+    WiresRenderer cb3PointsWR = WiresRenderer(cb3PointsWire, shadersCollection->at("POINTS").get());
+    cb3PointsWR.SetColor(glm::vec4(1.0f, 0.0f, 0.0f, 1.0f));
+    cb3WR.SetColor(glm::vec4(0.1f, 1.0f, 0.2f, 1.0f));
+    cb3PointsWR.Translate(glm::vec3(4.0f, -4.0f, 0.0f));
+    cb3WR.Translate(glm::vec3(4.0f, -4.0f, 0.0f));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(cb3WR)));
+    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(cb3PointsWR)));
+}
+
 void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
 {
     Mesh planeMesh = Mesh::Box(8, 8, 0.5);
@@ -1068,10 +1151,11 @@ void SetupScene(
 )
 {
 
+    LoadScene_CubicBezier(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, -1.5f);
-    LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, 0.0f);
+    //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
@@ -1477,7 +1561,8 @@ void ComputeDirectionalShadowMap(SceneParams& sceneParams, const SceneMeshCollec
 
     for (int i = 0; i < sceneMeshCollection.size(); i++)
     {
-        sceneMeshCollection.at(i).get()->DrawCustom(&shaderForShadows);
+        if (sceneMeshCollection.at(i).get()->ShouldDrawForShadows())
+            sceneMeshCollection.at(i).get()->DrawCustom(&shaderForShadows);
     }
 
     sceneParams.sceneLights.Directional.ShadowMapId = shadowFBO.DepthTextureId();
@@ -1517,7 +1602,8 @@ void ComputePointShadowMap(PointLight& light, const SceneMeshCollection& sceneMe
 
     for (int i = 0; i < sceneMeshCollection.size(); i++)
     {
-        sceneMeshCollection.at(i).get()->DrawCustom((ShaderBase*)&shaderForShadows);
+        if (sceneMeshCollection.at(i).get()->ShouldDrawForShadows())
+            sceneMeshCollection.at(i).get()->DrawCustom((ShaderBase*)&shaderForShadows);
     }
 
     light.ShadowMapId = shadowFBO.DepthTextureId();

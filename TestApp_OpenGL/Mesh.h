@@ -1163,6 +1163,9 @@ public:
         Translate(glm::vec3(x, y, z));
     }
     
+    // Utils
+    // -----
+    virtual bool ShouldDrawForShadows() { return true; }
 };
 
 class MeshRenderer : public Renderer
@@ -1545,6 +1548,8 @@ public:
 
         return transformed;
     }
+
+    bool ShouldDrawForShadows() override { return false; }
 
     private:
         GLenum ResolveDrawingMode(const WireNature &nature) const
