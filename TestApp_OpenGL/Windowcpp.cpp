@@ -1151,11 +1151,11 @@ void SetupScene(
 )
 {
 
-    LoadScene_CubicBezier(sceneMeshCollection, wiresShadersCollection);
+    //LoadScene_CubicBezier(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
     //LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, 0.0f);
-    //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
@@ -1482,6 +1482,8 @@ void DrawEnvironment(
     Profiler::Instance().StartNamedStopWatch("Environment");
 #endif
 
+
+    OGLUtils::CheckOGLErrors();
     glm::mat4 transf = glm::mat4(1.0);
 
     transf[0] =  sceneParams.viewMatrix[0];
@@ -1493,7 +1495,13 @@ void DrawEnvironment(
         sceneParams.viewportWidth / (float)sceneParams.viewportHeight,
         sceneParams.cameraNear, sceneParams.cameraFar);
 
+    OGLUtils::CheckOGLErrors();
+
     environmentShader.SetCurrent();
+
+
+    OGLUtils::CheckOGLErrors();
+
 
     glUniformMatrix4fv(environmentShader.UniformLocation("u_model"), 1, GL_FALSE, glm::value_ptr(transf));
     glUniformMatrix4fv(environmentShader.UniformLocation("u_projection"), 1, GL_FALSE, glm::value_ptr(proj));
@@ -1508,6 +1516,10 @@ void DrawEnvironment(
     else
         glUniform1i(environmentShader.UniformLocation("u_hasEnvironmentMap"), false);
 
+
+    OGLUtils::CheckOGLErrors();
+
+
     // Gamma correction
     glUniform1ui(environmentShader.UniformLocation("u_doGammaCorrection"), sceneParams.postProcessing.GammaCorrection);
     glUniform1f(environmentShader.UniformLocation("u_gamma"), 2.2f);
@@ -1516,6 +1528,8 @@ void DrawEnvironment(
     glUniform3fv(environmentShader.UniformLocation("u_equator_color"), 1,  glm::value_ptr(sceneParams.environment.EquatorColor));
     glUniform3fv(environmentShader.UniformLocation("u_north_color"), 1, glm::value_ptr(sceneParams.environment.NorthColor));
     glUniform3fv(environmentShader.UniformLocation("u_south_color"), 1, glm::value_ptr(sceneParams.environment.SouthColor));
+
+    OGLUtils::CheckOGLErrors();
 
     glEnable(GL_CULL_FACE);
     glCullFace(GL_FRONT);
@@ -1800,9 +1814,15 @@ int main()
         MeshRenderer(glm::vec3(0, 0, 0), 0, glm::vec3(0, 1, 1), glm::vec3(0.3, 0.3, 0.3),
             lightArrow, MeshShaders.at("UNLIT").get(), MeshShaders.at("UNLIT").get(), MaterialsCollection::PureWhite);
 
+    sceneParams.grid.Min = glm::vec2(-10.f, -10.0f);
+    sceneParams.grid.Max = glm::vec2(10.f, 10.0f);
+    sceneParams.grid.Color = glm::vec4(0.5f, 0.5f, 0.5f, 0.6f);
+    sceneParams.grid.Step = 1.0f;
+
     WiresRenderer grid =
-        WiresRenderer(glm::vec3(0, 0, 0), 0.0f, glm::vec3(1, 1, 1), glm::vec3(1, 1, 1), Wire::Grid(glm::vec2(-5, -5), glm::vec2(5, 5), 1.0f),
-            WiresShaders.at("LINES").get(), glm::vec4(0.5, 0.5, 0.5, 1.0));
+        WiresRenderer(glm::vec3(0, 0, 0), 0.0f, glm::vec3(1, 1, 1), glm::vec3(1, 1, 1), 
+            Wire::Grid(sceneParams.grid.Min, sceneParams.grid.Max, (int)sceneParams.grid.Step),
+            WiresShaders.at("LINES").get(), sceneParams.grid.Color);
 
 
     std::vector<glm::vec3> bboxLines = sceneMeshCollection.GetSceneBBLines();
@@ -1957,11 +1977,6 @@ int main()
         AmbienOcclusionPass(sceneParams, sceneMeshCollection, sceneUniformBuffers, *MeshShaders.at("VIEWNORMALS").get(), ssaoFBO, postProcessingUnit);
 
 
-        // OPAQUE PASS /////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#if GFX_STOPWATCH
-        Profiler::Instance().StartNamedStopWatch("Scene");
-#endif
         // Offscreen rendering to enable hdr and gamma correction.
         if (sceneParams.postProcessing.ToneMapping || sceneParams.postProcessing.GammaCorrection)
         {
@@ -1974,6 +1989,15 @@ int main()
         glViewport(0, 0, sceneParams.viewportWidth, sceneParams.viewportHeight);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+        // ENVIRONMENT //////////////////////////////////////////////////////////////////////////////////////////////////////
+        DrawEnvironment(camera, sceneParams, envCube_vao, environmentShader);
+
+
+        // OPAQUE PASS /////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#if GFX_STOPWATCH
+        Profiler::Instance().StartNamedStopWatch("Scene");
+#endif
         sceneParams.viewMatrix = camera.GetViewMatrix();
         Utils::GetTightNearFar(sceneMeshCollection.GetSceneBBPoints(), sceneParams.viewMatrix, 0.001f, sceneParams.cameraNear, sceneParams.cameraFar);
         sceneParams.projectionMatrix = glm::perspective(glm::radians(fov), sceneParams.viewportWidth / (float)sceneParams.viewportHeight, sceneParams.cameraNear, sceneParams.cameraFar); 
@@ -1983,6 +2007,40 @@ int main()
         UpdateShadowsUBO(sceneUniformBuffers.at(UBOBinding::Shadows), sceneParams.sceneLights);
         UpdateAoUBO(sceneUniformBuffers.at(UBOBinding::AmbientOcclusion), sceneParams.sceneLights);
 
+        // Draw grid before scene
+        if (showGrid)
+        {
+            glDepthMask(GL_FALSE);
+            float gridNear;
+            float gridFar;
+            std::vector<glm::vec3> gridPoints =
+                std::vector<glm::vec3>
+            {
+                glm::vec3(sceneParams.grid.Min.x, sceneParams.grid.Min.y, 0.0f),
+                    glm::vec3(sceneParams.grid.Min.x, sceneParams.grid.Max.y, 0.0f),
+                    glm::vec3(sceneParams.grid.Max.x, sceneParams.grid.Max.y, 0.0f),
+                    glm::vec3(sceneParams.grid.Max.x, sceneParams.grid.Min.y, 0.0f)
+
+            };
+
+            Utils::GetTightNearFar(
+                gridPoints, sceneParams.viewMatrix, 0.1f, gridNear, gridFar
+            );
+
+            glm::mat4 gridProjAfterScene =
+                glm::perspective(glm::radians(fov), sceneParams.viewportWidth / (float)sceneParams.viewportHeight,
+                    sceneParams.cameraFar, glm::max(sceneParams.cameraFar, gridFar));
+
+            UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams.viewMatrix, gridProjAfterScene, gridNear, gridFar);
+
+            grid.Draw(camera.Position, sceneParams);
+
+            UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams);
+            
+            glDepthMask(GL_TRUE);
+        }
+
+
         for (int i = 0; i < sceneMeshCollection.size(); i++)
         {
             sceneMeshCollection.at(i).get()->Draw(camera.Position, sceneParams);
@@ -1991,9 +2049,51 @@ int main()
 #if GFX_STOPWATCH
         Profiler::Instance().StopNamedStopWatch("Scene");
 #endif
-        // ENVIRONMENT //////////////////////////////////////////////////////////////////////////////////////////////////////
 
-        DrawEnvironment(camera, sceneParams, envCube_vao, environmentShader);
+        // DEBUG ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        if (showLights)
+        {
+            glm::quat orientation = glm::quatLookAt(-normalize(sceneParams.sceneLights.Directional.Direction), glm::vec3(0, 0, 1));
+            lightMesh.Renderer::SetTransformation(sceneParams.sceneLights.Directional.Position, glm::angle(orientation), glm::axis(orientation), glm::vec3(0.3, 0.3, 0.3));
+            lightMesh.Draw(camera.Position, sceneParams);
+        }
+        if (showGrid)
+        {
+            grid.Draw(camera.Position, sceneParams);
+
+            glDisable(GL_DEPTH_TEST);
+
+            float gridNear;
+            float gridFar;
+            std::vector<glm::vec3> gridPoints =
+                std::vector<glm::vec3>
+            {
+                glm::vec3(sceneParams.grid.Min.x, sceneParams.grid.Min.y, 0.0f),
+                    glm::vec3(sceneParams.grid.Min.x, sceneParams.grid.Max.y, 0.0f),
+                    glm::vec3(sceneParams.grid.Max.x, sceneParams.grid.Max.y, 0.0f),
+                    glm::vec3(sceneParams.grid.Max.x, sceneParams.grid.Min.y, 0.0f)
+
+            };
+
+            Utils::GetTightNearFar(
+                gridPoints, sceneParams.viewMatrix, 0.1f, gridNear, gridFar
+            );
+
+            glm::mat4 gridProjAfterScene =
+                glm::perspective(glm::radians(fov), sceneParams.viewportWidth / (float)sceneParams.viewportHeight,
+                    glm::max(0.0f, gridNear), sceneParams.cameraNear);
+
+            UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams.viewMatrix, gridProjAfterScene, gridNear, gridFar);
+
+            grid.Draw(camera.Position, sceneParams);
+
+            UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams);
+
+            glEnable(GL_DEPTH_TEST);
+        }
+        if (showBoundingBox)
+            bbRenderer.Draw(camera.Position, sceneParams);
+
 
         if (sceneParams.postProcessing.ToneMapping || sceneParams.postProcessing.GammaCorrection)
         {
@@ -2003,30 +2103,16 @@ int main()
             // really don't know why this is needed since DepthTesting is disabled 
             // when drawing the quad to apply the post effects...
             // In RenderDoc snapshots everything seems fine but it's not what you get.
-            glClear(GL_DEPTH_BUFFER_BIT); 
+            glClear(GL_DEPTH_BUFFER_BIT);
 
             postProcessingUnit.ApplyToneMappingAndGammaCorrection(mainFBO, 0,
                 sceneParams.postProcessing.ToneMapping, sceneParams.postProcessing.Exposure,
                 sceneParams.postProcessing.GammaCorrection, 2.2f);
+
         }
 
-
-        // DEBUG ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-        
         if (showAO)
             ssaoFBO.CopyToOtherFbo(nullptr, true, 10, false, glm::vec2(0.0, 0.0), glm::vec2(sceneParams.viewportWidth, sceneParams.viewportHeight));
-
-        if (showLights)
-        {
-            glm::quat orientation = glm::quatLookAt(-normalize(sceneParams.sceneLights.Directional.Direction), glm::vec3(0, 0, 1));
-            lightMesh.Renderer::SetTransformation(sceneParams.sceneLights.Directional.Position, glm::angle(orientation), glm::axis(orientation), glm::vec3(0.3, 0.3, 0.3));
-            lightMesh.Draw(camera.Position, sceneParams);
-        }
-        if (showGrid)
-            grid.Draw(camera.Position, sceneParams);
-        if (showBoundingBox)
-            bbRenderer.Draw(camera.Position, sceneParams);
-
 
         // WINDOW /////////////////////////////////////////////////////////////////////////////////////////////////////
         if (showWindow)

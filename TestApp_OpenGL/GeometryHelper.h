@@ -762,7 +762,7 @@ namespace Utils
 		);
 	}
 
-	void GetTightNearFar(std::vector<glm::vec3> bboxPoints, glm::mat4 view, float tol, float& near, float& far)
+	static void GetTightNearFar(std::vector<glm::vec3> bboxPoints, glm::mat4 view, float tol, float& near, float& far)
 	{
 		
 		// this containter stores the bbox points in camera space

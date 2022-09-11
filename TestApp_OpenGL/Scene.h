@@ -114,6 +114,13 @@ struct DrawParams
 	bool doShadows;
 };
 
+struct GridParams
+{
+	glm::vec2 Min;
+	glm::vec2 Max;
+	float Step;
+	glm::vec4 Color;
+};
 
 struct Environment
 {
@@ -151,6 +158,7 @@ struct SceneParams
 	ScenePostProcessing postProcessing;
 	DrawParams drawParams;
 	Environment environment;
+	GridParams grid;
 	int pointWidth = 8;
 	int lineWidth = 4;
 
