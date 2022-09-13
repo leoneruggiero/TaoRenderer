@@ -2170,9 +2170,63 @@ namespace OGLTextureUtils
 namespace OGLResources
 {
 
-    class OGLResource
+    namespace OglBuffer
     {
 
+        enum class Usage
+        {
+            Undefined,
+            StaticDraw,
+            DynamicDraw,
+            StreamDraw
+        };
+
+        void Bind(unsigned int target, unsigned int id)
+        {
+            glBindBuffer(target, id);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void UnBind(unsigned int target)
+        {
+            glBindBuffer(target, 0);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        template<typename T>
+        void SetData(unsigned int target, unsigned int id, unsigned int count, const T* data, unsigned int usage)
+        {
+            Bind(target, id);
+            glBufferData(target, count * sizeof(T), data != nullptr ? data : NULL, usage);
+            UnBind(target);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        template<typename T>
+        void SetSubData(unsigned int target, unsigned int id, unsigned int startIndex, unsigned int count, const T* data)
+        {
+            OGLUtils::CheckOGLErrors();
+
+            Bind(target, id);
+            glBufferSubData(target, startIndex * sizeof(T), count * sizeof(T), data != nullptr ? data : NULL);
+            UnBind(target);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        void SetBindingPoint(unsigned int target, unsigned int id, unsigned int index)
+        {
+            glBindBufferBase(target, index, id);
+        }
+    }
+
+    using namespace OglBuffer;
+
+    class OGLResource
+    {
     public:
         OGLResource()
             : _id(0), _type(OGLResourceType::UNDEFINED) {};
@@ -2580,18 +2634,9 @@ namespace OGLResources
 
     class UniformBufferObject : public OGLResource
     {
+    
     public:
-        enum class UBOType
-        {
-            Undefined,
-            StaticDraw,
-            DynamicDraw,
-            StreamDraw
-        };
-
-
-    public:
-        UniformBufferObject(UBOType type) : _type(type)
+        UniformBufferObject(Usage type) : _type(type)
         {
             OGLResource::Create(OGLResourceType::UNIFORM_BUFFER);
         }
@@ -2599,7 +2644,7 @@ namespace OGLResources
         UniformBufferObject(UniformBufferObject&& other) noexcept : OGLResource(std::move(other))
         {
             this->_type = other._type;
-            other._type = UBOType::Undefined;
+            other._type = Usage::Undefined;
         };
 
         UniformBufferObject& operator=(UniformBufferObject&& other) noexcept
@@ -2608,7 +2653,7 @@ namespace OGLResources
             {
                 OGLResource::operator=(std::move(other));
                 this->_type = other._type;
-                other._type = UBOType::Undefined;
+                other._type = Usage::Undefined;
             }
             return *this;
         };
@@ -2618,19 +2663,19 @@ namespace OGLResources
             OGLResource::Destroy();
         }
 
-        GLenum ResolveUsage(UBOType type)
+        GLenum ResolveUsage(Usage type)
         {
             switch (type)
             {
-            case(UBOType::StaticDraw):
+            case(Usage::StaticDraw):
                 return GL_STATIC_DRAW;
                 break;
 
-            case(UBOType::DynamicDraw):
+            case(Usage::DynamicDraw):
                 return GL_DYNAMIC_DRAW;
                 break;
 
-            case(UBOType::StreamDraw):
+            case(Usage::StreamDraw):
                 GL_STREAM_DRAW;
                 break;
             default:
@@ -2641,49 +2686,36 @@ namespace OGLResources
 
         void Bind()
         {
-            glBindBuffer(GL_UNIFORM_BUFFER, OGLResource::ID());
-
-            OGLUtils::CheckOGLErrors();
+            OglBuffer::Bind(GL_UNIFORM_BUFFER, ID());
         }
 
         void UnBind()
         {
-            glBindBuffer(GL_UNIFORM_BUFFER, 0);
-
-            OGLUtils::CheckOGLErrors();
+            OglBuffer::UnBind(GL_UNIFORM_BUFFER);
         }
 
         template<typename T>
         void SetData(unsigned int count, const T* data)
-        {
-            Bind();
-            glBufferData(GL_UNIFORM_BUFFER, count * sizeof(T), data != nullptr ? data : NULL, ResolveUsage(_type));
-            UnBind();
-
-            OGLUtils::CheckOGLErrors();
+        {   
+            OglBuffer::SetData(GL_UNIFORM_BUFFER,ID(),  count * sizeof(T), data != nullptr ? data : NULL, ResolveUsage(_type));        
         }
 
         template<typename T>
         void SetSubData(unsigned int startIndex, unsigned int count, const T* data)
         {
-            OGLUtils::CheckOGLErrors();
-
-            Bind();
-            glBufferSubData(GL_UNIFORM_BUFFER, startIndex * sizeof(T), count * sizeof(T), data != nullptr ? data : NULL);
-            UnBind();
-
-            OGLUtils::CheckOGLErrors();
+            OglBuffer::SetSubData(GL_UNIFORM_BUFFER,ID(),  startIndex * sizeof(T), count * sizeof(T), data != nullptr ? data : NULL);
         }
 
-        void BindingPoint(unsigned int index)
+        void SetBindingPoint(unsigned int index)
         {
-            glBindBufferBase(GL_UNIFORM_BUFFER, index, OGLResource::ID());
+            OglBuffer::SetBindingPoint(GL_UNIFORM_BUFFER, ID(), index);
         }
 
     private:
-        UBOType _type;
+        Usage _type;
     };
 
+    
     class VertexAttribArray : public OGLResource
     {
 

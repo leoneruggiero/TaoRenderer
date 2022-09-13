@@ -22,6 +22,7 @@
 #include "Scene.h"
 
 
+#define GFX_SHADER_DEBUG_VIZ 
 
 #if GFX_STOPWATCH
     #include "Diagnostics.h"
@@ -1402,7 +1403,7 @@ std::map<std::string, std::shared_ptr<ShaderBase>> InitializePostProcessingShade
 void BindUBOs(std::vector<UniformBufferObject>& uboCollection)
 {
     for (int i = 0; i <= UBOBinding::AmbientOcclusion; i++)
-        uboCollection.at(i).BindingPoint(static_cast<UBOBinding>(i));
+        uboCollection.at(i).SetBindingPoint(static_cast<UBOBinding>(i));
 }
 void FreeUBOs(std::vector<UniformBufferObject>& uboCollection)
 {
@@ -1926,9 +1927,16 @@ int main()
     // ----------------------
     std::vector<UniformBufferObject> sceneUniformBuffers{};
     for (int i = 0; i <= UBOBinding::AmbientOcclusion; i++)
-        sceneUniformBuffers.push_back(std::move(UniformBufferObject(UniformBufferObject::UBOType::StaticDraw)));
+        sceneUniformBuffers.push_back(std::move(UniformBufferObject(OglBuffer::Usage::StaticDraw)));
     
     BindUBOs(sceneUniformBuffers);
+
+#ifdef GFX_DEBUG_SHADER_VIZ
+
+
+
+#endif
+
 
     // This should (does it?) be computed at each startup, since it should (does it?) 
     // be kept in sync with the PBR shaders
