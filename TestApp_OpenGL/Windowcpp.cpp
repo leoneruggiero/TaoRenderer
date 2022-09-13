@@ -1786,8 +1786,8 @@ int main()
         5, 4, 7,
     };
 
-    VertexBufferObject envCube_vbo = VertexBufferObject(VertexBufferObject::VBOType::StaticDraw);
-    IndexBufferObject envCube_ebo = IndexBufferObject(IndexBufferObject::EBOType::StaticDraw);
+    VertexBufferObject envCube_vbo = VertexBufferObject(Usage::StaticDraw);
+    IndexBufferObject envCube_ebo = IndexBufferObject(Usage::StaticDraw);
     VertexAttribArray envCube_vao = VertexAttribArray();
     envCube_vbo.SetData(24, flatten3(vertices).data());
     envCube_ebo.SetData(36, indices.data());

@@ -1960,6 +1960,7 @@ enum class OGLResourceType
     VERTEX_ATTRIB_ARRAY,
     INDEX_BUFFER,
     UNIFORM_BUFFER,
+    SHADER_STORAGE_BUFFER,
     TEXTURE,
     FRAMEBUFFER
 };
@@ -2181,6 +2182,28 @@ namespace OGLResources
             StreamDraw
         };
 
+
+        GLenum ResolveUsage(Usage usage)
+        {
+            switch (usage)
+            {
+            case(Usage::StaticDraw):
+                return GL_STATIC_DRAW;
+                break;
+
+            case(Usage::DynamicDraw):
+                return GL_DYNAMIC_DRAW;
+                break;
+
+            case(Usage::StreamDraw):
+                GL_STREAM_DRAW;
+                break;
+            default:
+                return -1;
+                break;
+            }
+        }
+
         void Bind(unsigned int target, unsigned int id)
         {
             glBindBuffer(target, id);
@@ -2329,6 +2352,7 @@ namespace OGLResources
             case (OGLResourceType::VERTEX_BUFFER_OBJECT):
             case (OGLResourceType::INDEX_BUFFER):
             case (OGLResourceType::UNIFORM_BUFFER):
+            case (OGLResourceType::SHADER_STORAGE_BUFFER):
                 if (!destroy)
                     glGenBuffers(1, &_id);
                 else
@@ -2423,6 +2447,10 @@ namespace OGLResources
                 return "UNIFORM_BUFFER";
                 break;
 
+            case (OGLResourceType::SHADER_STORAGE_BUFFER):
+                return "SHADER_STORAGE_BUFFER";
+                break;
+
             case(OGLResourceType::VERTEX_ATTRIB_ARRAY):
                 return "VERTEX_ATTRIB_ARRAY";
                 break;
@@ -2443,18 +2471,11 @@ namespace OGLResources
 
     class VertexBufferObject : public OGLResource
     {
-    public:
-        enum class VBOType
-        {
-            Undefined,
-            StaticDraw,
-            DynamicDraw,
-            StreamDraw
-        };
+   
 
     public:
 
-        VertexBufferObject(VBOType type) : _type(type)
+        VertexBufferObject(Usage type) : _type(type)
         {
             OGLResource::Create(OGLResourceType::VERTEX_BUFFER_OBJECT);
         }
@@ -2462,7 +2483,7 @@ namespace OGLResources
         VertexBufferObject(VertexBufferObject&& other) noexcept : OGLResource(std::move(other))
         {
             this->_type = other._type;
-            other._type = VBOType::Undefined;
+            other._type = Usage::Undefined;
         };
 
         VertexBufferObject& operator=(VertexBufferObject&& other) noexcept
@@ -2471,7 +2492,7 @@ namespace OGLResources
             {
                 OGLResource::operator=(std::move(other));
                 this->_type = other._type;
-                other._type = VBOType::Undefined;
+                other._type = Usage::Undefined;
             }
             return *this;
         };
@@ -2481,27 +2502,7 @@ namespace OGLResources
             OGLResource::Destroy();
         }
 
-        GLenum ResolveUsage(VBOType type)
-        {
-            switch (type)
-            {
-            case(VBOType::StaticDraw):
-                return GL_STATIC_DRAW;
-                break;
-
-            case(VBOType::DynamicDraw):
-                return GL_DYNAMIC_DRAW;
-                break;
-
-            case(VBOType::StreamDraw):
-                GL_STREAM_DRAW;
-                break;
-            default:
-                return -1;
-                break;
-            }
-        }
-
+        
         void Bind()
         {
             glBindBuffer(GL_ARRAY_BUFFER, OGLResource::ID());
@@ -2534,22 +2535,14 @@ namespace OGLResources
             OGLUtils::CheckOGLErrors();
         }
     private:
-        VBOType _type;
+        Usage _type;
     };
 
     class IndexBufferObject : public OGLResource
     {
+    
     public:
-        enum class EBOType
-        {
-            Undefined,
-            StaticDraw,
-            DynamicDraw,
-            StreamDraw
-        };
-
-    public:
-        IndexBufferObject(EBOType type) : _type(type)
+        IndexBufferObject(Usage type) : _type(type)
         {
             OGLResource::Create(OGLResourceType::INDEX_BUFFER);
         }
@@ -2557,7 +2550,7 @@ namespace OGLResources
         IndexBufferObject(IndexBufferObject&& other) noexcept : OGLResource(std::move(other))
         {
             this->_type = other._type;
-            other._type = EBOType::Undefined;
+            other._type = Usage::Undefined;
         };
 
         IndexBufferObject& operator=(IndexBufferObject&& other) noexcept
@@ -2566,7 +2559,7 @@ namespace OGLResources
             {
                 OGLResource::operator=(std::move(other));
                 this->_type = other._type;
-                other._type = EBOType::Undefined;
+                other._type = Usage::Undefined;
             }
             return *this;
         };
@@ -2574,27 +2567,6 @@ namespace OGLResources
         ~IndexBufferObject()
         {
             OGLResource::Destroy();
-        }
-
-        GLenum ResolveUsage(EBOType type)
-        {
-            switch (type)
-            {
-            case(EBOType::StaticDraw):
-                return GL_STATIC_DRAW;
-                break;
-
-            case(EBOType::DynamicDraw):
-                return GL_DYNAMIC_DRAW;
-                break;
-
-            case(EBOType::StreamDraw):
-                GL_STREAM_DRAW;
-                break;
-            default:
-                return -1;
-                break;
-            }
         }
 
         void Bind()
@@ -2629,7 +2601,7 @@ namespace OGLResources
             OGLUtils::CheckOGLErrors();
         }
     private:
-        EBOType _type;
+        Usage _type;
     };
 
     class UniformBufferObject : public OGLResource
@@ -2663,26 +2635,6 @@ namespace OGLResources
             OGLResource::Destroy();
         }
 
-        GLenum ResolveUsage(Usage type)
-        {
-            switch (type)
-            {
-            case(Usage::StaticDraw):
-                return GL_STATIC_DRAW;
-                break;
-
-            case(Usage::DynamicDraw):
-                return GL_DYNAMIC_DRAW;
-                break;
-
-            case(Usage::StreamDraw):
-                GL_STREAM_DRAW;
-                break;
-            default:
-                return -1;
-                break;
-            }
-        }
 
         void Bind()
         {
@@ -2697,18 +2649,82 @@ namespace OGLResources
         template<typename T>
         void SetData(unsigned int count, const T* data)
         {   
-            OglBuffer::SetData(GL_UNIFORM_BUFFER,ID(),  count * sizeof(T), data != nullptr ? data : NULL, ResolveUsage(_type));        
+            OglBuffer::SetData(GL_UNIFORM_BUFFER,ID(),  count, data != nullptr ? data : NULL, ResolveUsage(_type));        
         }
 
         template<typename T>
         void SetSubData(unsigned int startIndex, unsigned int count, const T* data)
         {
-            OglBuffer::SetSubData(GL_UNIFORM_BUFFER,ID(),  startIndex * sizeof(T), count * sizeof(T), data != nullptr ? data : NULL);
+            OglBuffer::SetSubData(GL_UNIFORM_BUFFER,ID(),  startIndex , count , data != nullptr ? data : NULL);
         }
 
         void SetBindingPoint(unsigned int index)
         {
             OglBuffer::SetBindingPoint(GL_UNIFORM_BUFFER, ID(), index);
+        }
+
+    private:
+        Usage _type;
+    };
+
+    class ShaderStorageBufferObject : public OGLResource
+    {
+
+    public:
+        ShaderStorageBufferObject(Usage type) : _type(type)
+        {
+            OGLResource::Create(OGLResourceType::SHADER_STORAGE_BUFFER);
+        }
+
+        ShaderStorageBufferObject(ShaderStorageBufferObject&& other) noexcept : OGLResource(std::move(other))
+        {
+            this->_type = other._type;
+            other._type = Usage::Undefined;
+        };
+
+        ShaderStorageBufferObject& operator=(ShaderStorageBufferObject&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+                this->_type = other._type;
+                other._type = Usage::Undefined;
+            }
+            return *this;
+        };
+
+        ~ShaderStorageBufferObject()
+        {
+            OGLResource::Destroy();
+        }
+
+        
+
+        void Bind()
+        {
+            OglBuffer::Bind(GL_SHADER_STORAGE_BUFFER, ID());
+        }
+
+        void UnBind()
+        {
+            OglBuffer::UnBind(GL_SHADER_STORAGE_BUFFER);
+        }
+
+        template<typename T>
+        void SetData(unsigned int count, const T* data)
+        {
+            OglBuffer::SetData(GL_SHADER_STORAGE_BUFFER, ID(), count * sizeof(T), data != nullptr ? data : NULL, OglBuffer::ResolveUsage(_type));
+        }
+
+        template<typename T>
+        void SetSubData(unsigned int startIndex, unsigned int count, const T* data)
+        {
+            OglBuffer::SetSubData(GL_SHADER_STORAGE_BUFFER, ID(), startIndex * sizeof(T), count * sizeof(T), data != nullptr ? data : NULL);
+        }
+
+        void SetBindingPoint(unsigned int index)
+        {
+            OglBuffer::SetBindingPoint(GL_SHADER_STORAGE_BUFFER, ID(), index);
         }
 
     private:

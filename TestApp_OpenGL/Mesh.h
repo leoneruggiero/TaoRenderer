@@ -1214,7 +1214,7 @@ public:
     MeshRenderer(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale, Mesh mesh, MeshShader* shader, MeshShader* shaderNoShadows)
         :
         _shader(shader), _shader_noShadows(shaderNoShadows),_mesh(mesh),
-        _ebo(IndexBufferObject::EBOType::StaticDraw),
+        _ebo(Usage::StaticDraw),
         _vao()
     {
         _mesh = mesh;
@@ -1270,7 +1270,7 @@ public:
                 continue;
 
             // Filling a VBO for each attribute
-            VertexBufferObject vbo{VertexBufferObject::VBOType::StaticDraw};
+            VertexBufferObject vbo{Usage::StaticDraw};
             vbo.SetData(dataVec.size(), dataVec.data());
 
             _vao.SetAndEnableAttrib(vbo.ID(), i, ResolveNumberOfComponents((VertexInputType)i), false, 0, 0);
@@ -1424,7 +1424,7 @@ public:
 
     WiresRenderer(Wire wire, WiresShader* shader)
         :
-        _shader(shader), _wire(wire), _vao(), _vbo(VertexBufferObject::VBOType::StaticDraw)
+        _shader(shader), _wire(wire), _vao(), _vbo(Usage::StaticDraw)
     {
 
         // Model => Identity matrix
@@ -1712,7 +1712,7 @@ public:
             std::vector<std::string>{},
             std::vector<std::string>{"DEFS_TONE_MAPPING_AND_GAMMA_CORRECTION", "CALC_TONE_MAPPING_AND_GAMMA_CORRECTION"}),
         _gaussianBlurValuesTexture(),
-        _vbo(VertexBufferObject::VBOType::StaticDraw),
+        _vbo(Usage::StaticDraw),
         _vao()
     {
         // FIl VBO and VAO for the full screen quad used to trigger the fragment shader execution
