@@ -805,7 +805,13 @@ namespace FragmentSource_Geometry
 	    // blocker search
 	    float blockerDistance = FindBlockerDistance_DirectionalLight(shadowCoords, shadowMap, uvLightSize);
 	    if (blockerDistance == -1)
-		    return 1.0;		
+		    return 1.0;
+
+#ifdef DEBUG_VIZ
+        if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
+            DViz_DrawCone(fs_in.fragPosWorld, -lights.Directional.Direction * blockerDistance, blockerDistance, vec4 (1.0, 0.0, 0.0, 1.0));
+
+        #endif		
 
 	    // penumbra estimation
 	    float penumbraWidth =  uvLightSize ; //(shadowCoords.z - blockerDistance) / blockerDistance;
@@ -981,6 +987,7 @@ namespace FragmentSource_Geometry
 
     const std::string CALC_LIT_MAT =
         R"(
+
         vec4 diffuseColor = 
             material.hasAlbedo 
             ? vec4(texture(Albedo, fs_in.textureCoordinates).rgb, 1.0)
@@ -1021,6 +1028,7 @@ namespace FragmentSource_Geometry
             vec3 lightVec = fs_in.fragPosWorld - lights.Points[i].Position;
             Li = lights.Points[i].Color.rgb *  lights.Points[i].Color.a * GetDistanceAtt(lightVec, lights.Points[i].InvSqrRadius) * shadow_point[i];
             direct += ComputeDirectIllumination(Li, normalize(lightVec), viewDir, worldNormal, roughness, metallic, diffuseColor.rgb);
+
         }
 
         // Indirect diffuse
@@ -1083,9 +1091,52 @@ namespace FragmentSource_Geometry
         ambient*= 1.0-aoFac;
 )";
 
+
+
+    const std::string DEFS_DEBUG_VIZ =
+        R"(
+
+        #define DEBUG_VIZ
+        #define DEBUG_VIZ_CONE 0
+
+        struct debugVizItem
+        {
+            uvec4 u4Data;
+            vec4  f4Data0;
+            vec4  f4Data1;
+            vec4  f4Data2;
+        };
+        
+        layout (std140, binding=0) buffer buff_debugFeedback
+        {
+            uvec4 uDebug_viewport;
+            uvec4 uDebug_mouse;
+            uvec4 uDebug_cnt;
+            debugVizItem uDebug_VizItems[];
+        };
+
+        void DViz_DrawCone(vec3 start, vec3 direction, float radius, vec4 color)
+        {
+            if(uDebug_cnt.x < uDebug_VizItems.length()-1)
+            {
+                atomicAdd(uDebug_cnt.x, 1);
+
+                uDebug_VizItems[uDebug_cnt.x].u4Data.x  = uDebug_VizItems.length();
+                uDebug_VizItems[uDebug_cnt.x].u4Data.y  = uDebug_cnt.x;
+                uDebug_VizItems[uDebug_cnt.x].f4Data0   = vec4(start, 0.0);
+                uDebug_VizItems[uDebug_cnt.x].f4Data1   = vec4(direction, radius);
+                uDebug_VizItems[uDebug_cnt.x].f4Data2   = color;
+            }
+           
+        }
+
+)";
+
+
+
     const std::string EXP_FRAGMENT =
     R"(
-    #version 330 core
+    #version 430 core
     
     #ifndef MAX_POINT_LIGHTS
     #define MAX_POINT_LIGHTS 3
@@ -1102,6 +1153,7 @@ namespace FragmentSource_Geometry
 
     out vec4 FragColor;
     
+    //[DEFS_DEBUG_VIZ]
     //[DEFS_MATERIAL] 
     //[DEFS_LIGHTS]
     //[DEFS_SHADOWS]
@@ -1138,7 +1190,8 @@ namespace FragmentSource_Geometry
         { "CALC_SHADOWS",   FragmentSource_Geometry::CALC_SHADOWS      },
         { "CALC_SSAO",      FragmentSource_Geometry::CALC_SSAO         },
         { "DEFS_NORMALS",   FragmentSource_Geometry::DEFS_NORMALS      },
-        { "CALC_NORMALS",   FragmentSource_Geometry::CALC_NORMALS      }
+        { "CALC_NORMALS",   FragmentSource_Geometry::CALC_NORMALS      },
+        { "DEFS_DEBUG_VIZ", FragmentSource_Geometry::DEFS_DEBUG_VIZ    }
     };
 
     std::string Expand(std::string source, std::vector<std::string> expStrings)
@@ -2179,7 +2232,10 @@ namespace OGLResources
             Undefined,
             StaticDraw,
             DynamicDraw,
-            StreamDraw
+            StreamDraw,
+            StaticRead,
+            DynamicRead,
+            StreamRead
         };
 
 
@@ -2187,17 +2243,12 @@ namespace OGLResources
         {
             switch (usage)
             {
-            case(Usage::StaticDraw):
-                return GL_STATIC_DRAW;
-                break;
-
-            case(Usage::DynamicDraw):
-                return GL_DYNAMIC_DRAW;
-                break;
-
-            case(Usage::StreamDraw):
-                GL_STREAM_DRAW;
-                break;
+            case(Usage::StaticDraw):  return GL_STATIC_DRAW;  break;
+            case(Usage::DynamicDraw): return GL_DYNAMIC_DRAW; break;
+            case(Usage::StreamDraw):  return GL_STREAM_DRAW;  break;
+            case(Usage::StaticRead):  return GL_STATIC_READ;  break;
+            case(Usage::DynamicRead): return GL_DYNAMIC_READ; break;
+            case(Usage::StreamRead):  return GL_STREAM_READ;  break;
             default:
                 return -1;
                 break;
@@ -2235,6 +2286,19 @@ namespace OGLResources
 
             Bind(target, id);
             glBufferSubData(target, startIndex * sizeof(T), count * sizeof(T), data != nullptr ? data : NULL);
+            UnBind(target);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        template<typename T>
+        void ReadData(unsigned int target, unsigned int id, unsigned int startIndex, unsigned int count, T *destination)
+        {
+            OGLUtils::CheckOGLErrors();
+
+            Bind(target, id);
+            memcpy(destination, (T*) glMapBufferRange(target, startIndex * sizeof(T), count * sizeof(T), GL_MAP_READ_BIT), count * sizeof(T));
+            glUnmapBuffer(target);
             UnBind(target);
 
             OGLUtils::CheckOGLErrors();
@@ -2698,8 +2762,6 @@ namespace OGLResources
             OGLResource::Destroy();
         }
 
-        
-
         void Bind()
         {
             OglBuffer::Bind(GL_SHADER_STORAGE_BUFFER, ID());
@@ -2713,18 +2775,24 @@ namespace OGLResources
         template<typename T>
         void SetData(unsigned int count, const T* data)
         {
-            OglBuffer::SetData(GL_SHADER_STORAGE_BUFFER, ID(), count * sizeof(T), data != nullptr ? data : NULL, OglBuffer::ResolveUsage(_type));
+            OglBuffer::SetData(GL_SHADER_STORAGE_BUFFER, ID(), count , data != nullptr ? data : NULL, OglBuffer::ResolveUsage(_type));
         }
 
         template<typename T>
         void SetSubData(unsigned int startIndex, unsigned int count, const T* data)
         {
-            OglBuffer::SetSubData(GL_SHADER_STORAGE_BUFFER, ID(), startIndex * sizeof(T), count * sizeof(T), data != nullptr ? data : NULL);
+            OglBuffer::SetSubData(GL_SHADER_STORAGE_BUFFER, ID(), startIndex , count , data != nullptr ? data : NULL);
         }
 
         void SetBindingPoint(unsigned int index)
         {
             OglBuffer::SetBindingPoint(GL_SHADER_STORAGE_BUFFER, ID(), index);
+        }
+
+        template<typename T>
+        void ReadData(unsigned int startIndex, unsigned int count, T* destination)
+        {
+            OglBuffer::ReadData(GL_SHADER_STORAGE_BUFFER, ID(), startIndex, count, destination);
         }
 
     private:

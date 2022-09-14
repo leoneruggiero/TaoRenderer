@@ -41,6 +41,7 @@ const int SSAO_BLUR_MAX_RADIUS = 16;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
+void DrawShaderDebugViz(OGLResources::ShaderStorageBufferObject& debugSsbo, MeshRenderer& lightMesh);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_scroll_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
@@ -1155,7 +1156,7 @@ void SetupScene(
     //LoadScene_CubicBezier(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    //LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, 0.0f);
+    LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, 0.0f);
     LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
@@ -1250,6 +1251,9 @@ std::map<std::string, std::shared_ptr<MeshShader>> InitializeMeshShaders()
             ),
         std::vector<std::string>(
             {
+#ifdef GFX_SHADER_DEBUG_VIZ
+            "DEFS_DEBUG_VIZ",
+#endif
             "DEFS_LIGHTS",
             "DEFS_MATERIAL",
             "DEFS_SHADOWS",
@@ -1267,6 +1271,9 @@ std::map<std::string, std::shared_ptr<MeshShader>> InitializeMeshShaders()
             ),
         std::vector<std::string>(
             {
+#ifdef GFX_SHADER_DEBUG_VIZ
+            "DEFS_DEBUG_VIZ",
+#endif
             "DEFS_LIGHTS",
             "DEFS_MATERIAL",
             "DEFS_SHADOWS",
@@ -1687,6 +1694,58 @@ void AmbienOcclusionPass(
 #endif
 }
 
+void DrawShaderDebugViz(OGLResources::ShaderStorageBufferObject& debugSsbo, const std::map<std::string, std::shared_ptr<MeshShader>>& shaders)
+{
+    unsigned int viewport[4];
+    unsigned int mouse[4];
+    unsigned int counter[4];
+
+    debugSsbo.ReadData(0, 4, &viewport[0]);
+    debugSsbo.ReadData(4, 4, &mouse[0]);
+    debugSsbo.ReadData(8, 4, &counter[0]);
+
+    if (counter[0] > 0)
+    {
+        Mesh coneMesh = Mesh::Cone(1.0f, 1.0f, 16);
+
+
+        MeshRenderer coneRenderer = MeshRenderer(coneMesh, shaders.at("UNLIT").get(), shaders.at("UNLIT").get());
+        
+
+        for (int i = 0; i < counter[0]; i++)
+        {
+            glm::uvec4 uData;
+            glm::vec3 start;
+            glm::vec3 direction;
+            float radius;
+            glm::vec4 color;
+
+            debugSsbo.ReadData(12 + (i * 16)            , 4, glm::value_ptr(uData));
+            debugSsbo.ReadData(12 + (i * 16) + 4        , 3, glm::value_ptr(start));
+            debugSsbo.ReadData(12 + (i * 16) + 4 + 4    , 3, glm::value_ptr(direction));
+            debugSsbo.ReadData(12 + (i * 16) + 4 + 4 + 3, 1, &radius);
+            debugSsbo.ReadData(12 + (i * 16) + 4 + 4 + 4, 4, glm::value_ptr(color));
+
+            glm::quat quat = glm::quat(glm::vec3(0.0f, 0.0f, 1.0f), glm::normalize(direction));
+
+            glm::mat4 tr = glm::mat4(1.0f);
+
+            tr = glm::translate(tr, start);
+            tr = glm::rotate(tr, glm::angle(quat), glm::axis(quat));
+            tr = glm::scale(tr, glm::vec3(radius, radius, direction.length()));
+          
+            tr = glm::translate(tr, glm::vec3(0.0f, 0.0f, 1.0f));
+            tr = glm::rotate(tr, glm::pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+
+            coneRenderer.SetMaterial(Material{ color, 0.8f, 0.0f });
+            coneRenderer.SetTransformation(tr);
+            coneRenderer.Draw(camera.CameraOrigin, sceneParams);
+        }
+
+        coneRenderer.~MeshRenderer();
+    }
+}
+
 int main()
 {
     glfwInit();
@@ -1931,10 +1990,12 @@ int main()
     
     BindUBOs(sceneUniformBuffers);
 
-#ifdef GFX_DEBUG_SHADER_VIZ
+#ifdef GFX_SHADER_DEBUG_VIZ
 
-
-
+    ShaderStorageBufferObject debugSsbo = ShaderStorageBufferObject(Usage::DynamicRead);
+    debugSsbo.SetData<float>(12 + 16*10, NULL);
+    debugSsbo.SetBindingPoint(SSBOBinding::Debug);
+    
 #endif
 
 
@@ -1966,6 +2027,18 @@ int main()
         }
 
         glfwGetFramebufferSize(window, &sceneParams.viewportWidth, &sceneParams.viewportHeight);
+
+
+#ifdef GFX_SHADER_DEBUG_VIZ
+        
+        unsigned int w = (unsigned int)sceneParams.viewportWidth;
+        unsigned int h = (unsigned int)sceneParams.viewportHeight;
+        debugSsbo.SetSubData(0, 4,  glm::value_ptr(glm::uvec4(w, h, 0, 0)));
+        debugSsbo.SetSubData(4, 8,  glm::value_ptr(glm::uvec4((unsigned int)lastX, h - (unsigned int)lastY, 0, 0)));
+        debugSsbo.SetSubData(8, 12, glm::value_ptr(glm::uvec4(0, 0, 0, 0)));
+
+#endif
+
 
         // SHADOW PASS ////////////////////////////////////////////////////////////////////////////////////////////////////
         
@@ -2122,6 +2195,12 @@ int main()
         if (showAO)
             ssaoFBO.CopyToOtherFbo(nullptr, true, 10, false, glm::vec2(0.0, 0.0), glm::vec2(sceneParams.viewportWidth, sceneParams.viewportHeight));
 
+
+#ifdef GFX_SHADER_DEBUG_VIZ
+        DrawShaderDebugViz(debugSsbo, MeshShaders);
+
+#endif
+
         // WINDOW /////////////////////////////////////////////////////////////////////////////////////////////////////
         if (showWindow)
         {
@@ -2169,6 +2248,9 @@ int main()
     envCube_ebo.~IndexBufferObject();
     envCube_vbo.~VertexBufferObject();
     envCube_vao.~VertexAttribArray();
+#ifdef GFX_SHADER_DEBUG_VIZ
+    debugSsbo.~ShaderStorageBufferObject();
+#endif
     sceneParams.environment.~Environment();
     //gaussianKernelValuesTexture.~OGLTexture2D();
     postProcessingUnit.~PostProcessingUnit();

@@ -5,6 +5,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
+#define GFX_SHADER_DEBUG_VIZ
+
 enum class AOType
 {
 	SSAO,
@@ -21,6 +23,13 @@ enum UBOBinding
 	Shadows = 2,
 	AmbientOcclusion = 3
 };
+
+#ifdef GFX_SHADER_DEBUG_VIZ
+enum SSBOBinding
+{
+	Debug = 0
+};
+#endif
 
 enum TextureBinding
 {
