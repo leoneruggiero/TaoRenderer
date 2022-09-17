@@ -41,7 +41,6 @@ const int SSAO_BLUR_MAX_RADIUS = 16;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
-void DrawShaderDebugViz(OGLResources::ShaderStorageBufferObject& debugSsbo, MeshRenderer& lightMesh);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_scroll_callback(GLFWwindow* window, double xpos, double ypos);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
@@ -268,35 +267,35 @@ void ShowImGUIWindow()
 
 void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>> *shadersCollection)
 {
-    Mesh boxMesh = Mesh::Box(1, 1, 1);
+    Mesh boxMesh = Mesh::Box(1, 1, 5);
     sceneMeshCollection.AddToCollection(
         std::make_shared<MeshRenderer>(glm::vec3(0, 0, 2), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1),boxMesh, 
             (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
             (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::Copper));
     
     
-    Mesh coneMesh = Mesh::Cone(0.8, 1.6, 16);
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(1, 2, 1), 1.5, glm::vec3(0, -1, 1), glm::vec3(1, 1, 1), coneMesh,
+    Mesh coneMesh = Mesh::Cone(0.8, 2.6, 16);
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(2, 3, 1), 1.5, glm::vec3(0, -1, 1), glm::vec3(1, 1, 1), coneMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
     
     
-    Mesh cylMesh = Mesh::Cylinder(0.6, 1.6, 16);
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-1, -0.5, 1), 1.1, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), cylMesh,
+    Mesh cylMesh = Mesh::Cylinder(0.6, 3.6, 16);
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-3, -1.5, 1), 1.1, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), cylMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PlasticGreen));
 
     Mesh sphereMesh = Mesh::Sphere(1.0, 32);
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-1, -1.5, 1.2),0.0, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), sphereMesh,
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-2, 1.5, 1.8),0.0, glm::vec3(0, 1, 1), glm::vec3(1, 1, 1), sphereMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PlasticGreen));
+        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PureWhite));
 
   
     
-    Mesh planeMesh = Mesh::Box(1, 1, 1);
+    /*Mesh planeMesh = Mesh::Box(1, 1, 1);
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-4, -4, -0.25), 0.0, glm::vec3(0, 0, 1), glm::vec3(8, 8, 0.25), planeMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
+        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));*/
 
     
 }
@@ -1156,8 +1155,8 @@ void SetupScene(
     //LoadScene_CubicBezier(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, 0.0f);
-    LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
+    LoadPlane(sceneMeshCollection, meshShadersCollection, 10.0, 0.5f);
+    //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
@@ -1176,7 +1175,7 @@ void SetupScene(
     //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_Primitives(sceneMeshCollection, shadersCollection);
+    LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1460,19 +1459,20 @@ void UpdateLightsUBO(UniformBufferObject& ubo, SceneLights& lights, Camera& came
 
 void UpdateShadowsUBO(UniformBufferObject& ubo, SceneLights& lights)
 {
-    ubo.SetData<float>(46, NULL);
+    ubo.SetData<float>(62, NULL);
 
     ubo.SetSubData(0, 16, glm::value_ptr(lights.Directional.LightSpaceMatrix));
-    ubo.SetSubData(16, 1, &lights.Directional.Bias);
-    ubo.SetSubData(17, 1, &lights.Directional.SlopeBias);
-    ubo.SetSubData(20, 1, &lights.Points[0].Bias);
-    ubo.SetSubData(24, 1, &lights.Points[1].Bias);
-    ubo.SetSubData(28, 1, &lights.Points[2].Bias);
-    ubo.SetSubData(32, 1, &lights.Points[0].SlopeBias);
-    ubo.SetSubData(36, 1, &lights.Points[1].SlopeBias);
-    ubo.SetSubData(40, 1, &lights.Points[2].SlopeBias);
-    ubo.SetSubData(44, 1, &lights.Directional.Softness);
-    ubo.SetSubData(45, 1, &lights.Directional.ShadowMapToWorld);
+    ubo.SetSubData(16, 16, glm::value_ptr(glm::inverse(lights.Directional.LightSpaceMatrix)));
+    ubo.SetSubData(32, 1, &lights.Directional.Bias);
+    ubo.SetSubData(33, 1, &lights.Directional.SlopeBias);
+    ubo.SetSubData(36, 1, &lights.Points[0].Bias);
+    ubo.SetSubData(40, 1, &lights.Points[1].Bias);
+    ubo.SetSubData(44, 1, &lights.Points[2].Bias);
+    ubo.SetSubData(48, 1, &lights.Points[0].SlopeBias);
+    ubo.SetSubData(52, 1, &lights.Points[1].SlopeBias);
+    ubo.SetSubData(56, 1, &lights.Points[2].SlopeBias);
+    ubo.SetSubData(60, 1, &lights.Directional.Softness);
+    ubo.SetSubData(61, 1, &lights.Directional.ShadowMapToWorld);
 }
 
 void UpdateAoUBO(UniformBufferObject& ubo, SceneLights& lights)
@@ -1694,7 +1694,62 @@ void AmbienOcclusionPass(
 #endif
 }
 
-void DrawShaderDebugViz(OGLResources::ShaderStorageBufferObject& debugSsbo, const std::map<std::string, std::shared_ptr<MeshShader>>& shaders)
+#ifdef GFX_SHADER_DEBUG_VIZ
+
+glm::mat4 GetTransformation(glm::uvec4 uData, glm::vec4 f4Data0, glm::vec4 f4Data1, glm::vec4 f4Data2)
+{
+    
+    glm::mat4 tr = glm::mat4(1.0f);
+
+    switch (uData.x)
+    {
+    case(0): // Cone
+    {
+        glm::vec3 start = glm::vec3(f4Data0.x, f4Data0.y, f4Data0.z);
+        glm::vec3 direction = glm::vec3(f4Data1.x, f4Data1.y, f4Data1.z);
+        float radius = f4Data1.w;
+
+        glm::quat quat = glm::quat(glm::vec3(0.0f, 0.0f, 1.0f), glm::normalize(direction));
+        tr = glm::translate(tr, start);
+        tr = glm::rotate(tr, glm::angle(quat), glm::axis(quat));
+        tr = glm::scale(tr, glm::vec3(radius, radius, glm::length(direction)));
+        break;
+    }
+    case(1): // Sphere
+
+        break;
+
+    case(2): // Point
+
+        break;
+
+    case(3): // Line
+    {
+        glm::vec3 start = glm::vec3(f4Data0.x, f4Data0.y, f4Data0.z);
+        glm::vec3 end = glm::vec3(f4Data1.x, f4Data1.y, f4Data1.z);
+        
+        glm::quat quat = glm::quat(glm::vec3(0.0f, 0.0f, 1.0f), glm::normalize(end - start));
+        tr = glm::translate(tr, start);
+        tr = glm::rotate(tr, glm::angle(quat), glm::axis(quat));
+        tr = glm::scale(tr, glm::vec3(glm::length(end - start)));
+    }
+        break;
+
+    default:
+        throw "SHADER_DEBUG_VIZ: invalid enum.";
+        return glm::mat4(1.0f);
+        break;
+    }
+
+    return tr;
+}
+
+void DrawShaderDebugViz(
+    OGLResources::ShaderStorageBufferObject& debugSsbo, 
+     MeshRenderer& debugConeRenderer,
+     MeshRenderer& debugSphereRenderer,
+     WiresRenderer& debugPointRenderer,
+     WiresRenderer& debugLineRenderer)
 {
     unsigned int viewport[4];
     unsigned int mouse[4];
@@ -1706,44 +1761,157 @@ void DrawShaderDebugViz(OGLResources::ShaderStorageBufferObject& debugSsbo, cons
 
     if (counter[0] > 0)
     {
-        Mesh coneMesh = Mesh::Cone(1.0f, 1.0f, 16);
-
-
-        MeshRenderer coneRenderer = MeshRenderer(coneMesh, shaders.at("UNLIT").get(), shaders.at("UNLIT").get());
         
-
         for (int i = 0; i < counter[0]; i++)
         {
             glm::uvec4 uData;
-            glm::vec3 start;
-            glm::vec3 direction;
-            float radius;
-            glm::vec4 color;
+            glm::vec4 
+                f4Data0, 
+                f4Data1, 
+                f4Data2;
 
             debugSsbo.ReadData(12 + (i * 16)            , 4, glm::value_ptr(uData));
-            debugSsbo.ReadData(12 + (i * 16) + 4        , 3, glm::value_ptr(start));
-            debugSsbo.ReadData(12 + (i * 16) + 4 + 4    , 3, glm::value_ptr(direction));
-            debugSsbo.ReadData(12 + (i * 16) + 4 + 4 + 3, 1, &radius);
-            debugSsbo.ReadData(12 + (i * 16) + 4 + 4 + 4, 4, glm::value_ptr(color));
+            debugSsbo.ReadData(12 + (i * 16) + 4        , 4, glm::value_ptr(f4Data0));
+            debugSsbo.ReadData(12 + (i * 16) + 4 + 4    , 4, glm::value_ptr(f4Data1));
+            debugSsbo.ReadData(12 + (i * 16) + 4 + 4 + 4, 4, glm::value_ptr(f4Data2));
 
-            glm::quat quat = glm::quat(glm::vec3(0.0f, 0.0f, 1.0f), glm::normalize(direction));
+            glm::mat4 transformation = GetTransformation(uData, f4Data0, f4Data1, f4Data2);
 
-            glm::mat4 tr = glm::mat4(1.0f);
+            switch (uData.x)
+            {
+            case(0): // Cone
 
-            tr = glm::translate(tr, start);
-            tr = glm::rotate(tr, glm::angle(quat), glm::axis(quat));
-            tr = glm::scale(tr, glm::vec3(radius, radius, direction.length()));
-          
-            tr = glm::translate(tr, glm::vec3(0.0f, 0.0f, 1.0f));
-            tr = glm::rotate(tr, glm::pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+                debugConeRenderer.SetMaterial(Material{ f4Data2, 0.8f, 0.0f });
+                debugConeRenderer.SetTransformation(transformation);
+                debugConeRenderer.Draw(camera.CameraOrigin, sceneParams);
+                break;
 
-            coneRenderer.SetMaterial(Material{ color, 0.8f, 0.0f });
-            coneRenderer.SetTransformation(tr);
-            coneRenderer.Draw(camera.CameraOrigin, sceneParams);
+            case(1): // Sphere
+
+                break;
+
+            case(2): // Point
+
+                break;
+
+            case(3): // Line
+                debugLineRenderer.SetColor(f4Data2);
+                debugLineRenderer.SetTransformation(transformation);
+                debugLineRenderer.Draw(camera.CameraOrigin, sceneParams);
+                break;
+            }
+
+        
         }
 
-        coneRenderer.~MeshRenderer();
     }
+}
+
+#endif
+
+void DrawExtraScene(std::vector<OGLResources::UniformBufferObject>& sceneUniformBuffers, SceneMeshCollection& extraSceneMeshCollection, bool before)
+{
+    
+    float extraN;
+    float extraF;
+    
+    float newNear;
+    float newFar;
+
+    Utils::GetTightNearFar(
+        extraSceneMeshCollection.GetSceneBBPoints(), sceneParams.viewMatrix, 0.1f, extraN, extraF
+    );
+
+    glm::mat4 gridProjAfterScene;
+
+    if (before)
+    {
+        newNear = sceneParams.cameraFar;
+        newFar = glm::max(sceneParams.cameraFar, extraF);
+        gridProjAfterScene =
+            glm::perspective(glm::radians(fov), sceneParams.viewportWidth / (float)sceneParams.viewportHeight,
+                newNear, newFar);
+
+        UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams.viewMatrix, gridProjAfterScene, newNear, newFar);
+
+
+        glDepthMask(GL_FALSE);
+
+        for (int i = 0; i < extraSceneMeshCollection.size(); i++)
+        {
+            extraSceneMeshCollection.at(i).get()->Draw(camera.Position, sceneParams);
+        }
+
+        glDepthMask(GL_TRUE);
+    }
+    else
+    {
+        
+        UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams.viewMatrix, sceneParams.projectionMatrix, sceneParams.cameraNear, sceneParams.cameraFar);
+
+        glDepthMask(GL_FALSE);
+
+
+        // Draw with depth test LESS
+        for (int i = 0; i < extraSceneMeshCollection.size(); i++)
+        {
+            extraSceneMeshCollection.at(i).get()->Draw(camera.Position, sceneParams);
+        }
+
+        newNear = glm::min(sceneParams.cameraNear, glm::max(0.0f, extraN));
+        newFar = sceneParams.cameraNear;
+
+        gridProjAfterScene =
+            glm::perspective(glm::radians(fov), sceneParams.viewportWidth / (float)sceneParams.viewportHeight,
+                newNear, newFar);
+
+        UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams.viewMatrix, gridProjAfterScene, newNear, newFar);
+
+        glDisable(GL_DEPTH_TEST);
+
+        for (int i = 0; i < extraSceneMeshCollection.size(); i++)
+        {
+            extraSceneMeshCollection.at(i).get()->Draw(camera.Position, sceneParams);
+        }
+
+        glEnable(GL_DEPTH_TEST);
+
+
+
+        // Draw with depth test GREATER and blending
+        glDepthFunc(GL_GEQUAL);
+        glDepthRange(1.0f, 1.0f);
+        glEnable(GL_BLEND);
+        glBlendColor(1.0f, 1.0f, 1.0f, 0.1f);
+        glBlendFunc(GL_CONSTANT_ALPHA, GL_ONE_MINUS_CONSTANT_ALPHA);
+
+        int prevLineWidth = sceneParams.lineWidth;
+        sceneParams.lineWidth /= 2;
+
+        newNear = glm::min(sceneParams.cameraNear, glm::max(0.0f, extraN));
+        newFar = glm::max(sceneParams.cameraFar, extraF);
+        gridProjAfterScene =
+            glm::perspective(glm::radians(fov), sceneParams.viewportWidth / (float)sceneParams.viewportHeight,
+                newNear, newFar);
+        UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams.viewMatrix, gridProjAfterScene, newNear, newFar);
+
+        for (int i = 0; i < extraSceneMeshCollection.size(); i++)
+        {
+            extraSceneMeshCollection.at(i).get()->Draw(camera.Position, sceneParams);
+        }
+
+        sceneParams.lineWidth = prevLineWidth;
+
+        glDisable(GL_BLEND);
+        glDepthFunc(GL_LEQUAL);
+        glDepthRange(0.0f, 1.0f);
+        glDepthMask(GL_TRUE);
+    }
+
+
+    UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams);
+
+    
 }
 
 int main()
@@ -1856,9 +2024,9 @@ int main()
     ShaderBase environmentShader = ShaderBase(VertexSource_Environment::EXP_VERTEX, FragmentSource_Environment::EXP_FRAGMENT);
     
     // Initial skybox default params
-    sceneParams.environment.NorthColor = glm::vec3(0.8, 0.8, 0.8);
-    sceneParams.environment.EquatorColor = glm::vec3(0.5, 0.5, 0.5);
-    sceneParams.environment.SouthColor = glm::vec3(0.2, 0.2, 0.2);
+    sceneParams.environment.NorthColor   = glm::vec3(198 / 255.0f, 233 / 255.0f, 238 / 255.0f);
+    sceneParams.environment.EquatorColor = glm::vec3(136 / 255.0f, 153 / 255.0f, 186 / 255.0f);
+    sceneParams.environment.SouthColor   = glm::vec3( 69 / 255.0f,  91 / 255.0f, 135 / 255.0f);
 
 
     // Setup Scene
@@ -1891,6 +2059,10 @@ int main()
         WiresRenderer(glm::vec3(0, 0, 0), 0.0f, glm::vec3(1, 1, 1), glm::vec3(1, 1, 1), bbWire,
             WiresShaders.at("LINES").get(), glm::vec4(1.0, 0.0, 1.0, 1.0));
 
+    SceneMeshCollection extraSceneMeshCollection;
+    extraSceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(grid)));
+
+
     bool showWindow = true;
 
     //Setup Dear ImGui context
@@ -1917,14 +2089,14 @@ int main()
     sceneParams.sceneLights.Ambient.aoSamples = 8;
     sceneParams.sceneLights.Ambient.aoSteps = 8;
     sceneParams.sceneLights.Ambient.aoBlurAmount = 3;
-    sceneParams.sceneLights.Directional.Direction = glm::vec3(0.9, 0.9, -0.9);
+    sceneParams.sceneLights.Directional.Direction = glm::vec3(0.9, -0.5, -0.9);
     sceneParams.sceneLights.Directional.Diffuse = glm::vec4(1.0, 1.0, 1.0, 0.75);
     sceneParams.sceneLights.Directional.Specular = glm::vec4(1.0, 1.0, 1.0, 0.75);
     sceneParams.sceneLights.Directional.Bias = 0.002f;
     sceneParams.sceneLights.Directional.SlopeBias = 0.015f;
-    sceneParams.sceneLights.Directional.Softness = 0.01f;
+    sceneParams.sceneLights.Directional.Softness = 0.02f;
     
-    sceneParams.sceneLights.Points[0] = PointLight(glm::vec4(1.0, 0.9, 0.9, 15.0), glm::vec3( 2.0, 0.0, 5.0));
+    //sceneParams.sceneLights.Points[0] = PointLight(glm::vec4(1.0, 0.9, 0.9, 15.0), glm::vec3( 2.0, 0.0, 5.0));
     //sceneParams.sceneLights.Points[1] = PointLight(glm::vec4(1.0, 0.0, 0.0, 12.0), glm::vec3(1.0, 1.0, 3.0));
     //sceneParams.sceneLights.Points[2] = PointLight(glm::vec4(0.0, 0.0, 1.0, 12.0), glm::vec3(-1.0, 1.0, 3.0));
    
@@ -1995,6 +2167,16 @@ int main()
     ShaderStorageBufferObject debugSsbo = ShaderStorageBufferObject(Usage::DynamicRead);
     debugSsbo.SetData<float>(12 + 16*10, NULL);
     debugSsbo.SetBindingPoint(SSBOBinding::Debug);
+
+    Mesh debugConeMesh   = Mesh::Cone(1.0f, 1.0f, 16);
+    Mesh debugSphereMesh = Mesh::Sphere(1.0f, 16);
+    Wire debugPointWire  = Wire(std::vector<glm::vec3>{glm::vec3(0.0f, 0.0f, 0.0f)}, WireNature::POINTS);
+    Wire debugLineWire   = Wire(std::vector<glm::vec3>{glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)}, WireNature::LINES);
+
+    MeshRenderer debugConeRenderer   = MeshRenderer(debugConeMesh  , MeshShaders.at("UNLIT").get(), MeshShaders.at("UNLIT").get());
+    MeshRenderer debugSphereRenderer = MeshRenderer(debugSphereMesh, MeshShaders.at("UNLIT").get(), MeshShaders.at("UNLIT").get());
+    WiresRenderer debugPointRenderer = WiresRenderer(debugPointWire, WiresShaders.at("POINTS").get());
+    WiresRenderer debugLineRenderer  = WiresRenderer(debugLineWire, WiresShaders.at("LINES").get());
     
 #endif
 
@@ -2039,7 +2221,6 @@ int main()
 
 #endif
 
-
         // SHADOW PASS ////////////////////////////////////////////////////////////////////////////////////////////////////
         
         sceneParams.sceneLights.Directional.Position = 
@@ -2067,8 +2248,16 @@ int main()
 
             mainFBO.Bind();
         }
+
         glViewport(0, 0, sceneParams.viewportWidth, sceneParams.viewportHeight);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+#ifdef GFX_SHADER_DEBUG_VIZ
+        ssaoFBO.CopyToOtherFbo(&mainFBO, false, 0, true, glm::ivec2(0, 0), glm::ivec2(sceneParams.viewportWidth, sceneParams.viewportHeight));
+       
+        if (sceneParams.postProcessing.ToneMapping || sceneParams.postProcessing.GammaCorrection)
+            mainFBO.Bind(); // ....mh....
+#endif
 
         // ENVIRONMENT //////////////////////////////////////////////////////////////////////////////////////////////////////
         DrawEnvironment(camera, sceneParams, envCube_vao, environmentShader);
@@ -2091,36 +2280,12 @@ int main()
         // Draw grid before scene
         if (showGrid)
         {
-            glDepthMask(GL_FALSE);
-            float gridNear;
-            float gridFar;
-            std::vector<glm::vec3> gridPoints =
-                std::vector<glm::vec3>
-            {
-                glm::vec3(sceneParams.grid.Min.x, sceneParams.grid.Min.y, 0.0f),
-                    glm::vec3(sceneParams.grid.Min.x, sceneParams.grid.Max.y, 0.0f),
-                    glm::vec3(sceneParams.grid.Max.x, sceneParams.grid.Max.y, 0.0f),
-                    glm::vec3(sceneParams.grid.Max.x, sceneParams.grid.Min.y, 0.0f)
-
-            };
-
-            Utils::GetTightNearFar(
-                gridPoints, sceneParams.viewMatrix, 0.1f, gridNear, gridFar
-            );
-
-            glm::mat4 gridProjAfterScene =
-                glm::perspective(glm::radians(fov), sceneParams.viewportWidth / (float)sceneParams.viewportHeight,
-                    sceneParams.cameraFar, glm::max(sceneParams.cameraFar, gridFar));
-
-            UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams.viewMatrix, gridProjAfterScene, gridNear, gridFar);
-
-            grid.Draw(camera.Position, sceneParams);
-
-            UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams);
-            
-            glDepthMask(GL_TRUE);
+            DrawExtraScene(sceneUniformBuffers, extraSceneMeshCollection, true);
         }
 
+#ifdef GFX_SHADER_DEBUG_VIZ
+        glDepthFunc(GL_LEQUAL);
+#endif
 
         for (int i = 0; i < sceneMeshCollection.size(); i++)
         {
@@ -2140,37 +2305,7 @@ int main()
         }
         if (showGrid)
         {
-            grid.Draw(camera.Position, sceneParams);
-
-            glDisable(GL_DEPTH_TEST);
-
-            float gridNear;
-            float gridFar;
-            std::vector<glm::vec3> gridPoints =
-                std::vector<glm::vec3>
-            {
-                glm::vec3(sceneParams.grid.Min.x, sceneParams.grid.Min.y, 0.0f),
-                    glm::vec3(sceneParams.grid.Min.x, sceneParams.grid.Max.y, 0.0f),
-                    glm::vec3(sceneParams.grid.Max.x, sceneParams.grid.Max.y, 0.0f),
-                    glm::vec3(sceneParams.grid.Max.x, sceneParams.grid.Min.y, 0.0f)
-
-            };
-
-            Utils::GetTightNearFar(
-                gridPoints, sceneParams.viewMatrix, 0.1f, gridNear, gridFar
-            );
-
-            glm::mat4 gridProjAfterScene =
-                glm::perspective(glm::radians(fov), sceneParams.viewportWidth / (float)sceneParams.viewportHeight,
-                    glm::max(0.0f, gridNear), sceneParams.cameraNear);
-
-            UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams.viewMatrix, gridProjAfterScene, gridNear, gridFar);
-
-            grid.Draw(camera.Position, sceneParams);
-
-            UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams);
-
-            glEnable(GL_DEPTH_TEST);
+            DrawExtraScene(sceneUniformBuffers, extraSceneMeshCollection, false);
         }
         if (showBoundingBox)
             bbRenderer.Draw(camera.Position, sceneParams);
@@ -2197,7 +2332,12 @@ int main()
 
 
 #ifdef GFX_SHADER_DEBUG_VIZ
-        DrawShaderDebugViz(debugSsbo, MeshShaders);
+        DrawShaderDebugViz(
+            debugSsbo,
+            debugConeRenderer, 
+            debugSphereRenderer,
+            debugPointRenderer,
+            debugLineRenderer);
 
 #endif
 
@@ -2236,12 +2376,12 @@ int main()
     sceneParams.noiseTextures.~vector();
     sceneParams.poissonSamples.~optional();
     sceneMeshCollection.~SceneMeshCollection();
+    extraSceneMeshCollection.~SceneMeshCollection();
     lightMesh.~MeshRenderer();
     ssaoFBO.~FrameBuffer();
     directionalShadowFBO.~FrameBuffer();
     pointShadowFBOs.clear();
     mainFBO.~FrameBuffer();
-    grid.~WiresRenderer();
     lightMesh.~MeshRenderer();
     bbRenderer.~WiresRenderer();
     environmentShader.~ShaderBase();
@@ -2250,6 +2390,10 @@ int main()
     envCube_vao.~VertexAttribArray();
 #ifdef GFX_SHADER_DEBUG_VIZ
     debugSsbo.~ShaderStorageBufferObject();
+    debugConeRenderer.~MeshRenderer();
+    debugSphereRenderer.~MeshRenderer();
+    debugLineRenderer.~WiresRenderer();
+    debugPointRenderer.~WiresRenderer();
 #endif
     sceneParams.environment.~Environment();
     //gaussianKernelValuesTexture.~OGLTexture2D();

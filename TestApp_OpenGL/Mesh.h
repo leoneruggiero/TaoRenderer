@@ -1439,7 +1439,7 @@ public:
         _numVertices = wire.GetPositions().size();
         std::vector<glm::vec3> positions = wire.GetPositions();
 
-        if (positions.size() < 2)
+        if (positions.size() < 2 && _wire.GetNature()!=WireNature::POINTS)
             throw ("2 vertices needed for a line.");
 
         glm::vec3
@@ -1641,9 +1641,11 @@ private:
 
     void DrawQuad() const
     {
+        glDepthMask(GL_FALSE);
         _vao.Bind();
         glDrawArrays(GL_TRIANGLES, 0, 6);
         _vao.UnBind();
+        glDepthMask(GL_TRUE);
     }
 
     void InitBlur(int maxRadius)

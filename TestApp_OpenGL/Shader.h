@@ -404,6 +404,7 @@ namespace VertexSource_Geometry
     layout (std140) uniform blk_PerFrameData_Shadows
     {
         uniform mat4 LightSpaceMatrix_directional;          // 64 byte
+        uniform mat4 LightSpaceMatrixInv_directional;       // 64 byte
         uniform float bias_directional;                     // 4  byte
         uniform float slopeBias_directional;                // 4  byte
         //PAD                                               // 8  byte
@@ -411,7 +412,7 @@ namespace VertexSource_Geometry
         uniform float slopeBias_point[MAX_POINT_LIGHTS];    // 48 byte
         uniform float softness;                             // 4  byte
         uniform float shadowMapToWorldFactor;               // 4  byte
-                                                            // => 188 byte
+                                                            // => 252 byte
     };
 )";
 
@@ -665,6 +666,7 @@ namespace FragmentSource_Geometry
     layout (std140) uniform blk_PerFrameData_Shadows
     {
         uniform mat4 LightSpaceMatrix_directional;          // 64 byte
+        uniform mat4 LightSpaceMatrixInv_directional;       // 64 byte
         uniform float bias_directional;                     // 4  byte
         uniform float slopeBias_directional;                // 4  byte
         //PAD                                               // 8  byte
@@ -672,7 +674,7 @@ namespace FragmentSource_Geometry
         uniform float slopeBias_point[MAX_POINT_LIGHTS];    // 48 byte
         uniform float softness;                             // 4  byte
         uniform float shadowMapToWorldFactor;               // 4  byte
-                                                            // => 188 byte
+                                                            // => 252 byte
     };
 
 #ifndef UTILITY
@@ -753,21 +755,75 @@ namespace FragmentSource_Geometry
 	    float searchWidth = SearchWidth(uvLightSize, shadowCoords.z);
 
         vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
-	    float angle = acos(abs(dot(worldNormal_normalized, normalize(lights.Directional.Direction))));
+	    float angle = acos(dot(worldNormal_normalized, normalize(lights.Directional.Direction)));
 
         for(int i = 0 ; i< BLOCKER_SEARCH_SAMPLES; i++)
         {
+           
             vec2 sampleOffset  = PoissonSample(i);
-            sampleOffset = Rotate2D(sampleOffset, noise);
-		    float z=texture(shadowMap, shadowCoords.xy + (sampleOffset * searchWidth)).r;
-            float bias =  ShadowBias(angle, bias_directional, slopeBias_directional);// + SlopeBiasForMultisampling(angle, length(sampleOffset) * searchWidth, shadowMapToWorldFactor);
+            //sampleOffset = Rotate2D(sampleOffset, noise);
+            vec2 offsetCoord = shadowCoords.xy +(sampleOffset * searchWidth);
+		    float z=texture(shadowMap, offsetCoord).r;
+            float bias = bias_directional + SlopeBiasForMultisampling(angle,length(sampleOffset)*2 * searchWidth, 1); //ShadowBias(angle, bias_directional, slopeBias_directional); //
 
             if (z + bias <= shadowCoords.z )
             {
                 blockers++;
                 avgBlockerDistance += shadowCoords.z - z; 
             }
+
+#ifdef FALSE
+
+        vec4 worldStart4 = LightSpaceMatrixInv_directional * vec4(offsetCoord*2-1, ((shadowCoords.z- bias)*2-1),  1.0f);
+        vec4 worldEnd4 = LightSpaceMatrixInv_directional *vec4(shadowCoords*2-1,1.0f);
+
+        vec3 worldStart = worldStart4.xyz/worldStart4.w;
+        vec3 worldEnd = worldEnd4.xyz/worldEnd4.w;
+        
+        if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
+            DViz_DrawLine(
+                worldStart,
+                worldEnd, 
+                 (z + bias <= shadowCoords.z ) ? vec4(0,1,0,1) : vec4(1,0,0,1));
+
+#endif
+
+
         }
+
+#ifdef DEBUG_VIZ
+
+        float bias = bias_directional + SlopeBiasForMultisampling(angle,length(vec2(1,1))*2 * searchWidth, 1);        
+
+        vec4 center_ls = vec4(shadowCoords.xyz*2-1, 1.0);
+
+        vec4 corner0_ls = vec4((shadowCoords.xy + vec2( 1, 1) * searchWidth)*2-1, shadowCoords.z*2-1 - bias, 1.0);
+        vec4 corner1_ls = vec4((shadowCoords.xy + vec2(-1, 1) * searchWidth)*2-1, shadowCoords.z*2-1 - bias, 1.0);
+        vec4 corner2_ls = vec4((shadowCoords.xy + vec2(-1,-1) * searchWidth)*2-1, shadowCoords.z*2-1 - bias, 1.0);
+        vec4 corner3_ls = vec4((shadowCoords.xy + vec2( 1,-1) * searchWidth)*2-1, shadowCoords.z*2-1 - bias, 1.0);
+        
+        vec4 center_ws = LightSpaceMatrixInv_directional*center_ls;
+
+        vec4 corner0_ws = LightSpaceMatrixInv_directional*corner0_ls;
+        vec4 corner1_ws = LightSpaceMatrixInv_directional*corner1_ls;
+        vec4 corner2_ws = LightSpaceMatrixInv_directional*corner2_ls;
+        vec4 corner3_ws = LightSpaceMatrixInv_directional*corner3_ls;
+        
+
+        if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
+            {
+                DViz_DrawLine((corner0_ws.xyz/corner0_ws.w).xyz, (corner1_ws.xyz/corner1_ws.w).xyz, vec4(0,1,0,1));
+                DViz_DrawLine((corner1_ws.xyz/corner1_ws.w).xyz, (corner2_ws.xyz/corner2_ws.w).xyz, vec4(0,1,0,1));
+                DViz_DrawLine((corner2_ws.xyz/corner2_ws.w).xyz, (corner3_ws.xyz/corner3_ws.w).xyz, vec4(0,1,0,1));
+                DViz_DrawLine((corner3_ws.xyz/corner3_ws.w).xyz, (corner0_ws.xyz/corner0_ws.w).xyz, vec4(0,1,0,1));
+
+                DViz_DrawLine((corner0_ws.xyz/corner0_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
+                DViz_DrawLine((corner1_ws.xyz/corner1_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
+                DViz_DrawLine((corner2_ws.xyz/corner2_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
+                DViz_DrawLine((corner3_ws.xyz/corner3_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
+            }
+
+#endif
 
 	    float avgDist = blockers > 0
                             ? avgBlockerDistance / blockers
@@ -780,21 +836,39 @@ namespace FragmentSource_Geometry
         float dAngle = 2.0*PI / PCF_SAMPLES;     
         float noise = RandomValue(gl_FragCoord.xy);     
         vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
-        float angle = acos(abs(dot(worldNormal_normalized, normalize(lights.Directional.Direction))));
+        float angle = acos(dot(worldNormal_normalized, normalize(lights.Directional.Direction)));
 
         float sum = 0;
         for (int i = 0; i < PCF_SAMPLES; i++)
         {
             vec2 sampleOffset = PoissonSample(i)* uvRadius;
-            
-            // Ugly screen space noise. However it's hardly noticeable with enough samples.
+            // Ugly screen space noise. However it's hardly noticeable with enough samples.            
             sampleOffset = Rotate2D(sampleOffset, noise * PI);
+            vec2 offsetCoord = shadowCoords.xy + sampleOffset;
+            
 		    float closestDepth=texture(shadowMap, shadowCoords.xy + sampleOffset).r;
-
+            float bias = bias_directional + SlopeBiasForMultisampling(angle, length(sampleOffset)*2, 1.0);
+            
             sum+= 
-                (closestDepth + ShadowBias(angle, bias_directional, slopeBias_directional) + SlopeBiasForMultisampling(angle, length(sampleOffset) * uvRadius, shadowMapToWorldFactor)) <= shadowCoords.z 
+                (closestDepth + bias) <= shadowCoords.z 
                 ? 0.0 
                 : 1.0;
+
+#ifdef FALSE
+
+        vec4 worldStart4 = LightSpaceMatrixInv_directional * vec4(offsetCoord*2-1, ((shadowCoords.z- bias)*2-1),  1.0f);
+        vec4 worldEnd4 = LightSpaceMatrixInv_directional *vec4(shadowCoords*2-1,1.0f);
+
+        vec3 worldStart = worldStart4.xyz/worldStart4.w;
+        vec3 worldEnd = worldEnd4.xyz/worldEnd4.w;
+        
+        if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
+            DViz_DrawLine(
+                worldStart,
+                worldEnd, 
+                 (closestDepth + bias <= shadowCoords.z ) ? vec4(0,1,0,1) : vec4(1,0,0,1));
+
+        #endif
         }
 
 	    return sum / PCF_SAMPLES;
@@ -806,18 +880,13 @@ namespace FragmentSource_Geometry
 	    float blockerDistance = FindBlockerDistance_DirectionalLight(shadowCoords, shadowMap, uvLightSize);
 	    if (blockerDistance == -1)
 		    return 1.0;
-
-#ifdef DEBUG_VIZ
-        if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
-            DViz_DrawCone(fs_in.fragPosWorld, -lights.Directional.Direction * blockerDistance, blockerDistance, vec4 (1.0, 0.0, 0.0, 1.0));
-
-        #endif		
+		
 
 	    // penumbra estimation
 	    float penumbraWidth =  uvLightSize ; //(shadowCoords.z - blockerDistance) / blockerDistance;
 
 	    // percentage-close filtering
-	    float uvRadius = penumbraWidth * (blockerDistance / shadowCoords.z);// penumbraWidth * uvLightSize * near / shadowCoords.z;
+	    float uvRadius = penumbraWidth * abs(blockerDistance);// penumbraWidth * uvLightSize * near / shadowCoords.z;
 	    return PCF_DirectionalLight(shadowCoords, shadowMap, uvRadius);
         //return (blockerDistance / shadowCoords.z);
     }
@@ -1097,7 +1166,13 @@ namespace FragmentSource_Geometry
         R"(
 
         #define DEBUG_VIZ
-        #define DEBUG_VIZ_CONE 0
+
+        #define DEBUG_VIZ_CONE      0
+        #define DEBUG_VIZ_SPHERE    1
+        #define DEBUG_VIZ_POINT     2
+        #define DEBUG_VIZ_LINE      3
+
+        layout(early_fragment_tests) in;
 
         struct debugVizItem
         {
@@ -1119,13 +1194,26 @@ namespace FragmentSource_Geometry
         {
             if(uDebug_cnt.x < uDebug_VizItems.length()-1)
             {
-                atomicAdd(uDebug_cnt.x, 1);
-
-                uDebug_VizItems[uDebug_cnt.x].u4Data.x  = uDebug_VizItems.length();
-                uDebug_VizItems[uDebug_cnt.x].u4Data.y  = uDebug_cnt.x;
+                uDebug_VizItems[uDebug_cnt.x].u4Data.x  = DEBUG_VIZ_CONE;
                 uDebug_VizItems[uDebug_cnt.x].f4Data0   = vec4(start, 0.0);
                 uDebug_VizItems[uDebug_cnt.x].f4Data1   = vec4(direction, radius);
                 uDebug_VizItems[uDebug_cnt.x].f4Data2   = color;
+
+                atomicAdd(uDebug_cnt.x, 1);
+            }
+           
+        }
+
+        void DViz_DrawLine(vec3 start, vec3 end, vec4 color)
+        {
+            if(uDebug_cnt.x < uDebug_VizItems.length()-1)
+            {
+                uDebug_VizItems[uDebug_cnt.x].u4Data.x  = DEBUG_VIZ_LINE;
+                uDebug_VizItems[uDebug_cnt.x].f4Data0   = vec4(start, 0.0);
+                uDebug_VizItems[uDebug_cnt.x].f4Data1   = vec4(end, 0.0);
+                uDebug_VizItems[uDebug_cnt.x].f4Data2   = color;
+
+                atomicAdd(uDebug_cnt.x, 1);
             }
            
         }

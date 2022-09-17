@@ -159,8 +159,8 @@ struct SceneParams
 	DrawParams drawParams;
 	Environment environment;
 	GridParams grid;
-	int pointWidth = 8;
-	int lineWidth = 4;
+	int pointWidth = 6;
+	int lineWidth = 2;
 
 	std::vector<OGLResources::OGLTexture2D> noiseTextures;
 	std::optional<OGLResources::OGLTexture1D> poissonSamples;
