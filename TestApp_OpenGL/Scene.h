@@ -61,7 +61,7 @@ struct DirectionalLight
 	// ShadowData
 	unsigned int ShadowMapId;
 	glm::mat4 LightSpaceMatrix;
-	float ShadowMapToWorld;
+	glm::vec4 ShadowBoxSize;
 	float Bias;
 	float SlopeBias;
 	float Softness;

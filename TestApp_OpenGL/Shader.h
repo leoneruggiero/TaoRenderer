@@ -410,9 +410,10 @@ namespace VertexSource_Geometry
         //PAD                                               // 8  byte
         uniform float bias_point[MAX_POINT_LIGHTS];         // 48 byte
         uniform float slopeBias_point[MAX_POINT_LIGHTS];    // 48 byte
+        uniform vec4  shadowCubeSize_directional;           // 16 byte
         uniform float softness;                             // 4  byte
-        uniform float shadowMapToWorldFactor;               // 4  byte
-                                                            // => 252 byte
+                  
+                                                            // => 260 byte
     };
 )";
 
@@ -672,9 +673,10 @@ namespace FragmentSource_Geometry
         //PAD                                               // 8  byte
         uniform float bias_point[MAX_POINT_LIGHTS];         // 48 byte
         uniform float slopeBias_point[MAX_POINT_LIGHTS];    // 48 byte
+        uniform vec4  shadowCubeSize_directional;           // 16 byte
         uniform float softness;                             // 4  byte
-        uniform float shadowMapToWorldFactor;               // 4  byte
-                                                            // => 252 byte
+                  
+                                                            // => 260 byte
     };
 
 #ifndef UTILITY
@@ -732,7 +734,7 @@ namespace FragmentSource_Geometry
 
     float SearchWidth(float uvLightSize, float receiverDistance)
     {
-	    return uvLightSize ;// / receiverDistance;//(receiverDistance - near) / receiverDistance;
+	    return uvLightSize;
     }
 
      float ShadowBias(float angle, float bias, float slopeBias)
@@ -740,90 +742,134 @@ namespace FragmentSource_Geometry
         return max(bias, slopeBias*(1.0 - cos(angle)));
     } 
    
+    // Assuming the shadowMap has equal Width and Height
     float SlopeBiasForMultisampling(float angle, float offsetMagnitude, float screenToWorldFactor)
     {
-        return    offsetMagnitude * screenToWorldFactor * sin(angle);
+        return    (offsetMagnitude * sin(angle)) / screenToWorldFactor;
     }
 
-    float FindBlockerDistance_DirectionalLight(vec3 shadowCoords, sampler2D shadowMap, float uvLightSize)
+    
+     float SlopeBiasForPCF(vec3 worldNormal, vec3 worldLightDirection, float sampleOffsetWorld)
+    {
+        float angle = acos(dot(worldNormal, -worldLightDirection));
+        float zOffsetWorld = sampleOffsetWorld * tan(clamp(angle, 0.0, PI/3.0)); 
+        return zOffsetWorld; 
+    }
+
+    vec2 NdcToUnit(vec2 ndcCoord)
+    {
+        return ndcCoord*0.5+0.5;
+    }
+    vec3 NdcToUnit(vec3 ndcCoord)
+    {
+        return ndcCoord*0.5+0.5;
+    }
+            
+
+    float FindBlockerDistance_DirectionalLight(vec3 lightCoord, sampler2D shadowMap, float uvLightSize)
     {
 	    int blockers = 0;
 	    float avgBlockerDistance = 0;
         float dAngle = 2.0*PI / BLOCKER_SEARCH_SAMPLES;
 
         float noise = RandomValue(gl_FragCoord.xy) * PI;
-	    float searchWidth = SearchWidth(uvLightSize, shadowCoords.z);
+	    float searchWidth = SearchWidth(uvLightSize, lightCoord.z);
 
+      
         vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
 	    float angle = acos(dot(worldNormal_normalized, normalize(lights.Directional.Direction)));
 
         for(int i = 0 ; i< BLOCKER_SEARCH_SAMPLES; i++)
         {
-           
-            vec2 sampleOffset  = PoissonSample(i);
-            //sampleOffset = Rotate2D(sampleOffset, noise);
-            vec2 offsetCoord = shadowCoords.xy +(sampleOffset * searchWidth);
-		    float z=texture(shadowMap, offsetCoord).r;
-            float bias = bias_directional + SlopeBiasForMultisampling(angle,length(sampleOffset)*2 * searchWidth, 1); //ShadowBias(angle, bias_directional, slopeBias_directional); //
+            vec2 sampleOffset_ls  = PoissonSample(i);
+            sampleOffset_ls = Rotate2D(sampleOffset_ls, noise);
+            sampleOffset_ls *= searchWidth;
 
-            if (z + bias <= shadowCoords.z )
+            vec2 sampleOffset_tex = sampleOffset_ls / shadowCubeSize_directional.xy;
+            vec2 offsetCoord = NdcToUnit(lightCoord.xy) + sampleOffset_tex;
+            
+		    float z=texture(shadowMap, offsetCoord).r;
+
+            float bias_ls = bias_directional
+                         + SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(sampleOffset_ls));
+            
+            float bias_tex = bias_ls / shadowCubeSize_directional.z;
+
+            if (z + bias_tex <= NdcToUnit(lightCoord).z )
             {
                 blockers++;
-                avgBlockerDistance += shadowCoords.z - z; 
+                avgBlockerDistance += NdcToUnit(lightCoord).z - z; 
             }
-
-#ifdef FALSE
-
-        vec4 worldStart4 = LightSpaceMatrixInv_directional * vec4(offsetCoord*2-1, ((shadowCoords.z- bias)*2-1),  1.0f);
-        vec4 worldEnd4 = LightSpaceMatrixInv_directional *vec4(shadowCoords*2-1,1.0f);
-
-        vec3 worldStart = worldStart4.xyz/worldStart4.w;
-        vec3 worldEnd = worldEnd4.xyz/worldEnd4.w;
-        
-        if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
-            DViz_DrawLine(
-                worldStart,
-                worldEnd, 
-                 (z + bias <= shadowCoords.z ) ? vec4(0,1,0,1) : vec4(1,0,0,1));
-
-#endif
-
-
-        }
 
 #ifdef DEBUG_VIZ
 
-        float bias = bias_directional + SlopeBiasForMultisampling(angle,length(vec2(1,1))*2 * searchWidth, 1);        
-
-        vec4 center_ls = vec4(shadowCoords.xyz*2-1, 1.0);
-
-        vec4 corner0_ls = vec4((shadowCoords.xy + vec2( 1, 1) * searchWidth)*2-1, shadowCoords.z*2-1 - bias, 1.0);
-        vec4 corner1_ls = vec4((shadowCoords.xy + vec2(-1, 1) * searchWidth)*2-1, shadowCoords.z*2-1 - bias, 1.0);
-        vec4 corner2_ls = vec4((shadowCoords.xy + vec2(-1,-1) * searchWidth)*2-1, shadowCoords.z*2-1 - bias, 1.0);
-        vec4 corner3_ls = vec4((shadowCoords.xy + vec2( 1,-1) * searchWidth)*2-1, shadowCoords.z*2-1 - bias, 1.0);
-        
-        vec4 center_ws = LightSpaceMatrixInv_directional*center_ls;
-
-        vec4 corner0_ws = LightSpaceMatrixInv_directional*corner0_ls;
-        vec4 corner1_ws = LightSpaceMatrixInv_directional*corner1_ls;
-        vec4 corner2_ws = LightSpaceMatrixInv_directional*corner2_ls;
-        vec4 corner3_ws = LightSpaceMatrixInv_directional*corner3_ls;
-        
-
-        if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
+            if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
             {
-                DViz_DrawLine((corner0_ws.xyz/corner0_ws.w).xyz, (corner1_ws.xyz/corner1_ws.w).xyz, vec4(0,1,0,1));
-                DViz_DrawLine((corner1_ws.xyz/corner1_ws.w).xyz, (corner2_ws.xyz/corner2_ws.w).xyz, vec4(0,1,0,1));
-                DViz_DrawLine((corner2_ws.xyz/corner2_ws.w).xyz, (corner3_ws.xyz/corner3_ws.w).xyz, vec4(0,1,0,1));
-                DViz_DrawLine((corner3_ws.xyz/corner3_ws.w).xyz, (corner0_ws.xyz/corner0_ws.w).xyz, vec4(0,1,0,1));
 
-                DViz_DrawLine((corner0_ws.xyz/corner0_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
-                DViz_DrawLine((corner1_ws.xyz/corner1_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
-                DViz_DrawLine((corner2_ws.xyz/corner2_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
-                DViz_DrawLine((corner3_ws.xyz/corner3_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
+                vec4 center_ndc = vec4(lightCoord, 1.0);
+                vec4 center_ws = LightSpaceMatrixInv_directional*center_ndc;
+                vec4 sample_ndc = vec4(lightCoord.xyz + 2*vec3(sampleOffset_tex, -bias_tex), 1.0);
+                vec4 sample_ws = LightSpaceMatrixInv_directional*sample_ndc;
+
+                DViz_DrawLine((center_ws.xyz/center_ws.w).xyz, (sample_ws.xyz/sample_ws.w).xyz, vec4(1,0,0,1));
+
+                vec4 center_ls = vec4(lightCoord, 1.0);
+
+                vec2 offset0_ls = vec2(-SQRT_TWO/2,-SQRT_TWO/2)  * searchWidth;
+                vec2 offset1_ls = vec2(-1, 0)                    * searchWidth;
+                vec2 offset2_ls = vec2(-SQRT_TWO/2, SQRT_TWO/2)  * searchWidth;
+                vec2 offset3_ls = vec2( 0, 1)                    * searchWidth;
+                vec2 offset4_ls = vec2( SQRT_TWO/2, SQRT_TWO/2)  * searchWidth;
+                vec2 offset5_ls = vec2( 1, 0)                    * searchWidth;
+                vec2 offset6_ls = vec2( SQRT_TWO/2,-SQRT_TWO/2)  * searchWidth;
+                vec2 offset7_ls = vec2( 0,-1)                    * searchWidth;
+
+                float bias0 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset0_ls));
+                float bias1 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset1_ls));
+                float bias2 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset2_ls));
+                float bias3 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset3_ls));
+                float bias4 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset4_ls));
+                float bias5 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset5_ls));
+                float bias6 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset6_ls));
+                float bias7 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset7_ls));
+
+                vec4 corner0_ndc = vec4(lightCoord.xyz + (2*vec3(offset0_ls, -bias0) / shadowCubeSize_directional.xyz), 1.0);
+                vec4 corner1_ndc = vec4(lightCoord.xyz + (2*vec3(offset1_ls, -bias1) / shadowCubeSize_directional.xyz), 1.0);
+                vec4 corner2_ndc = vec4(lightCoord.xyz + (2*vec3(offset2_ls, -bias2) / shadowCubeSize_directional.xyz), 1.0);
+                vec4 corner3_ndc = vec4(lightCoord.xyz + (2*vec3(offset3_ls, -bias3) / shadowCubeSize_directional.xyz), 1.0);
+                vec4 corner4_ndc = vec4(lightCoord.xyz + (2*vec3(offset4_ls, -bias4) / shadowCubeSize_directional.xyz), 1.0);
+                vec4 corner5_ndc = vec4(lightCoord.xyz + (2*vec3(offset5_ls, -bias5) / shadowCubeSize_directional.xyz), 1.0);
+                vec4 corner6_ndc = vec4(lightCoord.xyz + (2*vec3(offset6_ls, -bias6) / shadowCubeSize_directional.xyz), 1.0);
+                vec4 corner7_ndc = vec4(lightCoord.xyz + (2*vec3(offset7_ls, -bias7) / shadowCubeSize_directional.xyz), 1.0);
+        
+              
+                vec4 corner0_ws = LightSpaceMatrixInv_directional*corner0_ndc;
+                vec4 corner1_ws = LightSpaceMatrixInv_directional*corner1_ndc;
+                vec4 corner2_ws = LightSpaceMatrixInv_directional*corner2_ndc;
+                vec4 corner3_ws = LightSpaceMatrixInv_directional*corner3_ndc;
+                vec4 corner4_ws = LightSpaceMatrixInv_directional*corner4_ndc;
+                vec4 corner5_ws = LightSpaceMatrixInv_directional*corner5_ndc;
+                vec4 corner6_ws = LightSpaceMatrixInv_directional*corner6_ndc;
+                vec4 corner7_ws = LightSpaceMatrixInv_directional*corner7_ndc;
+        
+
+                //DViz_DrawLine((corner0_ws.xyz/corner0_ws.w).xyz, (corner1_ws.xyz/corner1_ws.w).xyz, vec4(0,1,0,1));
+                //DViz_DrawLine((corner1_ws.xyz/corner1_ws.w).xyz, (corner2_ws.xyz/corner2_ws.w).xyz, vec4(0,1,0,1));
+                //DViz_DrawLine((corner2_ws.xyz/corner2_ws.w).xyz, (corner3_ws.xyz/corner3_ws.w).xyz, vec4(0,1,0,1));
+                //DViz_DrawLine((corner3_ws.xyz/corner3_ws.w).xyz, (corner4_ws.xyz/corner4_ws.w).xyz, vec4(0,1,0,1));
+                //DViz_DrawLine((corner4_ws.xyz/corner4_ws.w).xyz, (corner5_ws.xyz/corner5_ws.w).xyz, vec4(0,1,0,1));
+                //DViz_DrawLine((corner5_ws.xyz/corner5_ws.w).xyz, (corner6_ws.xyz/corner6_ws.w).xyz, vec4(0,1,0,1));
+                //DViz_DrawLine((corner6_ws.xyz/corner6_ws.w).xyz, (corner7_ws.xyz/corner7_ws.w).xyz, vec4(0,1,0,1));
+                //DViz_DrawLine((corner7_ws.xyz/corner7_ws.w).xyz, (corner0_ws.xyz/corner0_ws.w).xyz, vec4(0,1,0,1));
+                //
+                //DViz_DrawLine((corner1_ws.xyz/corner1_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
+                //DViz_DrawLine((corner3_ws.xyz/corner3_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
+                //DViz_DrawLine((corner5_ws.xyz/corner5_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
+                //DViz_DrawLine((corner7_ws.xyz/corner7_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
             }
-
+   
 #endif
+        }
 
 	    float avgDist = blockers > 0
                             ? avgBlockerDistance / blockers
@@ -831,7 +877,7 @@ namespace FragmentSource_Geometry
 		 return avgDist;
     }
 
-    float PCF_DirectionalLight(vec3 shadowCoords, sampler2D shadowMap, float uvRadius)
+    float PCF_DirectionalLight(vec3 lightCoord, sampler2D shadowMap, float uvRadius)
     {
         float dAngle = 2.0*PI / PCF_SAMPLES;     
         float noise = RandomValue(gl_FragCoord.xy);     
@@ -841,62 +887,54 @@ namespace FragmentSource_Geometry
         float sum = 0;
         for (int i = 0; i < PCF_SAMPLES; i++)
         {
-            vec2 sampleOffset = PoissonSample(i)* uvRadius;
-            // Ugly screen space noise. However it's hardly noticeable with enough samples.            
-            sampleOffset = Rotate2D(sampleOffset, noise * PI);
-            vec2 offsetCoord = shadowCoords.xy + sampleOffset;
             
-		    float closestDepth=texture(shadowMap, shadowCoords.xy + sampleOffset).r;
-            float bias = bias_directional + SlopeBiasForMultisampling(angle, length(sampleOffset)*2, 1.0);
+            vec2 sampleOffset_ls  = PoissonSample(i);
+            sampleOffset_ls = Rotate2D(sampleOffset_ls, noise);
+            sampleOffset_ls *= uvRadius;
+
+            vec2 sampleOffset_tex = sampleOffset_ls / shadowCubeSize_directional.xy;
+            vec2 offsetCoord = NdcToUnit(lightCoord.xy) + sampleOffset_tex;
             
+		    float closestDepth=texture(shadowMap, offsetCoord).r;
+
+            float bias_ls = bias_directional
+                         + SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(sampleOffset_ls));
+            
+            float bias_tex = bias_ls / shadowCubeSize_directional.z;
+
+          
             sum+= 
-                (closestDepth + bias) <= shadowCoords.z 
+                (closestDepth + bias_tex) <= NdcToUnit(lightCoord).z 
                 ? 0.0 
                 : 1.0;
-
-#ifdef FALSE
-
-        vec4 worldStart4 = LightSpaceMatrixInv_directional * vec4(offsetCoord*2-1, ((shadowCoords.z- bias)*2-1),  1.0f);
-        vec4 worldEnd4 = LightSpaceMatrixInv_directional *vec4(shadowCoords*2-1,1.0f);
-
-        vec3 worldStart = worldStart4.xyz/worldStart4.w;
-        vec3 worldEnd = worldEnd4.xyz/worldEnd4.w;
-        
-        if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
-            DViz_DrawLine(
-                worldStart,
-                worldEnd, 
-                 (closestDepth + bias <= shadowCoords.z ) ? vec4(0,1,0,1) : vec4(1,0,0,1));
-
-        #endif
         }
 
 	    return sum / PCF_SAMPLES;
     }
 
-    float PCSS_DirectionalLight(vec3 shadowCoords, sampler2D shadowMap, float uvLightSize)
+    float PCSS_DirectionalLight(vec3 posLightSpace, sampler2D shadowMap, float softness)
     {
+
+        float lightSize_ls = softness*(-posLightSpace.z * 0.5 * shadowCubeSize_directional.z); // Near is ~0.0
+        float lightSize_uv = lightSize_ls * 2.0 / shadowCubeSize_directional.x; // Assuming w==h
+        
 	    // blocker search
-	    float blockerDistance = FindBlockerDistance_DirectionalLight(shadowCoords, shadowMap, uvLightSize);
+	    float blockerDistance = FindBlockerDistance_DirectionalLight(posLightSpace, shadowMap, lightSize_uv);
 	    if (blockerDistance == -1)
 		    return 1.0;
-		
 
-	    // penumbra estimation
-	    float penumbraWidth =  uvLightSize ; //(shadowCoords.z - blockerDistance) / blockerDistance;
+        float blockerDistance_ls = blockerDistance*2.0*  0.5*shadowCubeSize_directional.z;
+		float pcfRadius_ls = softness*(abs(blockerDistance_ls)); 
+        float pcfRadius_uv = pcfRadius_ls * 2.0 / shadowCubeSize_directional.x;
 
-	    // percentage-close filtering
-	    float uvRadius = penumbraWidth * abs(blockerDistance);// penumbraWidth * uvLightSize * near / shadowCoords.z;
-	    return PCF_DirectionalLight(shadowCoords, shadowMap, uvRadius);
-        //return (blockerDistance / shadowCoords.z);
+	    return PCF_DirectionalLight(posLightSpace, shadowMap, pcfRadius_uv);
+       
     }
 
     float ComputeDirectionalShadow(vec4 fragPosLightSpace)
     {
         vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     
-        projCoords=projCoords*0.5 + vec3(0.5, 0.5, 0.5);
-
         return PCSS_DirectionalLight(projCoords, shadowMap_directional, softness);
     }
 
@@ -972,6 +1010,10 @@ namespace FragmentSource_Geometry
         R"(
 
     #define MAX_POINT_LIGHTS 3
+
+    #ifndef SQRT_TWO
+    #define SQRT_TWO 1.41421356237
+    #endif
 
     struct DirectionalLight
     {
