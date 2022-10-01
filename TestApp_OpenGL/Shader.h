@@ -638,7 +638,7 @@ namespace FragmentSource_Geometry
     const std::string DEFS_SHADOWS =
         R"(
 
-    #define BLOCKER_SEARCH_SAMPLES 16
+    #define BLOCKER_SEARCH_SAMPLES 32
     #define PCF_SAMPLES 64
     
     #ifndef PI
@@ -752,7 +752,7 @@ namespace FragmentSource_Geometry
      float SlopeBiasForPCF(vec3 worldNormal, vec3 worldLightDirection, float sampleOffsetWorld)
     {
         float angle = acos(dot(worldNormal, -worldLightDirection));
-        float zOffsetWorld = sampleOffsetWorld * tan(clamp(angle, 0.0, PI/3.0)); 
+        float zOffsetWorld = sampleOffsetWorld * tan(clamp(angle, 0.0, PI/2.5)); 
         return zOffsetWorld; 
     }
 
@@ -766,14 +766,14 @@ namespace FragmentSource_Geometry
     }
             
 
-    float FindBlockerDistance_DirectionalLight(vec3 lightCoord, sampler2D shadowMap, float uvLightSize)
+    float FindBlockerDistance_DirectionalLight(vec3 lightCoord, sampler2D shadowMap, float lightSizeWorld)
     {
 	    int blockers = 0;
 	    float avgBlockerDistance = 0;
         float dAngle = 2.0*PI / BLOCKER_SEARCH_SAMPLES;
 
         float noise = RandomValue(gl_FragCoord.xy) * PI;
-	    float searchWidth = SearchWidth(uvLightSize, lightCoord.z);
+	    float searchWidth = lightSizeWorld;
 
       
         vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
@@ -782,6 +782,7 @@ namespace FragmentSource_Geometry
         for(int i = 0 ; i< BLOCKER_SEARCH_SAMPLES; i++)
         {
             vec2 sampleOffset_ls  = PoissonSample(i);
+            sampleOffset_ls*=length(sampleOffset_ls); // bias towards center
             sampleOffset_ls = Rotate2D(sampleOffset_ls, noise);
             sampleOffset_ls *= searchWidth;
 
@@ -793,13 +794,15 @@ namespace FragmentSource_Geometry
             float bias_ls = bias_directional
                          + SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(sampleOffset_ls));
             
-            float bias_tex = bias_ls / shadowCubeSize_directional.z;
+            float bias_tex = bias_ls / (shadowCubeSize_directional.w - shadowCubeSize_directional.z);
 
             if (z + bias_tex <= NdcToUnit(lightCoord).z )
             {
                 blockers++;
                 avgBlockerDistance += NdcToUnit(lightCoord).z - z; 
             }
+
+        }
 
 #ifdef DEBUG_VIZ
 
@@ -808,68 +811,13 @@ namespace FragmentSource_Geometry
 
                 vec4 center_ndc = vec4(lightCoord, 1.0);
                 vec4 center_ws = LightSpaceMatrixInv_directional*center_ndc;
-                vec4 sample_ndc = vec4(lightCoord.xyz + 2*vec3(sampleOffset_tex, -bias_tex), 1.0);
-                vec4 sample_ws = LightSpaceMatrixInv_directional*sample_ndc;
+                
+                vec3 coneDir_ws =  -normalize(lights.Directional.Direction) * SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), lightSizeWorld);
 
-                DViz_DrawLine((center_ws.xyz/center_ws.w).xyz, (sample_ws.xyz/sample_ws.w).xyz, vec4(1,0,0,1));
+                DViz_DrawCone((center_ws.xyz/center_ws.w) + coneDir_ws, -coneDir_ws, lightSizeWorld, vec4(0.0, 1.0, 0.0, 0.6));
 
-                vec4 center_ls = vec4(lightCoord, 1.0);
-
-                vec2 offset0_ls = vec2(-SQRT_TWO/2,-SQRT_TWO/2)  * searchWidth;
-                vec2 offset1_ls = vec2(-1, 0)                    * searchWidth;
-                vec2 offset2_ls = vec2(-SQRT_TWO/2, SQRT_TWO/2)  * searchWidth;
-                vec2 offset3_ls = vec2( 0, 1)                    * searchWidth;
-                vec2 offset4_ls = vec2( SQRT_TWO/2, SQRT_TWO/2)  * searchWidth;
-                vec2 offset5_ls = vec2( 1, 0)                    * searchWidth;
-                vec2 offset6_ls = vec2( SQRT_TWO/2,-SQRT_TWO/2)  * searchWidth;
-                vec2 offset7_ls = vec2( 0,-1)                    * searchWidth;
-
-                float bias0 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset0_ls));
-                float bias1 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset1_ls));
-                float bias2 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset2_ls));
-                float bias3 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset3_ls));
-                float bias4 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset4_ls));
-                float bias5 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset5_ls));
-                float bias6 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset6_ls));
-                float bias7 = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(offset7_ls));
-
-                vec4 corner0_ndc = vec4(lightCoord.xyz + (2*vec3(offset0_ls, -bias0) / shadowCubeSize_directional.xyz), 1.0);
-                vec4 corner1_ndc = vec4(lightCoord.xyz + (2*vec3(offset1_ls, -bias1) / shadowCubeSize_directional.xyz), 1.0);
-                vec4 corner2_ndc = vec4(lightCoord.xyz + (2*vec3(offset2_ls, -bias2) / shadowCubeSize_directional.xyz), 1.0);
-                vec4 corner3_ndc = vec4(lightCoord.xyz + (2*vec3(offset3_ls, -bias3) / shadowCubeSize_directional.xyz), 1.0);
-                vec4 corner4_ndc = vec4(lightCoord.xyz + (2*vec3(offset4_ls, -bias4) / shadowCubeSize_directional.xyz), 1.0);
-                vec4 corner5_ndc = vec4(lightCoord.xyz + (2*vec3(offset5_ls, -bias5) / shadowCubeSize_directional.xyz), 1.0);
-                vec4 corner6_ndc = vec4(lightCoord.xyz + (2*vec3(offset6_ls, -bias6) / shadowCubeSize_directional.xyz), 1.0);
-                vec4 corner7_ndc = vec4(lightCoord.xyz + (2*vec3(offset7_ls, -bias7) / shadowCubeSize_directional.xyz), 1.0);
-        
-              
-                vec4 corner0_ws = LightSpaceMatrixInv_directional*corner0_ndc;
-                vec4 corner1_ws = LightSpaceMatrixInv_directional*corner1_ndc;
-                vec4 corner2_ws = LightSpaceMatrixInv_directional*corner2_ndc;
-                vec4 corner3_ws = LightSpaceMatrixInv_directional*corner3_ndc;
-                vec4 corner4_ws = LightSpaceMatrixInv_directional*corner4_ndc;
-                vec4 corner5_ws = LightSpaceMatrixInv_directional*corner5_ndc;
-                vec4 corner6_ws = LightSpaceMatrixInv_directional*corner6_ndc;
-                vec4 corner7_ws = LightSpaceMatrixInv_directional*corner7_ndc;
-        
-
-                //DViz_DrawLine((corner0_ws.xyz/corner0_ws.w).xyz, (corner1_ws.xyz/corner1_ws.w).xyz, vec4(0,1,0,1));
-                //DViz_DrawLine((corner1_ws.xyz/corner1_ws.w).xyz, (corner2_ws.xyz/corner2_ws.w).xyz, vec4(0,1,0,1));
-                //DViz_DrawLine((corner2_ws.xyz/corner2_ws.w).xyz, (corner3_ws.xyz/corner3_ws.w).xyz, vec4(0,1,0,1));
-                //DViz_DrawLine((corner3_ws.xyz/corner3_ws.w).xyz, (corner4_ws.xyz/corner4_ws.w).xyz, vec4(0,1,0,1));
-                //DViz_DrawLine((corner4_ws.xyz/corner4_ws.w).xyz, (corner5_ws.xyz/corner5_ws.w).xyz, vec4(0,1,0,1));
-                //DViz_DrawLine((corner5_ws.xyz/corner5_ws.w).xyz, (corner6_ws.xyz/corner6_ws.w).xyz, vec4(0,1,0,1));
-                //DViz_DrawLine((corner6_ws.xyz/corner6_ws.w).xyz, (corner7_ws.xyz/corner7_ws.w).xyz, vec4(0,1,0,1));
-                //DViz_DrawLine((corner7_ws.xyz/corner7_ws.w).xyz, (corner0_ws.xyz/corner0_ws.w).xyz, vec4(0,1,0,1));
-                //
-                //DViz_DrawLine((corner1_ws.xyz/corner1_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
-                //DViz_DrawLine((corner3_ws.xyz/corner3_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
-                //DViz_DrawLine((corner5_ws.xyz/corner5_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
-                //DViz_DrawLine((corner7_ws.xyz/corner7_ws.w).xyz, (center_ws.xyz/center_ws.w).xyz, vec4(0,1,0,1));
             }
-   
 #endif
-        }
 
 	    float avgDist = blockers > 0
                             ? avgBlockerDistance / blockers
@@ -877,7 +825,7 @@ namespace FragmentSource_Geometry
 		 return avgDist;
     }
 
-    float PCF_DirectionalLight(vec3 lightCoord, sampler2D shadowMap, float uvRadius)
+    float PCF_DirectionalLight(vec3 lightCoord, sampler2D shadowMap, float radiusWorld)
     {
         float dAngle = 2.0*PI / PCF_SAMPLES;     
         float noise = RandomValue(gl_FragCoord.xy);     
@@ -890,7 +838,7 @@ namespace FragmentSource_Geometry
             
             vec2 sampleOffset_ls  = PoissonSample(i);
             sampleOffset_ls = Rotate2D(sampleOffset_ls, noise);
-            sampleOffset_ls *= uvRadius;
+            sampleOffset_ls *= radiusWorld;
 
             vec2 sampleOffset_tex = sampleOffset_ls / shadowCubeSize_directional.xy;
             vec2 offsetCoord = NdcToUnit(lightCoord.xy) + sampleOffset_tex;
@@ -900,14 +848,30 @@ namespace FragmentSource_Geometry
             float bias_ls = bias_directional
                          + SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(sampleOffset_ls));
             
-            float bias_tex = bias_ls / shadowCubeSize_directional.z;
+            float bias_tex = bias_ls / (shadowCubeSize_directional.w - shadowCubeSize_directional.z);
 
           
             sum+= 
                 (closestDepth + bias_tex) <= NdcToUnit(lightCoord).z 
                 ? 0.0 
                 : 1.0;
+
         }
+
+#ifdef DEBUG_VIZ
+
+            if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
+            {
+
+                vec4 center_ndc = vec4(lightCoord, 1.0);
+                vec4 center_ws = LightSpaceMatrixInv_directional*center_ndc;
+                
+                vec3 coneDir_ws =  -normalize(lights.Directional.Direction) * SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), radiusWorld);
+
+                DViz_DrawCone((center_ws.xyz/center_ws.w) + coneDir_ws, -coneDir_ws, radiusWorld, vec4(0.0, 1.0, 1.0, 0.6));
+
+            }
+#endif
 
 	    return sum / PCF_SAMPLES;
     }
@@ -915,19 +879,21 @@ namespace FragmentSource_Geometry
     float PCSS_DirectionalLight(vec3 posLightSpace, sampler2D shadowMap, float softness)
     {
 
-        float lightSize_ls = softness*(-posLightSpace.z * 0.5 * shadowCubeSize_directional.z); // Near is ~0.0
+        float lightSize_ls = softness*
+                (posLightSpace.z * 0.5 + 0.5) * (shadowCubeSize_directional.w - shadowCubeSize_directional.z); 
+
         float lightSize_uv = lightSize_ls * 2.0 / shadowCubeSize_directional.x; // Assuming w==h
         
 	    // blocker search
-	    float blockerDistance = FindBlockerDistance_DirectionalLight(posLightSpace, shadowMap, lightSize_uv);
+	    float blockerDistance = FindBlockerDistance_DirectionalLight(posLightSpace, shadowMap, lightSize_ls);
 	    if (blockerDistance == -1)
 		    return 1.0;
 
-        float blockerDistance_ls = blockerDistance*2.0*  0.5*shadowCubeSize_directional.z;
+        float blockerDistance_ls = blockerDistance*(shadowCubeSize_directional.w - shadowCubeSize_directional.z);
 		float pcfRadius_ls = softness*(abs(blockerDistance_ls)); 
-        float pcfRadius_uv = pcfRadius_ls * 2.0 / shadowCubeSize_directional.x;
+        float pcfRadius_uv = pcfRadius_ls / shadowCubeSize_directional.x;
 
-	    return PCF_DirectionalLight(posLightSpace, shadowMap, pcfRadius_uv);
+	    return PCF_DirectionalLight(posLightSpace, shadowMap, pcfRadius_ls);
        
     }
 
@@ -1163,7 +1129,7 @@ namespace FragmentSource_Geometry
 )";
     const std::string CALC_UNLIT_MAT =
         R"(
-        vec4 baseColor=vec4(material.Albedo.rgb, 1.0);
+        vec4 baseColor=material.Albedo.rgba;
         finalColor=baseColor;
 )";
 

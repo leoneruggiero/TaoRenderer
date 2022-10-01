@@ -374,6 +374,7 @@ namespace Utils
 				float r = 1.0f * glm::sqrt(smp1D[i++]);
 				float theta = smp1D[i++] * 2.0f * glm::pi<float>();
 
+				// TODO: is this really uniform? see extremeLearning...something...montecarlo
 				// radius-angle to cartesian
 				smp2D.push_back(glm::vec2(
 					glm::cos(theta) * r * domain.size,
@@ -566,9 +567,8 @@ namespace Utils
 		BoundingBox(const std::vector<T> &points)
 		{
 
-			typename T::value_type minVal = std::numeric_limits<T::value_type>::min();
 			typename T::value_type maxVal = std::numeric_limits<T::value_type>::max();
-
+			typename T::value_type minVal = -maxVal;
 			_min = T{maxVal};
 			_max = T{minVal};
 
@@ -590,8 +590,8 @@ namespace Utils
 
 		static std::pair<T, T> GetMinMax(const std::vector<T>& points)
 		{
-			typename T::value_type minVal = std::numeric_limits<T::value_type>::min();
 			typename T::value_type maxVal = std::numeric_limits<T::value_type>::max();
+			typename T::value_type minVal = -maxVal;
 
 			T
 				min{ maxVal }, max{ minVal };
@@ -728,7 +728,7 @@ namespace Utils
 		shadowTransforms.push_back(shadowProj * glm::lookAt(position, position + glm::vec3( 0.0,  0.0, -1.0), glm::vec3(0.0, -1.0,  0.0)));
 	}
 
-	void GetDirectionalShadowMatrices(glm::vec3 position, glm::vec3 direction, std::vector<glm::vec3> bboxPoints, glm::mat4 &view, glm::mat4 &proj)
+	void GetDirectionalShadowMatrices(glm::vec3 position, glm::vec3 direction, std::vector<glm::vec3> bboxPoints, glm::mat4 &view, glm::mat4 &proj, float* near, float* far)
 	{
 		glm::vec3 center = (position + direction);
 		glm::vec3 worldZ = glm::vec3(0.0f, 0.0f, 1.0f);
@@ -751,14 +751,16 @@ namespace Utils
 
 		std::pair<glm::vec3, glm::vec3> boxExt = BoundingBox<glm::vec3>::GetMinMax(projPoints);
 
+		*near = -1.0f * boxExt.second.z;
+		*far  = -1.0f * boxExt.first.z;
+
 		proj = glm::ortho(
 			boxExt.first.x,
 			boxExt.second.x,
 			boxExt.first.y,
 			boxExt.second.y,
 
-			-1.0f * boxExt.second.z,
-			-1.0f * boxExt.first.z
+			*near, *far
 		);
 	}
 

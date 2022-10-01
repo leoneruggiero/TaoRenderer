@@ -212,7 +212,7 @@ void ShowImGUIWindow()
                     ImGui::Checkbox("Enable", &sceneParams.drawParams.doShadows);
                     ImGui::DragFloat("Bias", &sceneParams.sceneLights.Directional.Bias, 0.001f, 0.0f, 0.05f);
                     ImGui::DragFloat("SlopeBias", &sceneParams.sceneLights.Directional.SlopeBias, 0.001f, 0.0f, 0.05f);
-                    ImGui::DragFloat("Softness", &sceneParams.sceneLights.Directional.Softness, 0.1f, 0.0f, 3.0f);
+                    ImGui::DragFloat("Softness", &sceneParams.sceneLights.Directional.Softness, 0.01f, 0.0f, 0.5f);
                 }
             }
 
@@ -267,12 +267,16 @@ void ShowImGUIWindow()
 
 void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>> *shadersCollection)
 {
-    Mesh boxMesh = Mesh::Box(1, 1, .1);
+    Mesh boxMesh = Mesh::Box(1, 1, .01);
     sceneMeshCollection.AddToCollection(
         std::make_shared<MeshRenderer>(glm::vec3(0, 0, 0.9), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1),boxMesh, 
             (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
             (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::Copper));
-    
+
+    Mesh planeMesh = Mesh::Box(10, 10, .01);
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-5, -5, 0.0f), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), planeMesh,
+        (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
+        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
     return;
 
     Mesh coneMesh = Mesh::Cone(0.8, 2.6, 16);
@@ -293,10 +297,7 @@ void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std
 
   
     
-    Mesh planeMesh = Mesh::Box(1, 1, 1);
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-4, -4, 2.0f), 0.0, glm::vec3(0, 0, 1), glm::vec3(8, 8, 0.25), planeMesh,
-        (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
+   
 
     
 }
@@ -1156,7 +1157,7 @@ void SetupScene(
     //LoadScene_CubicBezier(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 30.0, -0.0f);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 30.0, -0.0f);
     //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
@@ -1176,8 +1177,8 @@ void SetupScene(
     //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
-    LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1583,7 +1584,11 @@ void ComputeDirectionalShadowMap(SceneParams& sceneParams, const SceneMeshCollec
     glm::mat4
         viewShadow, projShadow;
 
-    Utils::GetDirectionalShadowMatrices(sceneParams.sceneLights.Directional.Position, sceneParams.sceneLights.Directional.Direction, sceneMeshCollection.GetSceneBBPoints(), viewShadow, projShadow);
+    float near, far;
+
+    Utils::GetDirectionalShadowMatrices(
+        sceneParams.sceneLights.Directional.Position, sceneParams.sceneLights.Directional.Direction,
+        sceneMeshCollection.GetSceneBBPoints(), viewShadow, projShadow, &near, &far);
 
     sceneParams.sceneLights.Directional.LightSpaceMatrix = projShadow * viewShadow;
     sceneParams.viewMatrix = viewShadow;
@@ -1592,8 +1597,8 @@ void ComputeDirectionalShadowMap(SceneParams& sceneParams, const SceneMeshCollec
 
         2.0f / projShadow[0][0], // r - l
         2.0f / projShadow[1][1], // t - b
-       -2.0f / projShadow[2][2], // f - n
-        0.0f
+        near, 
+        far
     );
 
     UpdateMatricesUBO(sceneUniformBuffers.at(UBOBinding::Matrices), sceneParams);
@@ -1783,6 +1788,10 @@ void DrawShaderDebugViz(
     debugSsbo.ReadData(4, 4, &mouse[0]);
     debugSsbo.ReadData(8, 4, &counter[0]);
 
+    glDepthMask(GL_FALSE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     if (counter[0] > 0)
     {
         
@@ -1829,6 +1838,9 @@ void DrawShaderDebugViz(
         }
 
     }
+
+    glDisable(GL_BLEND);
+    glDepthMask(GL_TRUE);
 }
 
 #endif
@@ -2118,7 +2130,7 @@ int main()
     sceneParams.sceneLights.Directional.Specular = glm::vec4(1.0, 1.0, 1.0, 0.75);
     sceneParams.sceneLights.Directional.Bias = 0.05f;
     sceneParams.sceneLights.Directional.SlopeBias = 0.015f;
-    sceneParams.sceneLights.Directional.Softness = 1.0f;
+    sceneParams.sceneLights.Directional.Softness = 0.03f;
     
     //sceneParams.sceneLights.Points[0] = PointLight(glm::vec4(1.0, 0.9, 0.9, 15.0), glm::vec3( 2.0, 0.0, 5.0));
     //sceneParams.sceneLights.Points[1] = PointLight(glm::vec4(1.0, 0.0, 0.0, 12.0), glm::vec3(1.0, 1.0, 3.0));
