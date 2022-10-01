@@ -22,7 +22,12 @@
 #include "Scene.h"
 
 
-#define GFX_SHADER_DEBUG_VIZ 
+#define DEBUG_DIRECTIONAL_LIGHT 0
+#define DEBUG_POINT_LIGHT       1
+
+//#define GFX_SHADER_DEBUG_VIZ DEBUG_POINT_LIGHT
+
+
 
 #if GFX_STOPWATCH
     #include "Diagnostics.h"
@@ -267,13 +272,25 @@ void ShowImGUIWindow()
 
 void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>> *shadersCollection)
 {
-    Mesh boxMesh = Mesh::Box(1, 1, .01);
+    Mesh boxMesh = Mesh::Box(1, 1, 1);
     sceneMeshCollection.AddToCollection(
-        std::make_shared<MeshRenderer>(glm::vec3(0, 0, 0.9), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1),boxMesh, 
+        std::make_shared<MeshRenderer>(glm::vec3(-1, -1, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
             (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::Copper));
+            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
+    sceneMeshCollection.AddToCollection(
+        std::make_shared<MeshRenderer>(glm::vec3(1, -1, 0.5), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
+            (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
+            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
+    sceneMeshCollection.AddToCollection(
+        std::make_shared<MeshRenderer>(glm::vec3(1, 1, 1), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
+            (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
+            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
+    sceneMeshCollection.AddToCollection(
+        std::make_shared<MeshRenderer>(glm::vec3(-1, 1, 1.5), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
+            (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
+            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
 
-    Mesh planeMesh = Mesh::Box(10, 10, .01);
+    Mesh planeMesh = Mesh::Box(10, 10, .1);
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-5, -5, 0.0f), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), planeMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
@@ -1177,8 +1194,8 @@ void SetupScene(
     //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
-    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -2126,13 +2143,13 @@ int main()
     sceneParams.sceneLights.Ambient.aoSteps = 8;
     sceneParams.sceneLights.Ambient.aoBlurAmount = 3;
     sceneParams.sceneLights.Directional.Direction = glm::vec3(0.9, -0.5, -0.9);
-    sceneParams.sceneLights.Directional.Diffuse = glm::vec4(1.0, 1.0, 1.0, 0.75);
+    sceneParams.sceneLights.Directional.Diffuse = glm::vec4(1.0, 1.0, 1.0, 0.0);
     sceneParams.sceneLights.Directional.Specular = glm::vec4(1.0, 1.0, 1.0, 0.75);
     sceneParams.sceneLights.Directional.Bias = 0.05f;
     sceneParams.sceneLights.Directional.SlopeBias = 0.015f;
     sceneParams.sceneLights.Directional.Softness = 0.03f;
     
-    //sceneParams.sceneLights.Points[0] = PointLight(glm::vec4(1.0, 0.9, 0.9, 15.0), glm::vec3( 2.0, 0.0, 5.0));
+    sceneParams.sceneLights.Points[0] = PointLight(glm::vec4(1.0, 1.0, 1.0, 15.0), glm::vec3( 0.5, 0.5, 4.0));
     //sceneParams.sceneLights.Points[1] = PointLight(glm::vec4(1.0, 0.0, 0.0, 12.0), glm::vec3(1.0, 1.0, 3.0));
     //sceneParams.sceneLights.Points[2] = PointLight(glm::vec4(0.0, 0.0, 1.0, 12.0), glm::vec3(-1.0, 1.0, 3.0));
    
@@ -2251,7 +2268,7 @@ int main()
         
         unsigned int w = (unsigned int)sceneParams.viewportWidth;
         unsigned int h = (unsigned int)sceneParams.viewportHeight;
-        debugSsbo.SetSubData(0, 4,  glm::value_ptr(glm::uvec4(w, h, 0, 0)));
+        debugSsbo.SetSubData(0, 4,  glm::value_ptr(glm::uvec4(w, h, GFX_SHADER_DEBUG_VIZ, 0)));
         debugSsbo.SetSubData(4, 8,  glm::value_ptr(glm::uvec4((unsigned int)lastX, h - (unsigned int)lastY, 0, 0)));
         debugSsbo.SetSubData(8, 12, glm::value_ptr(glm::uvec4(0, 0, 0, 0)));
 

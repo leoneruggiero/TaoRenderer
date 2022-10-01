@@ -5,7 +5,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 
-#define GFX_SHADER_DEBUG_VIZ
 
 enum class AOType
 {

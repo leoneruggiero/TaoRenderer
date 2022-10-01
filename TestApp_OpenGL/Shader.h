@@ -638,7 +638,7 @@ namespace FragmentSource_Geometry
     const std::string DEFS_SHADOWS =
         R"(
 
-    #define BLOCKER_SEARCH_SAMPLES 32
+    #define BLOCKER_SEARCH_SAMPLES 16
     #define PCF_SAMPLES 64
     
     #ifndef PI
@@ -770,7 +770,6 @@ namespace FragmentSource_Geometry
     {
 	    int blockers = 0;
 	    float avgBlockerDistance = 0;
-        float dAngle = 2.0*PI / BLOCKER_SEARCH_SAMPLES;
 
         float noise = RandomValue(gl_FragCoord.xy) * PI;
 	    float searchWidth = lightSizeWorld;
@@ -778,6 +777,7 @@ namespace FragmentSource_Geometry
       
         vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
 	    float angle = acos(dot(worldNormal_normalized, normalize(lights.Directional.Direction)));
+        float biasFac_ls = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), 1);
 
         for(int i = 0 ; i< BLOCKER_SEARCH_SAMPLES; i++)
         {
@@ -792,7 +792,7 @@ namespace FragmentSource_Geometry
 		    float z=texture(shadowMap, offsetCoord).r;
 
             float bias_ls = bias_directional
-                         + SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(sampleOffset_ls));
+                         + biasFac_ls * length(sampleOffset_ls);
             
             float bias_tex = bias_ls / (shadowCubeSize_directional.w - shadowCubeSize_directional.z);
 
@@ -804,9 +804,9 @@ namespace FragmentSource_Geometry
 
         }
 
-#ifdef DEBUG_VIZ
+#ifdef DEBUG_VIZ 
 
-            if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
+            if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy&& uDebug_viewport.z == DEBUG_DIRECTIONAL_LIGHT)
             {
 
                 vec4 center_ndc = vec4(lightCoord, 1.0);
@@ -826,11 +826,11 @@ namespace FragmentSource_Geometry
     }
 
     float PCF_DirectionalLight(vec3 lightCoord, sampler2D shadowMap, float radiusWorld)
-    {
-        float dAngle = 2.0*PI / PCF_SAMPLES;     
+    {    
         float noise = RandomValue(gl_FragCoord.xy);     
         vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
         float angle = acos(dot(worldNormal_normalized, normalize(lights.Directional.Direction)));
+        float biasFac_ls = SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), 1);
 
         float sum = 0;
         for (int i = 0; i < PCF_SAMPLES; i++)
@@ -846,7 +846,7 @@ namespace FragmentSource_Geometry
 		    float closestDepth=texture(shadowMap, offsetCoord).r;
 
             float bias_ls = bias_directional
-                         + SlopeBiasForPCF(worldNormal_normalized, normalize(lights.Directional.Direction), length(sampleOffset_ls));
+                         + biasFac_ls * length(sampleOffset_ls);
             
             float bias_tex = bias_ls / (shadowCubeSize_directional.w - shadowCubeSize_directional.z);
 
@@ -858,9 +858,9 @@ namespace FragmentSource_Geometry
 
         }
 
-#ifdef DEBUG_VIZ
+#ifdef DEBUG_VIZ 
 
-            if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy)
+            if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy && uDebug_viewport.z == DEBUG_DIRECTIONAL_LIGHT)
             {
 
                 vec4 center_ndc = vec4(lightCoord, 1.0);
@@ -882,8 +882,7 @@ namespace FragmentSource_Geometry
         float lightSize_ls = softness*
                 (posLightSpace.z * 0.5 + 0.5) * (shadowCubeSize_directional.w - shadowCubeSize_directional.z); 
 
-        float lightSize_uv = lightSize_ls * 2.0 / shadowCubeSize_directional.x; // Assuming w==h
-        
+       
 	    // blocker search
 	    float blockerDistance = FindBlockerDistance_DirectionalLight(posLightSpace, shadowMap, lightSize_ls);
 	    if (blockerDistance == -1)
@@ -891,8 +890,7 @@ namespace FragmentSource_Geometry
 
         float blockerDistance_ls = blockerDistance*(shadowCubeSize_directional.w - shadowCubeSize_directional.z);
 		float pcfRadius_ls = softness*(abs(blockerDistance_ls)); 
-        float pcfRadius_uv = pcfRadius_ls / shadowCubeSize_directional.x;
-
+        pcfRadius_ls = min(pcfRadius_ls, lightSize_ls );
 	    return PCF_DirectionalLight(posLightSpace, shadowMap, pcfRadius_ls);
        
     }
@@ -904,21 +902,117 @@ namespace FragmentSource_Geometry
         return PCSS_DirectionalLight(projCoords, shadowMap_directional, softness);
     }
 
+    float PCSS_PointLight(vec3 posWorld,vec3 normalWorld, int lightIndex, float lightSizeWorld)
+    {
+        if(lights.Points[lightIndex].Color.w == 0.0) return 1.0;
+
+        float far = lights.Points[lightIndex].Radius;    
+        float noise = RandomValue(gl_FragCoord.xy);     
+        vec3 worldNormal_normalized = normalize(fs_in.worldNormal);
+        float lightDirLen = length(lights.Points[lightIndex].Position - posWorld);
+        vec3 lightDir_nrm = normalize(lights.Points[lightIndex].Position - posWorld);
+
+        // Creating a reference frame with light direction as Z axis
+        vec3 N = lightDir_nrm;
+        vec3 T = normalize(cross(N, vec3(1.453,1.029,1.567) /* LOL */));
+        vec3 B = normalize(cross(N, T));
+        mat3 TBN = mat3(T, B, N);
+        
+        // Cone-shaped bias (see debugViz), compute once (linear)
+        float biasFac_ws = SlopeBiasForPCF(worldNormal_normalized, -lightDir_nrm, 1.0);
+
+        // Blocker search
+        float blkSrcRadius_ws = lightSizeWorld * (lightDirLen - lightSizeWorld) /lightDirLen; //mmhh...
+
+        float avgBlkDst = 0;
+        int blockers = 0;
+        for (int i = 0; i < BLOCKER_SEARCH_SAMPLES; i++)
+        {
+            vec3 sampleOffset_ws  = TBN * vec3(Rotate2D(PoissonSample(i), noise), 0.0);
+            sampleOffset_ws *= blkSrcRadius_ws;
+            vec3 samplePosition_ws = posWorld + sampleOffset_ws;
+            
+            vec3 lightDirFromSmp = lights.Points[lightIndex].Position - samplePosition_ws;
+            vec3 lightDirFromSmp_nrm = normalize(lightDirFromSmp);
+            float angle = acos(dot(worldNormal_normalized, lightDirFromSmp_nrm));
+            float bias_ws = bias_point[lightIndex]+ biasFac_ws * length(sampleOffset_ws);          
+            float closestPoint = texture(shadowMap_point[lightIndex], -lightDirFromSmp_nrm).r * far;
+  
+            if ((closestPoint + bias_ws) <= length(lightDirFromSmp))
+            {
+                blockers++;
+                avgBlkDst += lightDirLen - closestPoint*dot(lightDirFromSmp_nrm, lightDir_nrm); 
+            }     
+        }
+
+#ifdef DEBUG_VIZ 
+
+            if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy && uDebug_viewport.z == DEBUG_POINT_LIGHT)
+            {
+                vec3 coneDir_ws =  lightDir_nrm * biasFac_ws * blkSrcRadius_ws;
+                DViz_DrawCone(posWorld + coneDir_ws, -coneDir_ws, blkSrcRadius_ws, vec4(0.0, 1.0, 0.0, 0.6));
+            }
+#endif
+
+        // Fully lit 
+        if(blockers == 0) return 1.0;
+
+        avgBlkDst/=blockers;
+
+        // Percentage closer filtering
+        float filterRadiusWorld = lightSizeWorld * avgBlkDst/ (lightDirLen - avgBlkDst);
+        filterRadiusWorld = min(lightSizeWorld, filterRadiusWorld); //mmmhh....
+        float pcfSum = 0;
+        for (int i = 0; i < PCF_SAMPLES; i++)
+        {
+            vec3 sampleOffset_ws  = TBN * vec3(Rotate2D(PoissonSample(i), noise), 0.0);
+            sampleOffset_ws *= filterRadiusWorld;
+            vec3 samplePosition_ws = posWorld + sampleOffset_ws;
+            
+            vec3 lightDirFromSmp = lights.Points[lightIndex].Position - samplePosition_ws;
+            vec3 lightDirFromSmp_nrm = normalize(lightDirFromSmp);
+            float angle = acos(dot(worldNormal_normalized, lightDirFromSmp_nrm));
+            float bias_ws = bias_point[lightIndex]+ biasFac_ws * length(sampleOffset_ws);          
+            float closestPoint = texture(shadowMap_point[lightIndex], -lightDirFromSmp_nrm).r * far;
+  
+            pcfSum+=   
+                (closestPoint + bias_ws) <= length(lightDirFromSmp)
+                ? 0.0 
+                : 1.0;
+        }
+
+#ifdef DEBUG_VIZ 
+
+            if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy && uDebug_viewport.z == DEBUG_POINT_LIGHT)
+            {
+                vec3 coneDir_ws =  lightDir_nrm * biasFac_ws * filterRadiusWorld;
+                DViz_DrawCone(posWorld + coneDir_ws, -coneDir_ws, filterRadiusWorld, vec4(0.0, 1.0, 1.0, 0.6));
+            }
+#endif
+
+
+	    return pcfSum / PCF_SAMPLES;
+    }
+
+
+
     float ComputePointShadow(int index, vec3 fragPosWorld, vec3 worldNormal)
     {
         if(lights.Points[index].Color.w == 0.0) return 1.0;
 
-        float far = lights.Points[index].Radius;
-        vec3 lightVec = fragPosWorld - lights.Points[index].Position;
-        float closestPoint = texture(shadowMap_point[index], lightVec).r * far;
-        
-        vec3 worldNormal_normalized = normalize(worldNormal);
-        float angle = acos(abs(dot(worldNormal_normalized, normalize(lightVec))));
+        return PCSS_PointLight(fragPosWorld, worldNormal, index,  .2);
 
-        return  
-                (closestPoint + ShadowBias(angle, bias_point[index], slopeBias_point[index])) <= length(lightVec)
-                ? 0.0 
-                : 1.0;
+        //float far = lights.Points[index].Radius;
+        //vec3 lightVec = fragPosWorld - lights.Points[index].Position;
+        //float closestPoint = texture(shadowMap_point[index], lightVec).r * far;
+        //
+        //vec3 worldNormal_normalized = normalize(worldNormal);
+        //float angle = acos(abs(dot(worldNormal_normalized, normalize(lightVec))));
+        //
+        //return  
+        //        (closestPoint + ShadowBias(angle, bias_point[index], slopeBias_point[index])) <= length(lightVec)
+        //        ? 0.0 
+        //        : 1.0;
     }
     
 )";
@@ -1179,6 +1273,9 @@ namespace FragmentSource_Geometry
         #define DEBUG_VIZ_SPHERE    1
         #define DEBUG_VIZ_POINT     2
         #define DEBUG_VIZ_LINE      3
+            
+        #define DEBUG_DIRECTIONAL_LIGHT 0
+        #define DEBUG_POINT_LIGHT       1
 
         layout(early_fragment_tests) in;
 
