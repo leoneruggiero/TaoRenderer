@@ -39,7 +39,7 @@ using namespace OGLResources;
 const char* glsl_version = "#version 130";
 
 const unsigned int directionalShadowMapResolution = 2048;
-const unsigned int pointShadowMapResolution = 512;
+const unsigned int pointShadowMapResolution = 1024;
 const int SSAO_MAX_SAMPLES = 64;
 const int SSAO_BLUR_MAX_RADIUS = 16;
 
@@ -238,7 +238,7 @@ void ShowImGUIWindow()
                     if (ImGui::CollapsingHeader("Shadows", ImGuiTreeNodeFlags_None))
                     {
                         ImGui::DragFloat("Bias", &sceneParams.sceneLights.Points[i].Bias, 0.001f, 0.0f, 0.05f);
-                        ImGui::DragFloat("SlopeBias", &sceneParams.sceneLights.Points[i].SlopeBias, 0.001f, 0.0f, 0.05f);
+                        ImGui::DragFloat("Size", &sceneParams.sceneLights.Points[i].Size, 0.01f, 0.0f, 0.5f);
                     }
                 }
             }
@@ -1194,8 +1194,8 @@ void SetupScene(
     //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
-    LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Nefertiti(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -1464,12 +1464,22 @@ void UpdateLightsUBO(UniformBufferObject& ubo, SceneLights& lights, Camera& came
     // Point Lights (See MAX_POINT_LIGHTS in glsl code)
     for (int i = 0; i < PointLight::MAX_POINT_LIGHTS; i++)
     {
+        /*
+        vec4 Color;             // 16 byte
+	    vec3 Position;          // 12 byte
+        float Radius;	        // 4  byte
+        float Size;             // 12  byte
+        float InvSqrRadius;     // 4  byte
+                                // => 48 byte
+        */
+
+        float invSqrRadius = 1.0f / (lights.Points[i].Radius * lights.Points[i].Radius);
+
         ubo.SetSubData(16 + i * 12, 4, glm::value_ptr(lights.Points[i].Color));
         ubo.SetSubData(20 + i * 12, 3, glm::value_ptr(lights.Points[i].Position));
         ubo.SetSubData(23 + i * 12, 1, &lights.Points[i].Radius);
-
-        float invSqrRadius = 1.0f / (lights.Points[i].Radius * lights.Points[i].Radius);
-        ubo.SetSubData(24 + i * 12, 1, &invSqrRadius);
+        ubo.SetSubData(24 + i * 12, 1, &lights.Points[i].Size);
+        ubo.SetSubData(25 + i * 12, 1, &invSqrRadius);
     }
 
     // Eye position
@@ -1502,9 +1512,9 @@ void UpdateShadowsUBO(UniformBufferObject& ubo, SceneLights& lights)
     ubo.SetSubData(36, 1, &lights.Points[0].Bias);
     ubo.SetSubData(40, 1, &lights.Points[1].Bias);
     ubo.SetSubData(44, 1, &lights.Points[2].Bias);
-    ubo.SetSubData(48, 1, &lights.Points[0].SlopeBias);
+    /*ubo.SetSubData(48, 1, &lights.Points[0].SlopeBias);
     ubo.SetSubData(52, 1, &lights.Points[1].SlopeBias);
-    ubo.SetSubData(56, 1, &lights.Points[2].SlopeBias);
+    ubo.SetSubData(56, 1, &lights.Points[2].SlopeBias);*/
     ubo.SetSubData(60, 4, glm::value_ptr(lights.Directional.ShadowBoxSize));
     ubo.SetSubData(64, 1, &lights.Directional.Softness);
     

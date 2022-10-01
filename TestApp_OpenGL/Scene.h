@@ -11,12 +11,12 @@ struct PointLight
 	static const int MAX_POINT_LIGHTS = 3;
 	
 	float Bias;
-	float SlopeBias;
 
 	// Alpha is intensity
 	glm::vec4 Color;
 	glm::vec3 Position;
 	float Radius;
+	float Size;
 
 	// ShadowData
 	std::vector<glm::mat4> LightSpaceMatrix;
@@ -29,7 +29,7 @@ struct PointLight
 		Radius = glm::sqrt(glm::max(Color.x, Color.y, Color.z) * Color.w / threshold);
 	}
 
-	PointLight() : Color(0.0, 0.0, 0.0, 0.0), Position(0.0, 0.0, 0.0), Radius(0.0), ShadowMapId(0)
+	PointLight() : Color(0.0, 0.0, 0.0, 0.0), Position(0.0, 0.0, 0.0), Radius(0.0), ShadowMapId(0), Size(0.0)
 	{
 		for(auto &m: LightSpaceMatrix)
 			m = glm::mat4(1.0f);
@@ -40,9 +40,9 @@ struct PointLight
 		Color = color;
 		Position = position;
 
-		Bias = 0.02f;
-		SlopeBias = 0.4f;
-
+		Bias = 0.05f;
+		Size = 0.05f;
+		
 		ComputeRadius();
 	}
 };

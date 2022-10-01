@@ -1000,7 +1000,7 @@ namespace FragmentSource_Geometry
     {
         if(lights.Points[index].Color.w == 0.0) return 1.0;
 
-        return PCSS_PointLight(fragPosWorld, worldNormal, index,  .2);
+        return PCSS_PointLight(fragPosWorld, worldNormal, index,  lights.Points[index].Size);
 
         //float far = lights.Points[index].Radius;
         //vec3 lightVec = fragPosWorld - lights.Points[index].Position;
@@ -1088,8 +1088,8 @@ namespace FragmentSource_Geometry
 	    vec4 Color;             // 16 byte
 	    vec3 Position;          // 12 byte
         float Radius;	        // 4  byte
-        float InvSqrRadius;     // 16 byte
-        
+        float Size;             // 12  byte
+        float InvSqrRadius;     // 4  byte
                                 // => 48 byte
     };
 
