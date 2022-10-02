@@ -2167,11 +2167,14 @@ int main()
 
     // Shadow Maps
     // ----------------------
-    FrameBuffer directionalShadowFBO = FrameBuffer(directionalShadowMapResolution, directionalShadowMapResolution, false, 0, true);
+    FrameBuffer directionalShadowFBO = FrameBuffer(directionalShadowMapResolution, directionalShadowMapResolution, false, 0, true,
+        TextureInternalFormat::Depth_Component /* UNUSED */, TextureFiltering::Linear, TextureFiltering::Linear);
+
     std::vector<FrameBuffer<OGLTextureCubemap>> pointShadowFBOs = std::vector<FrameBuffer<OGLTextureCubemap>>{};
     for (int i = 0; i < 16; i++)
     {
-        pointShadowFBOs.push_back(FrameBuffer<OGLTextureCubemap>(pointShadowMapResolution, pointShadowMapResolution, false, 0, true));
+        pointShadowFBOs.push_back(FrameBuffer<OGLTextureCubemap>(pointShadowMapResolution, pointShadowMapResolution, false, 0, true,
+            TextureInternalFormat::Depth_Component /* UNUSED */, TextureFiltering::Linear, TextureFiltering::Linear));
     }
 
     // Noise Textures for PCSS 

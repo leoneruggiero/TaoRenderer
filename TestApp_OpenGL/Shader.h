@@ -782,7 +782,6 @@ namespace FragmentSource_Geometry
         for(int i = 0 ; i< BLOCKER_SEARCH_SAMPLES; i++)
         {
             vec2 sampleOffset_ls  = PoissonSample(i);
-            sampleOffset_ls*=length(sampleOffset_ls); // bias towards center
             sampleOffset_ls = Rotate2D(sampleOffset_ls, noise);
             sampleOffset_ls *= searchWidth;
 
@@ -3634,6 +3633,12 @@ namespace OGLResources
 
         }
 
+        OGLTextureCubemap(int width, int height, TextureInternalFormat internalFormat, TextureFiltering minFilter, TextureFiltering magFilter)
+            : OGLTextureCubemap(width, height, internalFormat, minFilter, magFilter, TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge)
+        {
+
+        }
+
         OGLTextureCubemap(OGLTextureCubemap&& other) noexcept : OGLResource(std::move(other))
         {
             _width = other._width;
@@ -3688,31 +3693,35 @@ namespace OGLResources
             _width, _height;
 
         
-        T GetTexture(TextureInternalFormat format) 
+        T GetTexture(TextureInternalFormat format, TextureFiltering minFilter, TextureFiltering magFilter) 
         {
             if constexpr (std::is_same<T, OGLTexture2D>::value)
             {
-                return OGLTexture2D(_width, _height, format);
+                return OGLTexture2D(_width, _height, format, minFilter, magFilter);
             }
             else if constexpr (std::is_same<T, OGLTextureCubemap>::value)
             {
-                return OGLTextureCubemap(_width, _height, format);
+                return OGLTextureCubemap(_width, _height, format, minFilter, magFilter);
             }
             else
                 throw "really don't know what I'm doing...";
         };
 
+        T GetTexture(TextureInternalFormat format)
+        {
+            return GetTexture(format, TextureFiltering::Nearest, TextureFiltering::Nearest);
+        }
         
-        void Initialize(bool depth, bool color, int colorAttachments, TextureInternalFormat colorTextureFormat)
+        void Initialize(bool depth, bool color, int colorAttachments, TextureInternalFormat colorTextureFormat, TextureFiltering minFilter, TextureFiltering magFilter)
         {
 
             if (depth)
-                _depthTexture = GetTexture(TextureInternalFormat::Depth_Component);
+                _depthTexture = GetTexture(TextureInternalFormat::Depth_Component, minFilter, magFilter);
 
             if (color)
             {
                 for (int i = 0; i < colorAttachments; i++)
-                    _colorTextures.push_back(GetTexture(colorTextureFormat));
+                    _colorTextures.push_back(GetTexture(colorTextureFormat, minFilter, magFilter));
             }
 
             Bind();
@@ -3743,6 +3752,11 @@ namespace OGLResources
 
         }
 
+        void Initialize(bool depth, bool color, int colorAttachments, TextureInternalFormat colorTextureFormat)
+        {
+            Initialize(depth, color, colorAttachments, colorTextureFormat, TextureFiltering::Nearest, TextureFiltering::Nearest);
+        }
+
     public:
         FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth)
             :_width(width), _height(height)
@@ -3759,6 +3773,16 @@ namespace OGLResources
             OGLResource::Create(OGLResourceType::FRAMEBUFFER);
 
             Initialize(depth, color, colorAttachments, colorTextureFormat);
+        }
+
+       
+        FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth, 
+            TextureInternalFormat colorTextureFormat, TextureFiltering minFilter, TextureFiltering magFilter)
+            :_width(width), _height(height)
+        {
+            OGLResource::Create(OGLResourceType::FRAMEBUFFER);
+
+            Initialize(depth, color, colorAttachments, colorTextureFormat, minFilter, magFilter);
         }
 
        
