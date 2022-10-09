@@ -106,7 +106,8 @@ struct ScenePostProcessing
 	bool ToneMapping;
 	float Exposure;
 
-	bool GammaCorrection;
+	bool doGammaCorrection;
+	float Gamma;
 };
 
 struct DrawParams
@@ -159,8 +160,8 @@ struct SceneParams
 	DrawParams drawParams;
 	Environment environment;
 	GridParams grid;
-	int pointWidth = 6;
-	int lineWidth = 2;
+	float pointWidth = 6.0f;
+	float lineWidth = 1.8f;
 
 	std::vector<OGLResources::OGLTexture2D> noiseTextures;
 	std::optional<OGLResources::OGLTexture1D> poissonSamples;

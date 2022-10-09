@@ -38,6 +38,54 @@ private:
     std::string _fragmentCode;
 
 protected:
+    static std::string PreProcess(const char* sourceFilePath)
+    {
+        std::string sourceFilePath_str = std::string(sourceFilePath);
+        std::string includeDirectory = sourceFilePath_str.substr(0, sourceFilePath_str.find_last_of("/") + 1);
+
+        const char* includeDirective = "//! #include";
+        std::ifstream srcStream(sourceFilePath);
+        if (!srcStream.is_open())
+        {
+            std::cout << "\nUnable to open shader source file. File name is: " << sourceFilePath << std::endl;
+            throw "Unable to open shader source file.";
+        }
+
+        std::stringstream buffer;
+        buffer << srcStream.rdbuf();
+        std::string srcString = buffer.str();
+        size_t tokenStart = std::string::npos;
+
+        while ((tokenStart = srcString.find(includeDirective)) != std::string::npos)
+        {
+
+            size_t tokenEnd = srcString.find('\n', tokenStart + 13);
+            std::string includeFileName = srcString.substr(
+                tokenStart + strlen(includeDirective),
+                tokenEnd - tokenStart - strlen(includeDirective)
+            );
+            includeFileName = includeFileName.substr(includeFileName.find_first_not_of(" \""));
+            includeFileName = includeFileName.substr(0, includeFileName.find_last_not_of('\"') + 1);
+
+            std::string includeFilePath = "";
+            includeFilePath.append(includeDirectory);
+            includeFilePath.append(includeFileName);
+
+            std::ifstream includeStream(includeFilePath);
+            if (!includeStream.is_open())
+            {
+                std::cout << "\nUnable to open shader source file. File name is: " << includeFileName << std::endl;
+                throw "Unable to open shader source file.";
+            }
+
+            std::stringstream buffer;
+            buffer << includeStream.rdbuf();
+            std::string includeString = buffer.str();
+
+            srcString.replace(tokenStart, tokenEnd - tokenStart, includeString);
+        }
+        return srcString;
+    }
     void SetUBOBindings()
     {
 
@@ -46,9 +94,10 @@ protected:
         constexpr static const char* uboNames[] =
         {
             "blk_PerFrameData",
-            "blk_PerFrameData_Lights",
+            "blk_PerObjectData",
             "blk_PerFrameData_Shadows",
-            "blk_PerFrameData_Ao"
+            "blk_PerFrameData_Ao",
+            
         };
 
         for (int i = 0; i <= UBOBinding::AmbientOcclusion; i++)
@@ -78,7 +127,34 @@ public:
     std::vector<std::pair<unsigned int, std::string>> GetVertexInput() { return _shaderProgram.GetInput(); }
 
     int UniformLocation(std::string name) const { return glGetUniformLocation(_shaderProgram.ID(), name.c_str()); };
+    int UniformLocation(const char* name) const { return glGetUniformLocation(_shaderProgram.ID(), name); };
 
+    void SetUniform_i(int location, int value) const { glUniform1i(location, value); }
+    void SetUniform_ui(int location, unsigned int value) const { glUniform1ui(location, value); }
+    void SetUniform_f(int location, float value) const { glUniform1f(location, value); }
+    void SetUniform_2f(int location, float x, float y) const { glUniform2f(location, x, y); }
+    void SetUniform_3f(int location, float x, float y, float z) const { glUniform3f(location, x, y, z); }
+    void SetUniform_mat4f(int location, const float* value) const { glUniformMatrix4fv(location, 1, false, value); }
+
+
+    bool SetSamplerIfValid(int sampler, const char* name)
+    {
+        if (sampler < 0) return true;
+
+        int location = UniformLocation(name);
+        SetUniform_i(location, (int)sampler);
+        return location >= 0;
+    }
+    bool SetUniformBlockIfValid(int bindingPoint, const char* name)
+    {
+        if (bindingPoint < 0) return true;
+
+        int location = GL_INVALID_INDEX;
+        if ((location = glGetUniformBlockIndex(ShaderBase::ShaderProgramId(), name)) != GL_INVALID_INDEX)
+            glUniformBlockBinding(ShaderBase::ShaderProgramId(), location, bindingPoint);
+
+        return location != GL_INVALID_INDEX;
+    }
     unsigned int ShaderProgramId() { return _shaderProgram.ID(); };
 
     virtual void SetMatrices(glm::mat4 modelMatrix) const { glUniformMatrix4fv(UniformLocation("model"), 1, GL_FALSE, glm::value_ptr(modelMatrix)); };
@@ -176,8 +252,8 @@ public:
         {
             glUniform1ui(UniformLocation("material.hasAlbedo"), true);
 
-            glUniform1ui(UniformLocation("u_doGammaCorrection"), sceneParams.postProcessing.GammaCorrection);
-            glUniform1f(UniformLocation("u_gamma"), 2.2f);
+            glUniform1ui(UniformLocation("u_doGammaCorrection"), sceneParams.postProcessing.doGammaCorrection);
+            glUniform1f(UniformLocation("u_gamma"), sceneParams.postProcessing.Gamma);
 
             glActiveTexture(GL_TEXTURE0 + TextureBinding::Albedo);
             albedoTexture.value().Bind();
@@ -331,6 +407,444 @@ public:
         
     }
 
+};
+
+class ForwardSkyboxShader : public ShaderBase
+{
+private:
+
+
+    // Uniform buffers
+    const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* DATA_PER_FRAME = "blk_PerFrameData";
+
+    // Uniforms
+    const char* EQUATOR_COLOR = "f_equator_color";
+    const char* NORTH_COLOR = "f_north_color";
+    const char* SOUTH_COLOR = "f_south_color";
+    const char* DRAW_WITH_TEXTURE = "f_drawWithTexture";
+
+    // Samplers
+    const char* ENVIRONMENT_MAP = "t_EnvironmentMap";
+
+
+public:
+    ForwardSkyboxShader() :
+        ShaderBase(ShaderBase::PreProcess("../../Shaders/Forward/Skybox.vert"), ShaderBase::PreProcess("../../Shaders/Forward/Skybox.frag"))
+    {
+    };
+
+    void SetEnvironmentMap(int enviromentMap)
+    {
+        bool ok = true;
+        ok &= SetSamplerIfValid(enviromentMap, ENVIRONMENT_MAP);
+        
+        if (!ok)
+            throw"LOL...\n";
+    }
+
+    void SetDrawWithTexture(bool drawWithTexture)
+    {
+        bool ok = true;
+
+        int loc = UniformLocation(DRAW_WITH_TEXTURE);
+        ok &= loc >= 0;
+
+        SetUniform_i(loc, drawWithTexture);
+
+        if (!ok)
+            throw"LOL...\n";
+    }
+
+    void SetColors(glm::vec3 north, glm::vec3 equator, glm::vec3 south)
+    {
+        bool ok = true;
+
+        int northLoc    = UniformLocation(NORTH_COLOR);
+        int equatorLoc  = UniformLocation(EQUATOR_COLOR);
+        int southLoc    = UniformLocation(SOUTH_COLOR);
+
+        SetUniform_3f(northLoc, north.x, north.y, north.z);
+        SetUniform_3f(equatorLoc, equator.x, equator.y, equator.z);
+        SetUniform_3f(southLoc, south.x, south.y, south.z);
+
+        ok != northLoc >= 0 && equatorLoc >= 0 && southLoc >= 0;
+
+        if (!ok)
+            throw"LOL...\n";
+    }
+
+    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    {
+        bool ok = true;
+        SetCurrent();
+        ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        OGLUtils::CheckOGLErrors();
+        if (!ok)
+            throw"LOL...\n";
+    }
+};
+
+class ForwardThickPointsShader : public ShaderBase
+{
+private:
+
+    // Uniform buffers
+    const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* DATA_PER_FRAME = "blk_PerFrameData";
+    const char* SCREEN_TO_WORLD = "f_screenToWorld";
+    const char* THICKNESS = "o_thickness";
+
+public:
+    ForwardThickPointsShader() :
+        ShaderBase(
+            ShaderBase::PreProcess("../../Shaders/Forward/MeshUnlit.vert"),
+            ShaderBase::PreProcess("../../Shaders/Forward/ThickPoints.geom"),
+            ShaderBase::PreProcess("../../Shaders/Forward/MeshUnlit.frag"))
+    {
+    };
+    void SetThickness(float thickness)
+    {
+        bool ok = true;
+        int loc = UniformLocation(THICKNESS);
+        ok &= loc >= 0;
+        SetUniform_f(loc, thickness);
+        if (!ok)
+            throw"LOL...\n";
+    }
+    void SetScreenData(float scrWidth, float scrHeight)
+    {
+        bool ok = true;
+        int loc = UniformLocation(SCREEN_TO_WORLD);
+        ok &= loc >= 0;
+        SetUniform_2f(loc, 1.0f/scrWidth, 1.0f/scrHeight);
+        if (!ok)
+            throw"LOL...\n";
+    }
+    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    {
+        bool ok = true;
+        SetCurrent();
+        ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        OGLUtils::CheckOGLErrors();
+        if (!ok)
+            throw"LOL...\n";
+    }
+};
+
+class ForwardThickLinesShader : public ShaderBase
+{
+private:
+
+    // Uniform buffers
+    const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* DATA_PER_FRAME = "blk_PerFrameData";
+    const char* SCREEN_TO_WORLD = "f_screenToWorld";
+    const char* THICKNESS = "o_thickness";
+
+public:
+    ForwardThickLinesShader() :
+        ShaderBase(
+            ShaderBase::PreProcess("../../Shaders/Forward/MeshUnlit.vert"),
+            ShaderBase::PreProcess("../../Shaders/Forward/ThickLines.geom"),
+            ShaderBase::PreProcess("../../Shaders/Forward/MeshUnlit.frag"))
+    {
+    };
+    void SetThickness(float thickness)
+    {
+        bool ok = true;
+        int loc = UniformLocation(THICKNESS);
+        ok &= loc >= 0;
+        SetUniform_f(loc, thickness);
+        if (!ok)
+            throw"LOL...\n";
+    }
+    void SetScreenData(float scrWidth, float scrHeight)
+    {
+        bool ok = true;
+        int loc = UniformLocation(SCREEN_TO_WORLD);
+        ok &= loc >= 0;
+        SetUniform_2f(loc, 1.0f / scrWidth, 1.0f / scrHeight);
+        if (!ok)
+            throw"LOL...\n";
+    }
+    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    {
+        bool ok = true;
+        SetCurrent();
+        ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        OGLUtils::CheckOGLErrors();
+        if (!ok)
+            throw"LOL...\n";
+    }
+};
+
+class ForwardThickLineStripShader : public ShaderBase
+{
+private:
+
+    // Uniform buffers
+    const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* DATA_PER_FRAME = "blk_PerFrameData";
+    const char* SCREEN_TO_WORLD = "f_screenToWorld";
+    const char* THICKNESS = "o_thickness";
+
+public:
+    ForwardThickLineStripShader() :
+        ShaderBase(
+            ShaderBase::PreProcess("../../Shaders/Forward/MeshUnlit.vert"),
+            ShaderBase::PreProcess("../../Shaders/Forward/ThickLineStrip.geom"),
+            ShaderBase::PreProcess("../../Shaders/Forward/MeshUnlit.frag"))
+    {
+    };
+    void SetThickness(float thickness)
+    {
+        bool ok = true;
+        int loc = UniformLocation(THICKNESS);
+        ok &= loc >= 0;
+        SetUniform_f(loc, thickness);
+        if (!ok)
+            throw"LOL...\n";
+    }
+    void SetScreenData(float scrWidth, float scrHeight)
+    {
+        bool ok = true;
+        int loc = UniformLocation(SCREEN_TO_WORLD);
+        ok &= loc >= 0;
+        SetUniform_2f(loc, 1.0f / scrWidth, 1.0f / scrHeight);
+        if (!ok)
+            throw"LOL...\n";
+    }
+    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    {
+        bool ok = true;
+        SetCurrent();
+        ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        OGLUtils::CheckOGLErrors();
+        if (!ok)
+            throw"LOL...\n";
+    }
+};
+
+class ForwardUnlitShader : public ShaderBase
+{
+private:
+
+   
+    // Uniform buffers
+    const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* DATA_PER_FRAME = "blk_PerFrameData";
+
+
+public:
+    ForwardUnlitShader() :
+        ShaderBase(ShaderBase::PreProcess("../../Shaders/Forward/MeshUnlit.vert"), ShaderBase::PreProcess("../../Shaders/Forward/MeshUnlit.frag"))
+    {
+    };
+
+    void SetUniformBlocks(int dataPerObject, int dataPerFrame) 
+    {
+        bool ok = true;
+        SetCurrent();
+        ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        OGLUtils::CheckOGLErrors();
+        if (!ok)
+            throw"LOL...\n";
+    }
+};
+
+class ForwardOmniDirShadowShader : public ShaderBase
+{
+private:
+
+
+    // Uniform buffers
+    const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* DATA_PER_FRAME = "blk_PerFrameData";
+    const char* SHADOW_TRANSFORMS = "shadowTransforms";
+    const char* INDEX = "lightIndex";
+
+public:
+    ForwardOmniDirShadowShader() :
+        ShaderBase(
+            ShaderBase::PreProcess("../../Shaders/Forward/PassThrough.vert"), 
+            ShaderBase::PreProcess("../../Shaders/Forward/OmniDirShadow.geom"),
+            ShaderBase::PreProcess("../../Shaders/Forward/OmniDirShadow.frag"))
+    {
+    };
+
+    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    {
+        bool ok = true;
+        SetCurrent();
+        OGLUtils::CheckOGLErrors();
+        ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        OGLUtils::CheckOGLErrors();
+        if (!ok)
+            throw"LOL...\n";
+    }
+
+    void SetLightIndex(int index)
+    {
+        if(index<0||index>3)
+            throw "Incorrect parameter.";
+
+        bool ok = true;
+
+        int loc = UniformLocation(INDEX);
+        ok &= loc >= 0;
+
+        SetUniform_i(loc, index);
+
+        if (!ok)
+            throw"LOL...\n";
+    }
+
+    void SetShadowMatrices(const std::vector<glm::mat4>& matrices)
+    {
+        if (matrices.size() != 6)
+            throw "Incorrect parameter.";
+
+        bool ok = true;
+
+        for (int i = 0; i < 6; i++)
+        {
+            std::string name = SHADOW_TRANSFORMS;
+            name = name.append("[").append(std::to_string(i)).append("]");
+            int loc = UniformLocation(name);
+            ok &= loc >= 0;
+
+            SetUniform_mat4f(loc, glm::value_ptr(matrices.at(i)));
+        }
+
+        if (!ok)
+            throw"LOL...\n";
+        
+    }
+
+};
+
+class GPassShader : public ShaderBase
+{
+private:
+
+    // Samplers
+    const char* ALBEDO    = "t_Albedo";
+    const char* NORMALS   = "t_Normals";
+    const char* EMISSION  = "t_Emission";
+    const char* ROUGHNESS = "t_Metalness";
+    const char* METALNESS = "t_Roughness";
+    const char* OCCLUSION = "t_Occlusion";
+
+    // Uniform buffers
+    const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* DATA_PER_FRAME = "blk_PerFrameData";
+
+ 
+public:
+    GPassShader() :
+        ShaderBase(ShaderBase::PreProcess("../../Shaders/Deferred/GPass.vert"), ShaderBase::PreProcess("../../Shaders/Deferred/GPass.frag"))
+    {
+    };
+
+    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    {
+        bool ok = true;
+        SetCurrent();
+        ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        OGLUtils::CheckOGLErrors();
+        if (!ok)
+            throw"LOL...\n";
+    }
+
+    void SetSamplers(
+        int normals, int albedo, int roughness, int metalness, int occlusion, int emission)
+    {
+        bool ok = true;
+        SetCurrent();
+        ok &= SetSamplerIfValid(normals, NORMALS);
+        ok &= SetSamplerIfValid(albedo, ALBEDO);
+        ok &= SetSamplerIfValid(roughness, ROUGHNESS);
+        ok &= SetSamplerIfValid(metalness, METALNESS);
+        ok &= SetSamplerIfValid(occlusion, OCCLUSION);
+        ok &= SetSamplerIfValid(emission, EMISSION);
+        OGLUtils::CheckOGLErrors();
+    }
+};
+
+class LightPassShader : public ShaderBase
+{
+private:
+    // TODO: do you think there's not a limit?
+    // Samplers
+    const char* SHADOWMAP_DIRECTIONAL   = "t_shadowMap_directional";
+    const char* SHADOWMAP_POINT0        = "t_shadowMap_point[0]";
+    const char* SHADOWMAP_POINT1        = "t_shadowMap_point[1]";
+    const char* SHADOWMAP_POINT2        = "t_shadowMap_point[2]";
+    const char* IRRADIANCEMAP           = "t_IrradianceMap";
+    const char* RADIANCEMAP             = "t_RadianceMap";
+    const char* BRDF_LUT                = "t_BrdfLut";
+    const char* POISSON_SAMPLES         = "t_PoissonSamples";
+    const char* NOISE0                  = "t_NoiseTex_0";
+    const char* NOISE1                  = "t_NoiseTex_1";
+    const char* NOISE2                  = "t_NoiseTex_2";
+    const char* GBUFF0                  = "gBuff0";
+    const char* GBUFF1                  = "gBuff1";
+    const char* GBUFF2                  = "gBuff2";
+    const char* GBUFF3                  = "gBuff3";
+    const char* GBUFF4                  = "gBuff4";
+
+    // Uniform buffers
+    const char* DATA_PER_OBJECT         = "blk_PerObjectData";
+    const char* DATA_PER_FRAME          = "blk_PerFrameData";
+    
+public:
+    LightPassShader() :
+        ShaderBase(ShaderBase::PreProcess("../../Shaders/Deferred/LightPass.vert"), ShaderBase::PreProcess("../../Shaders/Deferred/LightPass.frag"))
+    {  
+    };
+
+    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    {
+        bool ok = true;
+        ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+
+        if (!ok)
+            throw"LOL...\n";
+    }
+
+    void SetSamplers(
+        int gBuff0, int gBuff1, int gBuff2, int gBuff3, int gBuff4,
+        int poissonSamples, int noise0, int noise1, int noise2,
+        int brdfLut, int radianceMap, int irradianceMap,
+        int shadowMapDir, int shadowMapPoint0, int shadowMapPoint1, int shadowMapPoint2)
+    {
+        bool ok = true;
+        ok &= SetSamplerIfValid(gBuff0, GBUFF0);
+        ok &= SetSamplerIfValid(gBuff1, GBUFF1);
+        ok &= SetSamplerIfValid(gBuff2, GBUFF2);
+        ok &= SetSamplerIfValid(gBuff3, GBUFF3);
+        ok &= SetSamplerIfValid(gBuff4, GBUFF4);
+        ok &= SetSamplerIfValid(poissonSamples, POISSON_SAMPLES);
+        ok &= SetSamplerIfValid(noise0, NOISE0);
+        ok &= SetSamplerIfValid(noise1, NOISE1);
+        ok &= SetSamplerIfValid(noise2, NOISE2);
+        ok &= SetSamplerIfValid(brdfLut, BRDF_LUT);
+        ok &= SetSamplerIfValid(radianceMap, RADIANCEMAP);
+        ok &= SetSamplerIfValid(irradianceMap, IRRADIANCEMAP);
+        ok &= SetSamplerIfValid(shadowMapDir, SHADOWMAP_DIRECTIONAL);
+        ok &= SetSamplerIfValid(shadowMapPoint0, SHADOWMAP_POINT0);
+        ok &= SetSamplerIfValid(shadowMapPoint1, SHADOWMAP_POINT1);
+        // ok &= SetSamplerIfValid(shadowMapPoint2, SHADOWMAP_POINT2);
+    }
 };
 
 class RenderableBasic
@@ -1104,17 +1618,25 @@ public:
     virtual std::vector<glm::vec3> GetTransformedPoints() = 0;
 
     // Draw with the associated shader and material
-    // --------------------------------------------------------------
-    virtual void Draw(glm::vec3 eye, const SceneParams& sceneParams) const = 0;
+    // --------------------------------------------
+    //virtual void Draw(glm::vec3 eye, const SceneParams& sceneParams) const = 0;
 
     // Draw with a custom shader
-    // --------------------------------------------------------------
-    virtual void DrawCustom(const ShaderBase* shader) const = 0;
+    // -------------------------
+    virtual void DrawCustom() const = 0;
 
+    // Gets and Sets material data
+    // ---------------------------
     virtual void SetMaterial(Material mat) = 0;
+    
+    virtual Material& const GetMaterial() = 0;
+
+    // Gets a reference to the current transformation
+    // ----------------------------------------------
+    virtual glm::mat4& const GetTransformation() = 0;
 
     // Overrides the old transformation with the one provided
-    // --------------------------------------------------------------
+    // ------------------------------------------------------
     virtual void SetTransformation(glm::mat4 transformation) = 0; // => implemented by derived classes and called by the base.
 
     virtual void SetTransformation(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale) 
@@ -1138,7 +1660,7 @@ public:
     }
 
     // Transforms the object 
-    // --------------------------------------------------------------
+    // ---------------------
     virtual void Transform(glm::mat4 transformation) = 0; // => implemented by derived classes and called by the base.
 
     virtual void Transform(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale)
@@ -1300,36 +1822,105 @@ public:
 
     }
 
-    void Draw(glm::vec3 eye, const SceneParams& sceneParams) const override
+    //void Draw(glm::vec3 eye, const SceneParams& sceneParams) const override
+    //{
+
+    //    MeshShader* shader = sceneParams.drawParams.doShadows ? _shader : _shader_noShadows;
+
+    //    shader->SetCurrent();
+
+    //    // Model + NormalMatrix ==============================================================================================//
+    //    shader->SetMatrices(_modelMatrix);
+    //   
+    //    // Material Properties ===============================================================================================//
+    //    shader->SetMaterial(_material, _albedo, _normals, _roughness, _metallic, sceneParams);
+    //    
+    //    shader->SetSamplers(sceneParams);
+
+    //    // Draw Call =========================================================================================================//
+    //    _vao.Bind();
+    //    glDrawElements(GL_TRIANGLES, _numIndices, GL_UNSIGNED_INT, 0); 
+    //    _vao.UnBind();
+
+    //    OGLUtils::CheckOGLErrors();
+    //}
+    void DrawDeferred(const GPassShader* shader, std::vector<UniformBufferObject>& ubos)
     {
-
-        MeshShader* shader = sceneParams.drawParams.doShadows ? _shader : _shader_noShadows;
-
         shader->SetCurrent();
-
-        // Model + NormalMatrix ==============================================================================================//
-        shader->SetMatrices(_modelMatrix);
-       
-        // Material Properties ===============================================================================================//
-        shader->SetMaterial(_material, _albedo, _normals, _roughness, _metallic, sceneParams);
         
-        shader->SetSamplers(sceneParams);
+        // Model and normal matrices
+        // -------------------------
+        dataPerObject data = dataPerObject{};
+        data.modelMat = _modelMatrix;
+        data.normalMat = glm::transpose(glm::inverse(_modelMatrix));
 
-        // Draw Call =========================================================================================================//
+        // Material data
+        // -------------
+        data.material.Albedo = _material.Albedo;
+        data.material.Emission = glm::vec4(0);
+        data.material.Roughness = _material.Roughness;
+        data.material.Metalness = _material.Metallic;
+        data.material.hasTex_Albedo = _albedo.has_value();
+        data.material.hasTex_Emission = false;
+        data.material.hasTex_Metalness = _metallic.has_value();
+        data.material.hasTex_Normals = _normals.has_value();
+        data.material.hasTex_Occlusion = false;
+        data.material.hasTex_Roughness = _roughness.has_value();
+
+        ubos.at(UBOBinding::PerObjectData).SetSubData(0, 1, &data);
+
+        // Samplers
+        // --------
+        if (data.material.hasTex_Albedo)
+        {
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Albedo);
+            _albedo.value().Bind();
+           
+        }
+        if (data.material.hasTex_Metalness)
+        {
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Metallic);
+            _metallic.value().Bind();
+            
+        }
+        if (data.material.hasTex_Normals)
+        {
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Normals);
+            _normals.value().Bind();
+            
+        }
+        if (data.material.hasTex_Roughness)
+        {
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Roughness);
+            _roughness.value().Bind();
+            
+        }
+        if (data.material.hasTex_Emission)
+        {
+            // TODO
+        }
+        if (data.material.hasTex_Occlusion)
+        {
+            // TODO
+        }
+
+        
+        // Draw call
+        // ---------
         _vao.Bind();
-        glDrawElements(GL_TRIANGLES, _numIndices, GL_UNSIGNED_INT, 0); 
+        glDrawElements(GL_TRIANGLES, _numIndices, GL_UNSIGNED_INT, 0);
         _vao.UnBind();
 
         OGLUtils::CheckOGLErrors();
+        
     }
-
-    void DrawCustom(const ShaderBase* shader) const override
+    void DrawCustom() const override
     {
 
-        shader->SetCurrent();
-
-        // Model + NormalMatrix ==============================================================================================//
-        shader->SetMatrices(_modelMatrix);
+        //shader->SetCurrent();
+        //
+        //// Model + NormalMatrix ==============================================================================================//
+        //shader->SetMatrices(_modelMatrix);
         
         // Draw Call =========================================================================================================//
         _vao.Bind();
@@ -1338,6 +1929,8 @@ public:
 
         OGLUtils::CheckOGLErrors();
     }
+
+    Material& const GetMaterial() override{ return _material; }
 
     void SetMaterial(Material mat) override
     {
@@ -1366,6 +1959,8 @@ public:
                 _normals = OGLTexture2D((path + "/Normals" + ext).c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
         }
     }
+
+    glm::mat4& const GetTransformation() override { return _modelMatrix; };
 
     void SetTransformation(glm::mat4 transformation) override { _modelMatrix = transformation; };
 
@@ -1484,7 +2079,7 @@ public:
     }
 
     
-    void Draw(glm::vec3 eye, const SceneParams& sceneParams) const override
+    /*void Draw(glm::vec3 eye, const SceneParams& sceneParams) const override
     {
        
         _shader->SetCurrent();
@@ -1507,33 +2102,35 @@ public:
         _vao.UnBind();
 
         OGLUtils::CheckOGLErrors();
-    }
+    }*/
 
-    void DrawCustom(const ShaderBase* shader) const override
+    void DrawCustom() const override
     {
-        shader->SetCurrent();
+        //shader->SetCurrent();
 
         // ModelViewProjection + NormalMatrix =========================================================================================================//
-        shader->SetMatrices(_modelMatrix);
+        //shader->SetMatrices(_modelMatrix);
 
         // Draw Call =========================================================================================================//
         _vao.Bind();
-        glDrawArrays(
-            _wire.GetNature() == WireNature::LINES
-            ? GL_LINES
-            : GL_POINTS
-            , 0, _numVertices);
+
+        glDrawArrays(ResolveDrawingMode(_wire.GetNature()), 0, _numVertices);
 
         _vao.UnBind();
 
         OGLUtils::CheckOGLErrors();
     }
-
+    Material& const GetMaterial() override 
+    { 
+        Material m = Material{ _color };
+        return m; 
+    }
     void SetMaterial(Material mat) override { _color = mat.Albedo; };
 
     void SetColor(glm::vec4 color)  { _color = color; };
 
     void SetTransformation(glm::mat4 transformation) override { _modelMatrix = transformation; };
+    glm::mat4& const GetTransformation() override { return _modelMatrix; };
 
     void Transform(glm::mat4 transformation) override { _modelMatrix = transformation * _modelMatrix; };
 
@@ -1550,6 +2147,8 @@ public:
     }
 
     bool ShouldDrawForShadows() override { return false; }
+
+    WireNature GetNature() { return _wire.GetNature(); }
 
     private:
         GLenum ResolveDrawingMode(const WireNature &nature) const
@@ -1639,15 +2238,6 @@ private:
     /*??? static ???*/ VertexAttribArray _vao;
 
 
-    void DrawQuad() const
-    {
-        glDepthMask(GL_FALSE);
-        _vao.Bind();
-        glDrawArrays(GL_TRIANGLES, 0, 6);
-        _vao.UnBind();
-        glDepthMask(GL_TRUE);
-    }
-
     void InitBlur(int maxRadius)
     {
         // Create a 2D texture to store gaussian blur kernel values
@@ -1723,6 +2313,17 @@ public:
 
         InitBlur(maxBlurRadius);
         InitAo(maxAODirectionsToSample);
+    }
+
+    void DrawQuad() const
+    {
+        glDepthMask(GL_FALSE);
+        glDepthFunc(GL_ALWAYS);
+        _vao.Bind();
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        _vao.UnBind();
+        glDepthMask(GL_TRUE);
+        glDepthFunc(GL_LESS);
     }
 
     void IntegrateBRDFintoLUT( SceneParams& sceneParams)

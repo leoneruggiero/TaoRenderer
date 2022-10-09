@@ -1286,7 +1286,7 @@ namespace FragmentSource_Geometry
             vec4  f4Data2;
         };
         
-        layout (std140, binding=0) buffer buff_debugFeedback
+        layout (std140) buffer buff_debugFeedback
         {
             uvec4 uDebug_viewport;
             uvec4 uDebug_mouse;
@@ -3712,29 +3712,36 @@ namespace OGLResources
             return GetTexture(format, TextureFiltering::Nearest, TextureFiltering::Nearest);
         }
         
-        void Initialize(bool depth, bool color, int colorAttachments, TextureInternalFormat colorTextureFormat, TextureFiltering minFilter, TextureFiltering magFilter)
+        void GenTextures(bool depth, bool color, int colorTexturesCount, TextureInternalFormat colorTextureFormat, TextureFiltering minFilter, TextureFiltering magFilter)
         {
-
             if (depth)
                 _depthTexture = GetTexture(TextureInternalFormat::Depth_Component, minFilter, magFilter);
 
             if (color)
             {
-                for (int i = 0; i < colorAttachments; i++)
+                for (int i = 0; i < colorTexturesCount; i++)
                     _colorTextures.push_back(GetTexture(colorTextureFormat, minFilter, magFilter));
             }
+        }
+
+        void Initialize(bool depth, bool color, int colorAttachments)
+        {
 
             Bind();
 
             if (color)
             {
+                std::vector<unsigned int> drawBuffers{};
                 for (int i = 0; i < colorAttachments; i++)
                 {
                     glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + i, _colorTextures.at(i).ID(), 0);
+                    drawBuffers.push_back(GL_COLOR_ATTACHMENT0 + i);
                 }
 
                 if (depth)
                     glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, _depthTexture.value().ID(), 0);
+
+                glDrawBuffers(drawBuffers.size(), drawBuffers.data());
 
             }
             else if (depth)
@@ -3752,40 +3759,41 @@ namespace OGLResources
 
         }
 
-        void Initialize(bool depth, bool color, int colorAttachments, TextureInternalFormat colorTextureFormat)
-        {
-            Initialize(depth, color, colorAttachments, colorTextureFormat, TextureFiltering::Nearest, TextureFiltering::Nearest);
-        }
 
     public:
-        FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth)
+        
+        FrameBuffer(unsigned int width, unsigned int height,
+            T depthTexture, std::vector<T> colorTextures)
             :_width(width), _height(height)
         {
             OGLResource::Create(OGLResourceType::FRAMEBUFFER);
 
-            Initialize( depth, color, colorAttachments, TextureInternalFormat::Rgba_32f);
+            _depthTexture = std::optional<T>(std::move(depthTexture));
+            _colorTextures = std::vector<T>(std::move(colorTextures));
+            Initialize(true, true, _colorTextures.size());
         }
 
-       
-        FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth, TextureInternalFormat colorTextureFormat)
-            :_width(width), _height(height)
-        {
-            OGLResource::Create(OGLResourceType::FRAMEBUFFER);
-
-            Initialize(depth, color, colorAttachments, colorTextureFormat);
-        }
-
-       
         FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth, 
             TextureInternalFormat colorTextureFormat, TextureFiltering minFilter, TextureFiltering magFilter)
             :_width(width), _height(height)
         {
             OGLResource::Create(OGLResourceType::FRAMEBUFFER);
 
-            Initialize(depth, color, colorAttachments, colorTextureFormat, minFilter, magFilter);
+            GenTextures(depth, color, colorAttachments, colorTextureFormat, minFilter, magFilter);
+            Initialize(depth, color, colorAttachments);
         }
 
-       
+        FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth, TextureInternalFormat colorTextureFormat)
+            :FrameBuffer(width, height, color, colorAttachments, depth, colorTextureFormat, TextureFiltering::Nearest, TextureFiltering::Nearest)
+        {
+        }
+
+        FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth)
+            :FrameBuffer(width, height, color, colorAttachments, depth, TextureInternalFormat::Rgba_32f, TextureFiltering::Nearest, TextureFiltering::Nearest)
+        {
+        }
+
+
 
         FrameBuffer(FrameBuffer&& other) noexcept : OGLResource(std::move(other))
         {
@@ -3829,7 +3837,7 @@ namespace OGLResources
             glBindFramebuffer(GL_FRAMEBUFFER, OGLResource::ID());
         }
 
-        void UnBind() const
+        static void UnBind() 
         {
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }
@@ -3908,6 +3916,13 @@ namespace OGLResources
                 glDrawBuffer(GL_COLOR_ATTACHMENT0);
 
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        }
+
+        void CopyToOtherFbo(std::stack<FrameBuffer<T>*> stack, const FrameBuffer* other, bool color, int attachment, bool depth, glm::ivec2 rect0, glm::ivec2 rect1) const
+        {
+            CopyToOtherFbo(other, color, attachment, depth, rect0, rect1);
+            if (!stack.empty())
+                stack.top()->Bind();
         }
 
     };

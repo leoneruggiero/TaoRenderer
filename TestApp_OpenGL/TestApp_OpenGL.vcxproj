@@ -188,10 +188,24 @@
     <ClInclude Include="Timer.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="fragment.fs" />
-    <None Include="fragment_unlit.fs" />
     <None Include="ImGui\imgui.ini" />
-    <None Include="vertex.vs" />
+    <None Include="Shaders\Deferred\GPass.frag" />
+    <None Include="Shaders\Deferred\GPass.vert" />
+    <None Include="Shaders\Deferred\LightPass.frag" />
+    <None Include="Shaders\Deferred\LightPass.vert" />
+    <None Include="Shaders\Deferred\LightPassHelper.glsl" />
+    <None Include="Shaders\Forward\MeshUnlit.frag" />
+    <None Include="Shaders\Forward\MeshUnlit.vert" />
+    <None Include="Shaders\Forward\OmniDirShadow.frag" />
+    <None Include="Shaders\Forward\OmniDirShadow.geom" />
+    <None Include="Shaders\Forward\PassThrough.vert" />
+    <None Include="Shaders\Forward\Skybox.frag" />
+    <None Include="Shaders\Forward\Skybox.vert" />
+    <None Include="Shaders\Forward\ThickLines.geom" />
+    <None Include="Shaders\Forward\ThickLineStrip.geom" />
+    <None Include="Shaders\Forward\ThickPoints.geom" />
+    <None Include="Shaders\Include\DebugViz.glsl" />
+    <None Include="Shaders\Include\UboDefs.glsl" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="awesomeface.png" />
