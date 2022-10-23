@@ -23,10 +23,11 @@
 #include "Scene.h"
 
 
-#define DEBUG_DIRECTIONAL_LIGHT 0
-#define DEBUG_POINT_LIGHT       1
+#define DEBUG_DIRECTIONAL_LIGHT     0
+#define DEBUG_POINT_LIGHT           1
+#define DEBUG_DIRECTIONAL_SPLITS    2
 
-#define GFX_SHADER_DEBUG_VIZ DEBUG_DIRECTIONAL_LIGHT
+#define GFX_SHADER_DEBUG_VIZ -1
 
 
 
@@ -57,6 +58,7 @@ void keyboard_button_callback(GLFWwindow* window, int key, int scancode, int act
 Camera camera = Camera( 25, 1, 1);
 
 bool firstMouse = true;
+int lastKey = -1;
 float lastX, lastY, yaw, pitch, roll;
 //unsigned int width, height;
 
@@ -159,6 +161,11 @@ void ShowImGUIWindow()
             ImGui::Checkbox("Perspective", &perspective);
             ImGui::SliderFloat("FOV", &fov, 10.0f, 100.0f);
             
+            bool freeFlyCam = camera.GetNavigationMode() == NavigationType::Freefly;
+            if (ImGui::Checkbox("FreeFly", &freeFlyCam))
+                camera.SetNavigationMode(freeFlyCam ? NavigationType::Freefly : NavigationType::Turntable);
+
+
             if (ImGui::CollapsingHeader("Sky", ImGuiTreeNodeFlags_None))
             {
                 ImGuiColorEditFlags f =
@@ -1368,7 +1375,7 @@ void SetupScene(
     std::map<std::string, std::shared_ptr<WiresShader>>* wiresShadersCollection
 )
 {
-    //LoadPlane(sceneMeshCollection, meshShadersCollection, 30.0, -0.0f);
+    LoadPlane(sceneMeshCollection, meshShadersCollection, 25.0, -0.0f);
 
 
     //LoadScene_PSSM(sceneMeshCollection, wiresShadersCollection);
@@ -1376,7 +1383,7 @@ void SetupScene(
     //LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
+    LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
@@ -1385,7 +1392,7 @@ void SetupScene(
     //LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/aoTest.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("../../Assets/Models/RadialEngine.fbx", sceneMeshCollection, meshShadersCollection);
-    LoadSceneFromPath("../../Assets/Models/House.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
+    //LoadSceneFromPath("../../Assets/Models/House.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("../../Assets/Models/TestPCSS.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
      //LoadSceneFromPath("../../Assets/Models/Dragon.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
      //LoadSceneFromPath("../../Assets/Models/Sponza.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
@@ -2705,12 +2712,12 @@ int main()
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_FRAMEBUFFER_SRGB);
 
-
+   
     // Render Loop
     while (!glfwWindowShouldClose(window))
     {
         glfwMakeContextCurrent(window);
-
+        
         // Input procesing
         processInput(window);
 
@@ -3086,6 +3093,12 @@ void processInput(GLFWwindow* window)
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 
+    /* Freefly camera controls*/
+    if (lastKey == GLFW_KEY_W) { camera.MoveTowards(glm::vec3(0, -1, 0)); }
+    if (lastKey == GLFW_KEY_A) { camera.MoveTowards(glm::vec3(1, 0, 0)); }
+    if (lastKey == GLFW_KEY_S) { camera.MoveTowards(glm::vec3(0, 1, 0)); }
+    if (lastKey == GLFW_KEY_D) { camera.MoveTowards(glm::vec3(-1, 0, 0)); }
+
 }
 
 void ResizeResources(int width, int height)
@@ -3141,21 +3154,24 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 void keyboard_button_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (action == GLFW_PRESS)
-    {
-        ViewType vt;
-
+    { 
         switch (key)
         {
-        case GLFW_KEY_KP_1: vt = ViewType::Top; break;
-        case GLFW_KEY_KP_3: vt = ViewType::Right; break;
-        case GLFW_KEY_KP_7: vt = ViewType::Front; break;
-        case GLFW_KEY_KP_9: vt = ViewType::Back; break;
-        default:
-            return;
-            break;
+
+            /* Set view with rotation animation*/
+            case GLFW_KEY_KP_1: camera.SetView(ViewType::Top);      break;
+            case GLFW_KEY_KP_3: camera.SetView(ViewType::Right);      break;
+            case GLFW_KEY_KP_7: camera.SetView(ViewType::Front);      break;
+            case GLFW_KEY_KP_9: camera.SetView(ViewType::Back);      break;
+
         }
 
-        camera.SetView(vt);
+        lastKey = key;
+    }
+    if (action == GLFW_RELEASE)
+    {
+        if (key == lastKey)   
+            lastKey = -1;      
     }
 }
 
