@@ -425,7 +425,7 @@ float PCSS_DirectionalLight(
 	if (blockerDistance == -1)
 		return 1.0;
 
-    float blockerDistance_ls = blockerDistance;//*(shadowFrustumSize.w - shadowFrustumSize.z);
+    float blockerDistance_ls = blockerDistance*(shadowFrustumSize.w - shadowFrustumSize.z);
 	float pcfRadius_ls = softness*(abs(blockerDistance_ls)); 
     pcfRadius_ls = min(pcfRadius_ls, softness );
 
