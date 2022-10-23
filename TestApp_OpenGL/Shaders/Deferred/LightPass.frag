@@ -67,7 +67,8 @@ void main()
     for(int i=0; i<MAX_POINT_LIGHTS; i++)
         shadow_point[i] = 1.0;
     
-    shadow_dir = ComputeDirectionalShadow(f_lightSpaceMatrix_directional * vec4(posWorld, 1.0), nrmWorld);
+    shadow_dir = ComputeSoftDirectionalShadow( vec4(posWorld, 1.0), nrmWorld);
+    
     for(int i=0; i<MAX_POINT_LIGHTS; i++)
         shadow_point[i] = ComputePointShadow(i, posWorld, nrmWorld);
 
@@ -82,6 +83,18 @@ void main()
     // Out params
     direct, ambient);
 
-
+    
     FragColor = vec4(direct + ambient * occlusion, 1.0);
+
+    #ifdef DEBUG_VIZ 
+    if( uDebug_viewport.z == DEBUG_DIRECTIONAL_SPLITS)
+    { 
+        if(f_dirLight.Data.z!=0)
+        {
+            vec4 posView = f_viewMat * vec4(posWorld, 1.0);
+            int splitIndex = GetSplitIndex(posView.z/posView.w, f_dirLight.Splits);
+            FragColor += 0.1* vec4(splitIndex==0||splitIndex==3, splitIndex ==1||splitIndex==3, splitIndex==2, 1.0);
+        }
+    }
+    #endif
 }

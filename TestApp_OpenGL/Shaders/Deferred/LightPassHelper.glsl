@@ -212,6 +212,65 @@ float SlopeBiasForPCF(vec3 worldNormal, vec3 worldLightDirection, float sampleOf
     return zOffsetWorld; 
 }
 
+
+int GetSplitIndex(float cameraZ, vec4 splitRanges)
+{
+
+        return 
+         0*int(cameraZ>-splitRanges.x && cameraZ <= 0.0) +
+         1*int(cameraZ>-splitRanges.y && cameraZ <= -splitRanges.x) +
+         2*int(cameraZ>-splitRanges.z && cameraZ <= -splitRanges.y) +
+         3*int(cameraZ>-splitRanges.w && cameraZ <= -splitRanges.z);
+}
+
+vec2 GetSplitStartCoord(int splitIndex)
+{
+
+    return vec2((splitIndex % 2) * 0.5, (splitIndex / 2) * 0.5);
+}
+
+vec3 GetLightSpaceDirectional(vec3 worldSpace, out int splitIndex)
+{
+    splitIndex = -1;
+
+    if(f_dirLight.Data.z>0.0) // Use Splits (uniform)
+    {
+         vec4 viewSpace = f_viewMat * vec4(worldSpace, 1.0);
+         viewSpace = vec4(viewSpace.xyz/viewSpace.w, viewSpace.w);
+         splitIndex = GetSplitIndex(viewSpace.z, f_dirLight.Splits);
+         vec4 lightSpaceNdc = f_lightSpaceMatrix_directional[splitIndex] * vec4(worldSpace, 1.0);
+     
+         return lightSpaceNdc.xyz/lightSpaceNdc.w;
+    }
+    else
+    {
+        vec4 lightSpaceNdc = f_lightSpaceMatrix_directional[0] * vec4(worldSpace, 1.0);
+     
+        return lightSpaceNdc.xyz/lightSpaceNdc.w;
+    }
+
+}
+
+float SampleDirShadowMap (sampler2D shadowMap, vec3 fragPos_ws, vec3 sampleOffset_ws, out vec3 fragPosLightSpace)
+{
+    int splitIndex = -1;
+
+    fragPosLightSpace = GetLightSpaceDirectional(fragPos_ws + sampleOffset_ws, splitIndex);
+    
+    vec2 shadowCoord = 
+        splitIndex >= 0
+            ? 0.25 + 0.25 * fragPosLightSpace.xy
+            : 0.5 + 0.5 * fragPosLightSpace.xy;
+
+    vec2 splitOffsetTex = 
+        splitIndex >= 0
+            ?GetSplitStartCoord(splitIndex)
+            : vec2(0);
+
+    return texture(shadowMap, splitOffsetTex + shadowCoord).r;
+}
+
+
 vec2 NdcToUnit(vec2 ndcCoord)
 {
     return ndcCoord*0.5+0.5;
@@ -223,7 +282,7 @@ vec3 NdcToUnit(vec3 ndcCoord)
             
 
 float FindBlockerDistance_DirectionalLight(
-    vec3 fragPosNdc,vec3 fragNormalWorld, sampler2D shadowMap, 
+    vec3 fragPosWorld,vec3 fragNormalWorld, sampler2D shadowMap, 
     vec4 shadowFrustumSize /* (r-l, t-b, near, far) */, 
     vec3 lightDirWorld, float lightSizeWorld, 
     float bias /* base bias added to a slope bias computed here  */)
@@ -235,28 +294,37 @@ float FindBlockerDistance_DirectionalLight(
 	float searchWidth = lightSizeWorld;
 
 	float angle = acos(dot(fragNormalWorld, lightDirWorld));
-    float biasFac_ls = SlopeBiasForPCF(fragNormalWorld, lightDirWorld, 1);
+    float biasFac_ws = SlopeBiasForPCF(fragNormalWorld, lightDirWorld, 1);
+
+    // Creating a reference frame with light direction as Z axis
+    vec3 N = normalize(-lightDirWorld);
+    vec3 T = normalize(cross(N, vec3(1.453,1.029,1.567) /* LOL */));
+    vec3 B = normalize(cross(N, T));
+    mat3 TBN = mat3(T, B, N);
 
     for(int i = 0 ; i< BLOCKER_SEARCH_SAMPLES; i++)
     {
         vec2 sampleOffset_ls  = PoissonSample(i);
         sampleOffset_ls = Rotate2D(sampleOffset_ls, noise);
-        sampleOffset_ls *= searchWidth;
-
-        vec2 sampleOffset_tex = sampleOffset_ls / shadowFrustumSize.xy;
-        vec2 offsetCoord = NdcToUnit(fragPosNdc.xy) + sampleOffset_tex;
+        vec3 sampleOffset_ws  = TBN * vec3(Rotate2D(PoissonSample(i), noise), 0.0);
+        sampleOffset_ws *= searchWidth;
+        
+        vec3 sample_ls;
+        float z = SampleDirShadowMap (shadowMap, fragPosWorld, sampleOffset_ws, sample_ls);
             
-		float z=texture(shadowMap, offsetCoord).r;
-
-        float bias_ls = bias
-                        + biasFac_ls * length(sampleOffset_ls);
+       
+        float bias_ws = biasFac_ws * length(sampleOffset_ws);
             
-        float bias_tex = bias_ls / (shadowFrustumSize.w - shadowFrustumSize.z);
+        float bias_tex = bias_ws / (shadowFrustumSize.w - shadowFrustumSize.z);
+        bias_tex+=bias;
 
-        if (z + bias_tex <= NdcToUnit(fragPosNdc).z )
+        float samplePosZ_tex = sample_ls.z*0.5+0.5;
+        
+        if (z + bias_tex <= samplePosZ_tex )
         {
+            
             blockers++;
-            avgBlockerDistance += NdcToUnit(fragPosNdc).z - z; 
+            avgBlockerDistance +=samplePosZ_tex - z; 
         }
 
     }
@@ -265,12 +333,11 @@ float FindBlockerDistance_DirectionalLight(
     if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy&& uDebug_viewport.z == DEBUG_DIRECTIONAL_LIGHT)
     {
 
-        vec4 center_ndc = vec4(fragPosNdc, 1.0);
-        vec4 center_ws = f_lightSpaceMatrixInv_directional*center_ndc;
+        vec3 center_ws = fragPosWorld;
                 
-        vec3 coneDir_ws =  -lightDirWorld * SlopeBiasForPCF(fragNormalWorld, lightDirWorld, lightSizeWorld);
+        vec3 coneDir_ws =  -lightDirWorld * biasFac_ws * lightSizeWorld;
 
-        DViz_DrawCone((center_ws.xyz/center_ws.w) + coneDir_ws, -coneDir_ws, lightSizeWorld, vec4(0.0, 1.0, 0.0, 0.6));
+        DViz_DrawCone(center_ws + coneDir_ws, -coneDir_ws, lightSizeWorld, vec4(0.0, 1.0, 0.0, 0.6));
 
     }
 #endif
@@ -282,35 +349,42 @@ float FindBlockerDistance_DirectionalLight(
 }
 
 float PCF_DirectionalLight(
-    vec3 fragPosNdc,vec3 fragNormalWorld, sampler2D shadowMap, 
+    vec3 fragPosWorld,vec3 fragNormalWorld, sampler2D shadowMap, 
     vec4 shadowFrustumSize /* (r-l, t-b, near, far) */, 
     vec3 lightDirWorld, float filterSizeWorld, 
     float bias /* base bias added to a slope bias computed here  */)
 {    
     float noise = RandomValue(gl_FragCoord.xy);     
-    float biasFac_ls = SlopeBiasForPCF(fragNormalWorld,lightDirWorld, 1);
+    float biasFac_ws = SlopeBiasForPCF(fragNormalWorld,lightDirWorld, 1);
+
+    // Creating a reference frame with light direction as Z axis
+    vec3 N = normalize(-lightDirWorld);
+    vec3 T = normalize(cross(N, vec3(1.453,1.029,1.567) /* LOL */));
+    vec3 B = normalize(cross(N, T));
+    mat3 TBN = mat3(T, B, N);
 
     float sum = 0;
     for (int i = 0; i < PCF_SAMPLES; i++)
     {
             
-        vec2 sampleOffset_ls  = PoissonSample(i);
+       vec2 sampleOffset_ls  = PoissonSample(i);
         sampleOffset_ls = Rotate2D(sampleOffset_ls, noise);
-        sampleOffset_ls *= filterSizeWorld;
+        vec3 sampleOffset_ws  = TBN * vec3(Rotate2D(PoissonSample(i), noise), 0.0);
+        sampleOffset_ws *= filterSizeWorld;
+        
+        vec3 sample_ls;
 
-        vec2 sampleOffset_tex = sampleOffset_ls / shadowFrustumSize.xy;
-        vec2 offsetCoord = NdcToUnit(fragPosNdc.xy) + sampleOffset_tex;
+        float closestDepth = SampleDirShadowMap (shadowMap, fragPosWorld, sampleOffset_ws, sample_ls);
+        
+        float bias_ws = biasFac_ws * length(sampleOffset_ws);
             
-		float closestDepth=texture(shadowMap, offsetCoord).r;
+        float bias_tex = bias_ws / (shadowFrustumSize.w - shadowFrustumSize.z);
+        bias_tex += bias;
 
-        float bias_ls = bias
-                        + biasFac_ls * length(sampleOffset_ls);
-            
-        float bias_tex = bias_ls / (shadowFrustumSize.w - shadowFrustumSize.z);
+        float samplePosZ_tex = sample_ls.z*0.5+0.5;
 
-          
         sum+= 
-            (closestDepth + bias_tex) <= NdcToUnit(fragPosNdc).z 
+            (closestDepth + bias_tex) <= samplePosZ_tex
             ? 0.0 
             : 1.0;
 
@@ -320,12 +394,11 @@ float PCF_DirectionalLight(
     if(uvec2(gl_FragCoord.xy) == uDebug_mouse.xy && uDebug_viewport.z == DEBUG_DIRECTIONAL_LIGHT)
     {
 
-        vec4 center_ndc = vec4(fragPosNdc, 1.0);
-        vec4 center_ws = f_lightSpaceMatrixInv_directional*center_ndc;
+        vec3 center_ws = fragPosWorld;
                 
-        vec3 coneDir_ws =  -lightDirWorld * SlopeBiasForPCF(fragNormalWorld, lightDirWorld, filterSizeWorld);
+        vec3 coneDir_ws =  -lightDirWorld * biasFac_ws * filterSizeWorld;
 
-        DViz_DrawCone((center_ws.xyz/center_ws.w) + coneDir_ws, -coneDir_ws, filterSizeWorld, vec4(0.0, 1.0, 1.0, 0.6));
+        DViz_DrawCone(center_ws + coneDir_ws, -coneDir_ws, filterSizeWorld, vec4(0.0, 1.0, 1.0, 0.6));
 
     }
 #endif
@@ -334,47 +407,67 @@ float PCF_DirectionalLight(
     }
 
 float PCSS_DirectionalLight(
-    vec3 fragPosNdc,vec3 fragNormalWorld, sampler2D shadowMap, 
+    vec3 fragPosWorld,vec3 fragNormalWorld, sampler2D shadowMap, 
     vec4 shadowFrustumSize /* (r-l, t-b, near, far) */, 
     vec3 lightDirWorld, float softness, 
     float bias /* base bias added to a slope bias computed here  */)
 {
 
-    float lightSize_ls = softness*
-            NdcToUnit(fragPosNdc).z * (shadowFrustumSize.w - shadowFrustumSize.z); 
-
 	// blocker search
 	float blockerDistance = 
         FindBlockerDistance_DirectionalLight(
-            fragPosNdc, fragNormalWorld, shadowMap, 
+            fragPosWorld, fragNormalWorld, shadowMap, 
             shadowFrustumSize , 
-            lightDirWorld, lightSize_ls, 
+            lightDirWorld, softness, 
             bias);
 
+            
 	if (blockerDistance == -1)
 		return 1.0;
 
-    float blockerDistance_ls = blockerDistance*(shadowFrustumSize.w - shadowFrustumSize.z);
+    float blockerDistance_ls = blockerDistance;//*(shadowFrustumSize.w - shadowFrustumSize.z);
 	float pcfRadius_ls = softness*(abs(blockerDistance_ls)); 
-    pcfRadius_ls = min(pcfRadius_ls, lightSize_ls );
+    pcfRadius_ls = min(pcfRadius_ls, softness );
 
     // filtering
 	return PCF_DirectionalLight(
-        fragPosNdc, fragNormalWorld, shadowMap, 
+        fragPosWorld, fragNormalWorld, shadowMap, 
         shadowFrustumSize , 
         lightDirWorld, pcfRadius_ls, 
         bias);
        
 }
 
-float ComputeDirectionalShadow(vec4 fragPosLightSpace, vec3 fragNormalWorld)
+
+float ComputeSoftDirectionalShadow(vec4 fragPosLightSpace, vec3 fragNormalWorld)
 {
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     
-    return PCSS_DirectionalLight(
-        projCoords, fragNormalWorld, 
-            t_shadowMap_directional, f_shadowCubeSize_directional,f_dirLight.Direction.xyz, 
-            f_dirLight.Data.x, f_dirLight.Data.y);
+       return PCSS_DirectionalLight(
+            projCoords, fragNormalWorld, 
+                t_shadowMap_directional, f_shadowCubeSize_directional,f_dirLight.Direction.xyz, 
+                f_dirLight.Data.x, f_dirLight.Data.y);
+   
+}
+
+float ComputeDirectionalShadow(vec4 fragPosWorldSpace)
+{
+    vec4 fragPosCameraSpace = f_viewMat * fragPosWorldSpace;
+
+    int splitIndex = GetSplitIndex(fragPosCameraSpace.z/fragPosCameraSpace.w,f_dirLight.Splits);
+    vec2 splitStart = GetSplitStartCoord(splitIndex);
+    vec4 fragPosLightSpace = f_lightSpaceMatrix_directional[splitIndex] * fragPosWorldSpace;
+    float fragDepth = 0.5 + 0.5*fragPosLightSpace.z/fragPosLightSpace.w;
+    vec2 shadowCoord = 0.25 + 0.25 * fragPosLightSpace.xy/fragPosLightSpace.w;
+    float closestDepth = texture(t_shadowMap_directional, splitStart + shadowCoord).r;
+
+    return 
+    
+            fragDepth>(closestDepth + f_dirLight.Data.y)
+                ? 0.0 
+                : 1.0;
+    
+
 }
 
 float PCSS_PointLight(

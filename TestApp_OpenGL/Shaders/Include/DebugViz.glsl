@@ -7,8 +7,9 @@
 #define DEBUG_VIZ_POINT     2
 #define DEBUG_VIZ_LINE      3
             
-#define DEBUG_DIRECTIONAL_LIGHT 0
-#define DEBUG_POINT_LIGHT       1
+#define DEBUG_DIRECTIONAL_LIGHT     0
+#define DEBUG_POINT_LIGHT           1
+#define DEBUG_DIRECTIONAL_SPLITS    2
 
 struct debugVizItem
 {

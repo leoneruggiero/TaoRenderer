@@ -588,6 +588,7 @@ namespace Utils
 			max = f.Max();
 		}
 
+
 		static std::pair<T, T> GetMinMax(const std::vector<T>& points)
 		{
 			typename T::value_type maxVal = std::numeric_limits<T::value_type>::max();
@@ -597,6 +598,27 @@ namespace Utils
 				min{ maxVal }, max{ minVal };
 
 			GetMinMax(points, min, max);
+
+			return std::make_pair(min, max);
+		}
+
+		static std::pair<T, T> GetMinMax(const std::vector<T>& points, glm::mat4 transformation)
+		{
+			typename T::value_type maxVal = std::numeric_limits<T::value_type>::max();
+			typename T::value_type minVal = -maxVal;
+
+			T
+				min{ maxVal }, max{ minVal };
+
+			std::vector<glm::vec3> transfPoints = std::vector<glm::vec3>();
+
+			for (int i = 0; i < points.size(); i++)
+			{
+				glm::vec3 transfPoint = transformation * glm::vec4(points[i], 1.0f);
+				transfPoints.push_back(transfPoint);
+			}
+
+			GetMinMax(transfPoints, min, max);
 
 			return std::make_pair(min, max);
 		}
@@ -621,6 +643,8 @@ namespace Utils
 
 		std::vector<T> GetPoints() const;
 		
+		T Min() const { return _min; };
+		T Max() const { return _max; };
 		T Center() const { return _center; };
 		T Diagonal() const { return _diagonal; };
 		typename T::value_type Size() const { return _size; };
@@ -767,22 +791,10 @@ namespace Utils
 	static void GetTightNearFar(std::vector<glm::vec3> bboxPoints, glm::mat4 view, float tol, float& near, float& far)
 	{
 		
-		// this containter stores the bbox points in camera space
-		std::vector<glm::vec3> projPoints = std::vector<glm::vec3>();
+		std::pair<glm::vec3, glm::vec3> boxExt = BoundingBox<glm::vec3>::GetMinMax(bboxPoints, view);
 
-		for (int i = 0; i < bboxPoints.size(); i++)
-		{
-			glm::vec3 projPoint = view * glm::vec4(bboxPoints[i], 1.0f);
-			projPoint.z *= -1.0f; // z positive towards far
-			projPoints.push_back(projPoint);
-		}
-
-		glm::vec3 min, max;
-
-		std::pair<glm::vec3, glm::vec3> boxExt = BoundingBox<glm::vec3>::GetMinMax(projPoints);
-
-		near = glm::max(0.001f, boxExt.first.z - tol);
-		far = glm::max(0.001f, boxExt.second.z + tol);
+		near = glm::max(0.001f, -boxExt.second.z - tol);
+		far = glm::max(0.001f,  -boxExt.first.z  + tol);
 	}
 
 	void GetTightNearFar(std::vector<glm::vec3> bboxPoints, glm::mat4 view, float& near, float& far)

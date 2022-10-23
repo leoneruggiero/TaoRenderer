@@ -20,9 +20,10 @@ struct DirectionalLight
 	vec4 Direction; // 16 byte
 	vec4 Diffuse;   // 16 byte
 
-    // (softness, bias, UNUSED, UNUSED)
+    // (softness, bias, doSplits, UNUSED)
 	vec4 Data;      // 16 byte
                     // => 48 byte
+    vec4 Splits;
 };
 
 struct PointLight
@@ -40,7 +41,10 @@ struct PointLight
 #define MAX_POINT_LIGHTS 3
 #endif
 
-   
+#ifndef SPLITS
+#define SPLITS 4
+#endif
+
 layout (std140) uniform blk_PerObjectData
 {
     uniform mat4        o_modelMat;     // 64 byte
@@ -49,26 +53,31 @@ layout (std140) uniform blk_PerObjectData
                                         // TOTAL => 192 byte
 };
     
+layout (std140) uniform blk_ViewData
+{
+    uniform mat4    f_viewMat;          // 64  byte
+    uniform mat4    f_projMat;          // 64  byte
+    uniform float   f_near;             // 4   byte
+    uniform float   f_far;              // 4   byte
+                                        // TOTAL => 136
+};
+
 layout (std140) uniform blk_PerFrameData
 {
-    uniform mat4             f_viewMat;                                    // 64  byte
-    uniform mat4             f_projMat;                                    // 64  byte
-    uniform float            f_near;                                       // 4   byte
-    uniform float            f_far;                                        // 4   byte
-    uniform bool             f_doGamma;                                    // 4   byte
-    uniform float            f_gamma;                                      // 4   byte
+    uniform mat4             f_lightSpaceMatrix_directional[SPLITS];       // 256 byte
+    uniform mat4             f_lightSpaceMatrixInv_directional[SPLITS];    // 256 byte
+    uniform DirectionalLight f_dirLight;                                   // 64  byte
     uniform PointLight       f_pointLight[MAX_POINT_LIGHTS];               // 144 byte
-    uniform DirectionalLight f_dirLight;                                   // 48  byte
     uniform vec4             f_eyeWorldPos;                                // 16  byte
     uniform vec4             f_shadowCubeSize_directional;                 // 16  byte
+    uniform bool             f_doGamma;                                    // 4   byte
+    uniform float            f_gamma;                                      // 4   byte
     uniform bool             f_hasIrradianceMap;                           // 4   byte
     uniform float            f_environmentIntensity;                       // 4   byte
     uniform bool             f_hasRadianceMap;                             // 4   byte
     uniform bool             f_hasBrdfLut;                                 // 4   byte
-    uniform mat4             f_lightSpaceMatrix_directional;               // 64  byte
-    uniform mat4             f_lightSpaceMatrixInv_directional;            // 64  byte
     uniform int              f_radiance_minLevel;                          // 4   byte
     uniform int              f_radiance_maxLevel;                          // 4   byte
 
-                                                                           // TOTAL => 504 byte
+                                                                           // TOTAL => 784 byte
 };

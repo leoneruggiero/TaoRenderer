@@ -94,6 +94,7 @@ protected:
         constexpr static const char* uboNames[] =
         {
             "blk_PerFrameData",
+            "blk_PerFrameData",
             "blk_PerObjectData",
             "blk_PerFrameData_Shadows",
             "blk_PerFrameData_Ao",
@@ -416,6 +417,7 @@ private:
 
     // Uniform buffers
     const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* VIEW_DATA = "blk_ViewData";
     const char* DATA_PER_FRAME = "blk_PerFrameData";
 
     // Uniforms
@@ -474,12 +476,13 @@ public:
             throw"LOL...\n";
     }
 
-    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    void SetUniformBlocks(int dataPerObject, int viewData, int dataPerFrame)
     {
         bool ok = true;
         SetCurrent();
         ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
-        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        ok &= SetUniformBlockIfValid(viewData,      VIEW_DATA);
+        ok &= SetUniformBlockIfValid(dataPerFrame,  DATA_PER_FRAME);
         OGLUtils::CheckOGLErrors();
         if (!ok)
             throw"LOL...\n";
@@ -492,6 +495,7 @@ private:
 
     // Uniform buffers
     const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* VIEW_DATA = "blk_ViewData";
     const char* DATA_PER_FRAME = "blk_PerFrameData";
     const char* SCREEN_TO_WORLD = "f_screenToWorld";
     const char* THICKNESS = "o_thickness";
@@ -522,11 +526,12 @@ public:
         if (!ok)
             throw"LOL...\n";
     }
-    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    void SetUniformBlocks(int dataPerObject, int viewData, int dataPerFrame)
     {
         bool ok = true;
         SetCurrent();
         ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(viewData, VIEW_DATA);
         ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
         OGLUtils::CheckOGLErrors();
         if (!ok)
@@ -540,6 +545,7 @@ private:
 
     // Uniform buffers
     const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* VIEW_DATA = "blk_ViewData";
     const char* DATA_PER_FRAME = "blk_PerFrameData";
     const char* SCREEN_TO_WORLD = "f_screenToWorld";
     const char* THICKNESS = "o_thickness";
@@ -570,11 +576,12 @@ public:
         if (!ok)
             throw"LOL...\n";
     }
-    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    void SetUniformBlocks(int dataPerObject, int viewData, int dataPerFrame)
     {
         bool ok = true;
         SetCurrent();
         ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(viewData, VIEW_DATA);
         ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
         OGLUtils::CheckOGLErrors();
         if (!ok)
@@ -588,6 +595,7 @@ private:
 
     // Uniform buffers
     const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* VIEW_DATA = "blk_ViewData";
     const char* DATA_PER_FRAME = "blk_PerFrameData";
     const char* SCREEN_TO_WORLD = "f_screenToWorld";
     const char* THICKNESS = "o_thickness";
@@ -618,11 +626,12 @@ public:
         if (!ok)
             throw"LOL...\n";
     }
-    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    void SetUniformBlocks(int dataPerObject, int viewData, int dataPerFrame)
     {
         bool ok = true;
         SetCurrent();
         ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(viewData, VIEW_DATA);
         ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
         OGLUtils::CheckOGLErrors();
         if (!ok)
@@ -637,6 +646,7 @@ private:
    
     // Uniform buffers
     const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* VIEW_DATA = "blk_ViewData";
     const char* DATA_PER_FRAME = "blk_PerFrameData";
 
 
@@ -646,11 +656,12 @@ public:
     {
     };
 
-    void SetUniformBlocks(int dataPerObject, int dataPerFrame) 
+    void SetUniformBlocks(int dataPerObject, int viewData, int dataPerFrame)
     {
         bool ok = true;
         SetCurrent();
         ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(viewData, VIEW_DATA);
         ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
         OGLUtils::CheckOGLErrors();
         if (!ok)
@@ -665,6 +676,7 @@ private:
 
     // Uniform buffers
     const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* VIEW_DATA = "blk_ViewData";
     const char* DATA_PER_FRAME = "blk_PerFrameData";
     const char* SHADOW_TRANSFORMS = "shadowTransforms";
     const char* INDEX = "lightIndex";
@@ -678,12 +690,12 @@ public:
     {
     };
 
-    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    void SetUniformBlocks(int dataPerObject, int viewData, int dataPerFrame)
     {
         bool ok = true;
         SetCurrent();
-        OGLUtils::CheckOGLErrors();
         ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(viewData, VIEW_DATA);
         ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
         OGLUtils::CheckOGLErrors();
         if (!ok)
@@ -744,7 +756,8 @@ private:
 
     // Uniform buffers
     const char* DATA_PER_OBJECT = "blk_PerObjectData";
-    const char* DATA_PER_FRAME = "blk_PerFrameData";
+    const char* VIEW_DATA       = "blk_ViewData";
+    const char* DATA_PER_FRAME  = "blk_PerFrameData";
 
  
 public:
@@ -753,12 +766,13 @@ public:
     {
     };
 
-    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    void SetUniformBlocks(int dataPerObject, int viewData, int dataPerFrame)
     {
         bool ok = true;
         SetCurrent();
         ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
-        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        ok &= SetUniformBlockIfValid(viewData,      VIEW_DATA);
+        ok &= SetUniformBlockIfValid(dataPerFrame,  DATA_PER_FRAME);
         OGLUtils::CheckOGLErrors();
         if (!ok)
             throw"LOL...\n";
@@ -803,6 +817,7 @@ private:
 
     // Uniform buffers
     const char* DATA_PER_OBJECT         = "blk_PerObjectData";
+    const char* VIEW_DATA               = "blk_ViewData";
     const char* DATA_PER_FRAME          = "blk_PerFrameData";
     
 public:
@@ -811,12 +826,14 @@ public:
     {  
     };
 
-    void SetUniformBlocks(int dataPerObject, int dataPerFrame)
+    void SetUniformBlocks(int dataPerObject, int viewData, int dataPerFrame)
     {
         bool ok = true;
+        SetCurrent();
         ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(viewData, VIEW_DATA);
         ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
-
+        OGLUtils::CheckOGLErrors();
         if (!ok)
             throw"LOL...\n";
     }
@@ -1745,9 +1762,6 @@ public:
         Renderer::SetTransformation(position, rotation, rotationAxis, scale);
 
         // Generate Graphics Data ============================================================================================================= //
-        
-        std::vector<std::pair<unsigned int, std::string>> vIns{ std::move(shader->GetVertexInput()) };
-
         _vbos = std::vector<VertexBufferObject>();
         
         // TODO: good enough? prabably ok for this small application
@@ -2079,7 +2093,7 @@ public:
     }
 
     
-    /*void Draw(glm::vec3 eye, const SceneParams& sceneParams) const override
+    void Draw(glm::vec3 eye, const SceneParams& sceneParams) const 
     {
        
         _shader->SetCurrent();
@@ -2102,7 +2116,7 @@ public:
         _vao.UnBind();
 
         OGLUtils::CheckOGLErrors();
-    }*/
+    }
 
     void DrawCustom() const override
     {

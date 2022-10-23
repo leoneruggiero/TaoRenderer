@@ -21,10 +21,10 @@ struct matData
 
 struct viewData
 {
-	glm::mat4	viewMat;
-	glm::mat4	projMat;
-	float		near;
-	float		far;
+	glm::mat4 viewMatrix;
+	glm::mat4 projMatrix;
+	float	  near;
+	float	  far;
 };
 
 struct dirLightData
@@ -33,8 +33,9 @@ struct dirLightData
 	glm::vec4 diffuse;
 	float	  softness;
 	float	  bias;
-	float	  pad0;
+	float	  doSplits;
 	float	  pad1;
+	glm::vec4 splits;
 };
 
 struct pointLightData
@@ -56,21 +57,34 @@ struct dataPerObject
 
 struct dataPerFrame
 {
-	viewData		vData;
-	unsigned int	doGamma;
-	float			gamma;
+	// One transf per split (1 or 4 splits)
+	glm::mat4		dirLightSpaceMat0;
+	glm::mat4		dirLightSpaceMat1;
+	glm::mat4		dirLightSpaceMat2;
+	glm::mat4		dirLightSpaceMat3;
+
+	glm::mat4		dirLightSpaceMatInv0;
+	glm::mat4		dirLightSpaceMatInv1;
+	glm::mat4		dirLightSpaceMatInv2;
+	glm::mat4		dirLightSpaceMatInv3;
+
+	dirLightData	dirLight;
+
 	pointLightData	pointLight0;
 	pointLightData	pointLight1;
 	pointLightData	pointLight2;
-	dirLightData	dirLight;	
+	
 	glm::vec4		eyeWorldPos;
+
 	glm::vec4		dirShadowFrusumSize;
+
+	unsigned int	doGamma;
+	float			gamma;
+	
 	unsigned int	hasIrradianceMap;
 	float			environmentIntensity;
 	unsigned int	hasRadianceMap;
 	unsigned int	hasBrdfLut;
-	glm::mat4		dirLightSpaceMat;
-	glm::mat4		dirLightSpaceMatInv;
 	int				radianceMapMinLevel;
 	int				radianceMapMaxLevel;
 };
@@ -86,10 +100,11 @@ enum UBOBinding
 {
 	// NOTE: should always start from 0 and continue consecutively 
 	// (see the ugly code that calls this enum)
-	PerFrameData = 0,
-	PerObjectData = 1,
-	Shadows = 2,
-	AmbientOcclusion = 3
+	PerFrameData		= 0,
+	ViewData			= 1,
+	PerObjectData		= 2,
+	Shadows				= 3,
+	AmbientOcclusion	= 4
 };
 
 enum SSBOBinding

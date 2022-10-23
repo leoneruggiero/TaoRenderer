@@ -49,6 +49,8 @@ struct PointLight
 
 struct DirectionalLight
 {
+	static const int SPLITS = 4;
+
 	glm::vec3 Direction;
 
 	// Needed for shadowMap
@@ -60,11 +62,14 @@ struct DirectionalLight
 
 	// ShadowData
 	unsigned int ShadowMapId;
-	glm::mat4 LightSpaceMatrix;
+	glm::mat4 LightSpaceMatrix[SPLITS];
 	glm::vec4 ShadowBoxSize;
 	float Bias;
 	float SlopeBias;
 	float Softness;
+	bool doSplits;
+	float lambda = 0.4f;
+	glm::vec4 splits;
 };
 
 struct AmbientLight
@@ -152,7 +157,8 @@ struct SceneParams
 {
 	glm::mat4 projectionMatrix;
 	glm::mat4 viewMatrix;
-	float cameraNear, cameraFar;
+	glm::vec3 cameraPos;
+	float cameraNear, cameraFar, cameraFovY;
 	int viewportWidth, viewportHeight;
 	glm::ivec2 mousePosition;
 	SceneLights sceneLights;
