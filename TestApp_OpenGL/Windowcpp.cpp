@@ -45,7 +45,7 @@ const unsigned int directionalShadowMapResolution = 2048;
 const unsigned int pointShadowMapResolution = 1024;
 const int SSAO_MAX_SAMPLES = 64;
 const int SSAO_BLUR_MAX_RADIUS = 16;
-
+const int TAA_JITTER_SAMPLES = 16;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
@@ -266,6 +266,8 @@ void ShowImGUIWindow()
             
             ImGui::Checkbox("GammaCorrection", &sceneParams.postProcessing.doGammaCorrection);
 
+            ImGui::Checkbox("TAA", &sceneParams.postProcessing.doTaa);
+
             ImGui::EndTabItem();
         }
         if (ImGui::BeginTabItem("Debug"))
@@ -283,26 +285,26 @@ void ShowImGUIWindow()
 
 void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>> *shadersCollection)
 {
-    Mesh boxMesh = Mesh::Box(1, 1, 10);
+    Mesh boxMesh = Mesh::Box(1, 3, 1);
     sceneMeshCollection.AddToCollection(
-        std::make_shared<MeshRenderer>(glm::vec3(-5, -5, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
+        std::make_shared<MeshRenderer>(glm::vec3(0, 0, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
             (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
             (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
     sceneMeshCollection.AddToCollection(
-        std::make_shared<MeshRenderer>(glm::vec3(2, 2, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
+        std::make_shared<MeshRenderer>(glm::vec3(1, 0, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
             (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
+            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PlasticGreen));
     sceneMeshCollection.AddToCollection(
-        std::make_shared<MeshRenderer>(glm::vec3(7, 8, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
+        std::make_shared<MeshRenderer>(glm::vec3(2, 0, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
             (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
+            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
     sceneMeshCollection.AddToCollection(
-        std::make_shared<MeshRenderer>(glm::vec3(10, 12, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
+        std::make_shared<MeshRenderer>(glm::vec3(3, 0, 0), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), boxMesh,
             (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
+            (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PureWhite));
 
-    Mesh planeMesh = Mesh::Box(30, 30, .1);
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-15, -15, 0.0f), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), planeMesh,
+    Mesh planeMesh = Mesh::Box(8, 8, .1);
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-4, -4, 0.0f), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), planeMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
     return;
@@ -556,8 +558,8 @@ void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std
     sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(square_64)));
 
     std::vector<glm::vec3> squareSamplesPts{};
-    for (auto& s : GetPoissonDiskSamples2D(64, Domain2D(DomainType2D::Square, 2.0f)))
-        squareSamplesPts.push_back(glm::vec3(s, 0.01f));
+    for (auto& s : GetR2Sequence(16/*, Domain2D(DomainType2D::Square, 2.0f)*/))
+        squareSamplesPts.push_back(glm::vec3(s*2.0f, 0.01f));
 
     Wire squareSamplesWire_8 = Wire(
         std::vector<glm::vec3>(squareSamplesPts.begin(), squareSamplesPts.begin() + 8),
@@ -573,7 +575,7 @@ void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std
     ((Renderer*)&squareSamples_16)->Translate(1.5f, 2.5f, 0.0f);
     squareSamples_16.SetColor(glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
 
-    Wire squareSamplesWire_32 = Wire(
+   /* Wire squareSamplesWire_32 = Wire(
         std::vector<glm::vec3>(squareSamplesPts.begin(), squareSamplesPts.begin() + 32),
         WireNature::POINTS);
     WiresRenderer squareSamples_32 = WiresRenderer(squareSamplesWire_32, shadersCollection->at("POINTS").get());
@@ -585,12 +587,12 @@ void LoadScene_PoissonDistribution(SceneMeshCollection& sceneMeshCollection, std
         WireNature::POINTS);
     WiresRenderer squareSamples_64 = WiresRenderer(squareSamplesWire_64, shadersCollection->at("POINTS").get());
     ((Renderer*)&squareSamples_64)->Translate(6.5f, 2.5f, 0.0f);
-    squareSamples_64.SetColor(glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));
+    squareSamples_64.SetColor(glm::vec4(0.0f, 1.0f, 0.0f, 1.0f));*/
 
     sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(squareSamples_8)));
     sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(squareSamples_16)));
-    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(squareSamples_32)));
-    sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(squareSamples_64)));
+    //sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(squareSamples_32)));
+    //sceneMeshCollection.AddToCollection(std::make_shared<WiresRenderer>(std::move(squareSamples_64)));
 
     // -----------------
 
@@ -1375,7 +1377,7 @@ void SetupScene(
     std::map<std::string, std::shared_ptr<WiresShader>>* wiresShadersCollection
 )
 {
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 25.0, -0.0f);
+    LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, -0.0f);
 
 
     //LoadScene_PSSM(sceneMeshCollection, wiresShadersCollection);
@@ -1383,10 +1385,10 @@ void SetupScene(
     //LoadScene_Hilbert(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PoissonDistribution(sceneMeshCollection, wiresShadersCollection);
     //LoadScene_PbrTestSpheres(sceneMeshCollection, meshShadersCollection);
-    LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
-    //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
+    LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
     //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
     //LoadScene_RadialEngine(sceneMeshCollection, meshShadersCollection);
     //LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
@@ -1772,7 +1774,11 @@ void UpdatePerFrameDataUBO(UniformBufferObject& ubo, const SceneParams& scenePar
             : 0,
         sceneParams.environment.RadianceMap.has_value()
             ? sceneParams.environment.RadianceMap.value().MaxLevel()
-            : 0
+            : 0,
+
+        sceneParams.postProcessing.jitter,
+        glm::vec2(sceneParams.viewportWidth, sceneParams.viewportHeight),
+        sceneParams.postProcessing.doTaa
     };
 
     ubo.SetSubData(0, 1, &data);
@@ -2384,13 +2390,21 @@ void DrawExtraScene(
 }
 
 
-void SetRenderTarget(std::stack<FrameBuffer<OGLTexture2D>*>& stack, FrameBuffer<OGLTexture2D>& fbo, bool read, bool write)
+void SetRenderTarget(std::stack<FrameBuffer<OGLTexture2D>*>& stack, FrameBuffer<OGLTexture2D>* fbo, bool read, bool write)
 {
-    stack.push(&fbo);
-    fbo.Bind(read, write);
+    stack.push(fbo);
+    
+    if(fbo)
+        fbo->Bind(read, write);
+
+    else // Set default framebuffer
+    {
+        int mask = (read ? GL_READ_FRAMEBUFFER : 0) | (write ? GL_DRAW_FRAMEBUFFER : 0);
+        glBindFramebuffer(mask, 0);
+    }
 }
 
-void SetRenderTarget(std::stack<FrameBuffer<OGLTexture2D>*>& stack, FrameBuffer<OGLTexture2D>& fbo)
+void SetRenderTarget(std::stack<FrameBuffer<OGLTexture2D>*>& stack, FrameBuffer<OGLTexture2D>* fbo)
 {
     SetRenderTarget(stack, fbo, true, true);
 }
@@ -2402,6 +2416,35 @@ void ResetRenderTarget(std::stack<FrameBuffer<OGLTexture2D>*>& stack)
         stack.top()->Bind();
     else
         FrameBuffer<OGLTexture2D>::UnBind();
+}
+
+std::vector<glm::vec2> GetTaaJitterVectors()
+{
+    return GetR2Sequence(TAA_JITTER_SAMPLES);
+
+   /* return std::vector<glm::vec2>
+    {
+        
+        glm::vec2(0.25f, 0.25f),
+        glm::vec2(0.75f, 0.75f),
+        glm::vec2(0.25f, 0.25f),
+        glm::vec2(0.75f, 0.25f),
+
+            glm::vec2(0.25f, 0.25f),
+            glm::vec2(0.75f, 0.75f),
+            glm::vec2(0.25f, 0.25f),
+            glm::vec2(0.75f, 0.25f),
+
+            glm::vec2(0.25f, 0.25f),
+            glm::vec2(0.75f, 0.75f),
+            glm::vec2(0.25f, 0.25f),
+            glm::vec2(0.75f, 0.25f),
+
+            glm::vec2(0.25f, 0.25f),
+            glm::vec2(0.75f, 0.75f),
+            glm::vec2(0.25f, 0.25f),
+            glm::vec2(0.75f, 0.25f),
+    };*/
 }
 
 int main()
@@ -2646,6 +2689,30 @@ int main()
     sceneParams.postProcessing.doGammaCorrection = true;
     sceneParams.postProcessing.Gamma = 2.2f;
 
+    // TAA
+    // ---
+    TaaPassShader taaPassShader = TaaPassShader();
+    VelocityPassShader velocityPassShader = VelocityPassShader();
+
+    // Velocity buffer 
+    FrameBuffer velocityFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, true,
+        TextureInternalFormat::Rg_16f /* overkill ?? */);
+
+    // "Double-buffered" history (swap each frame)
+    FrameBuffer<OGLTexture2D> taaHistoryFBO[2] =
+    { 
+        FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, false, 
+            TextureInternalFormat::Rgba_16f, TextureFiltering::Linear, TextureFiltering::Linear),
+        FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, false,
+            TextureInternalFormat::Rgba_16f, TextureFiltering::Linear, TextureFiltering::Linear)
+    };
+    int taaBufferIndex = 0;
+    int taaJitterIndex = 0;
+    std::vector<glm::vec2> taaJitter = GetTaaJitterVectors();
+    glm::mat4 taaPrevVP = glm::mat4(1.0f);
+    sceneParams.postProcessing.doTaa = true;
+    sceneParams.postProcessing.jitter = taaJitter[0];
+
     // Post processing unit (ao, blur, bloom, ...)
     // -------------------------------------------
     PostProcessingUnit postProcessingUnit(SSAO_BLUR_MAX_RADIUS, SSAO_MAX_SAMPLES);
@@ -2779,14 +2846,15 @@ int main()
         //AmbienOcclusionPass(sceneParams, sceneMeshCollection, sceneUniformBuffers, *MeshShaders.at("VIEWNORMALS").get(), ssaoFBO, postProcessingUnit);
 
 
-        // Offscreen rendering to enable hdr and gamma correction.
+        // Tonemapping and Gamma correction
+        // --------------------------------
         if (sceneParams.postProcessing.ToneMapping || sceneParams.postProcessing.doGammaCorrection)
         {
             // Resize the main framebuffer if needed (window resized).
             if (mainFBO.Height() != sceneParams.viewportHeight || mainFBO.Width() != sceneParams.viewportWidth)
                 mainFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, true);
 
-            SetRenderTarget(sceneFBOs, mainFBO);
+            SetRenderTarget(sceneFBOs, &mainFBO);
         }
 
         glViewport(0, 0, sceneParams.viewportWidth, sceneParams.viewportHeight);
@@ -2839,7 +2907,7 @@ int main()
                 std::move(gBufferTextures)
             );
         }
-        SetRenderTarget(sceneFBOs, gBuffer);
+        SetRenderTarget(sceneFBOs, &gBuffer);
 
         GPassStandard.SetUniformBlocks(UBOBinding::PerObjectData, UBOBinding::ViewData, UBOBinding::PerFrameData);
         GPassStandard.SetSamplers(TextureBinding::Normals, TextureBinding::Albedo, TextureBinding::Roughness, TextureBinding::Metallic, -1, -1);
@@ -2940,6 +3008,98 @@ int main()
         
         //////////////////////
 
+
+        // TAA Pass
+        // --------
+        if (sceneParams.postProcessing.doTaa && 
+            (sceneParams.postProcessing.ToneMapping || sceneParams.postProcessing.doGammaCorrection))
+        {
+            // Copy current color 
+            taaHistoryFBO[taaBufferIndex]
+                .CopyFromOtherFbo(&mainFBO, true, 0, false, glm::vec2(0.0, 0.0), glm::vec2(sceneParams.viewportWidth, sceneParams.viewportHeight));
+
+            // TODO: CopyTo and From always mess the current fbo
+            sceneFBOs.top()->Bind();
+
+            // Resize the history framebuffer if needed (window resized).
+            if (taaHistoryFBO[0].Height() != sceneParams.viewportHeight || taaHistoryFBO[0].Width() != sceneParams.viewportWidth)
+            {
+                taaHistoryFBO[0]    = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, false, TextureInternalFormat::Rgba_16f, TextureFiltering::Linear, TextureFiltering::Linear);
+                taaHistoryFBO[1]    = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, false, TextureInternalFormat::Rgba_16f, TextureFiltering::Linear, TextureFiltering::Linear);
+                velocityFBO         = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, true, TextureInternalFormat::Rg_16f);
+                //init
+            }
+
+
+            // Velocity pass
+            // -------------
+            velocityPassShader.SetCurrent();
+            velocityPassShader.SetUniforms(
+                taaPrevVP,
+                glm::mat4(1.0f),
+                sceneParams.projectionMatrix * sceneParams.viewMatrix,
+                glm::mat4(1.0f));
+            velocityPassShader.SetUniformBlocks(UBOBinding::PerObjectData, UBOBinding::ViewData, UBOBinding::PerFrameData);
+
+            SetRenderTarget(sceneFBOs, &velocityFBO);
+            {
+                glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+                for (int i = 0; i < sceneMeshCollection.size(); i++)
+                {
+                    if (MeshRenderer* mr = dynamic_cast<MeshRenderer*>(sceneMeshCollection.at(i).get()))
+                    {
+                        UpdateObjectData(sceneUniformBuffers.at(UBOBinding::PerObjectData), mr->GetTransformation());
+                        mr->DrawCustom();
+                    }
+                }
+            }ResetRenderTarget(sceneFBOs);
+
+            // -------------
+
+
+            taaPassShader.SetCurrent();
+            taaPassShader.SetUniformBlocks(UBOBinding::PerObjectData, UBOBinding::ViewData, UBOBinding::PerFrameData);
+            
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Albedo);      // Current Color
+            taaHistoryFBO[taaBufferIndex].BindColorAttachment(0);
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Normals);     // History Color
+            taaHistoryFBO[(taaBufferIndex+1)%2].BindColorAttachment(0); 
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Roughness);   // Velocity buffer
+            velocityFBO.BindColorAttachment(0);                         
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Metallic);    // Depth Buffer
+            mainFBO.BindDepthAttachment();                              
+
+            // Just 0, 1, 2, 3....TODO: Not this way
+            taaPassShader.SetSamplers(
+                TextureBinding::Albedo,
+                TextureBinding::Normals,
+                TextureBinding::Roughness,
+                TextureBinding::Metallic
+            );
+
+            OGLUtils::CheckOGLErrors();
+            postProcessingUnit.DrawQuad();
+
+            taaHistoryFBO[taaBufferIndex]          .UnBindColorAttachment(0);
+            taaHistoryFBO[(taaBufferIndex + 1) % 2].UnBindColorAttachment(0);
+            velocityFBO                            .UnBindColorAttachment();
+            mainFBO                                .UnBindColorAttachment();
+
+            taaHistoryFBO[taaBufferIndex]
+                .CopyFromOtherFbo(&mainFBO, true, 0, false, glm::vec2(0.0, 0.0), glm::vec2(sceneParams.viewportWidth, sceneParams.viewportHeight));
+            // TODO: CopyTo and From always mess the current fbo
+            sceneFBOs.top()->Bind();
+
+            // Swap the taa history buffers (current becomes old)
+            taaBufferIndex = (taaBufferIndex + 1) % 2;
+
+            // Prepare a new offset value for sub-pixel jittering
+            taaJitterIndex = (taaJitterIndex + 1) % TAA_JITTER_SAMPLES;
+            sceneParams.postProcessing.jitter =taaJitter[taaJitterIndex];
+
+            taaPrevVP = sceneParams.projectionMatrix * sceneParams.viewMatrix;
+        }
+
         UpdatePerFrameDataUBO(sceneUniformBuffers.at(UBOBinding::PerFrameData), sceneParams);
         // Forward for Wires
         for (int i = 0; i < sceneMeshCollection.size(); i++)
@@ -2991,6 +3151,7 @@ int main()
 
         if (showAO)
             ssaoFBO.CopyToOtherFbo(nullptr, true, 10, false, glm::vec2(0.0, 0.0), glm::vec2(sceneParams.viewportWidth, sceneParams.viewportHeight));
+
 
 
 #ifdef GFX_SHADER_DEBUG_VIZ
@@ -3048,6 +3209,8 @@ int main()
     WiresShaders.clear();
     PostProcessingShaders.clear();
     PointLightShadowMapShader.~ShaderBase();
+    taaPassShader.~TaaPassShader();
+    velocityPassShader.~VelocityPassShader();
     sceneParams.noiseTextures.~vector();
     sceneParams.poissonSamples.~optional();
     sceneMeshCollection.~SceneMeshCollection();
@@ -3057,6 +3220,9 @@ int main()
     directionalShadowFBO.~FrameBuffer();
     pointShadowFBOs.clear();
     mainFBO.~FrameBuffer();
+    taaHistoryFBO[0].~FrameBuffer();
+    taaHistoryFBO[1].~FrameBuffer();
+    velocityFBO.~FrameBuffer();
     lightMesh.~MeshRenderer();
     bbRenderer.~WiresRenderer();
     environmentShader.~ShaderBase();

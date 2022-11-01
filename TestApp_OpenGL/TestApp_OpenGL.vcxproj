@@ -204,8 +204,11 @@
     <None Include="Shaders\Forward\ThickLines.geom" />
     <None Include="Shaders\Forward\ThickLineStrip.geom" />
     <None Include="Shaders\Forward\ThickPoints.geom" />
+    <None Include="Shaders\Forward\Velocity.frag" />
     <None Include="Shaders\Include\DebugViz.glsl" />
     <None Include="Shaders\Include\UboDefs.glsl" />
+    <None Include="Shaders\PostProcessing\PostProcessing.vert" />
+    <None Include="Shaders\PostProcessing\TAA.frag" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="awesomeface.png" />

@@ -3789,7 +3789,7 @@ namespace OGLResources
         }
 
         FrameBuffer(unsigned int width, unsigned int height, bool color, int colorAttachments, bool depth)
-            :FrameBuffer(width, height, color, colorAttachments, depth, TextureInternalFormat::Rgba_32f, TextureFiltering::Nearest, TextureFiltering::Nearest)
+            :FrameBuffer(width, height, color, colorAttachments, depth, TextureInternalFormat::Rgba_16f, TextureFiltering::Nearest, TextureFiltering::Nearest)
         {
         }
 
@@ -3825,6 +3825,20 @@ namespace OGLResources
             OGLResource::Destroy();
         }
 
+        void SetDrawBuffers(std::vector<unsigned int> drawBuffers)
+        {
+            for (auto index : drawBuffers)
+                if (index >= _colorTextures.size()) throw "Invalid color attchment index.";
+            
+            std::vector<unsigned int> drawBuffersOffset;
+            
+            for(auto index : drawBuffers)
+            drawBuffersOffset.push_back(GL_COLOR_ATTACHMENT0 + index);
+
+            glDrawBuffers(drawBuffersOffset.size(), drawBuffersOffset.data());
+
+            OGLUtils::CheckOGLErrors();
+        }
 
         void Bind(bool read, bool write) const
         {
@@ -3842,6 +3856,33 @@ namespace OGLResources
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
         }
 
+        void BindColorAttachment(int attachment = 0) const
+        {
+            _colorTextures.at(attachment).Bind();
+        }
+
+        void BindDepthAttachment() const
+        {
+            if (_depthTexture.has_value())
+                _depthTexture.value().Bind();
+
+            else
+                throw "Cannot bind depth attachment.";
+        }
+
+        void UnBindColorAttachment(int attachment = 0) const
+        {
+            _colorTextures.at(attachment).UnBind();
+        }
+
+        void UnBindDepthAttachment() const
+        {
+            if (_depthTexture.has_value())
+                _depthTexture.value().UnBind();
+
+            else
+                throw "Cannot unbind depth attachment.";
+        }
 
         unsigned int DepthTextureId() const
         {

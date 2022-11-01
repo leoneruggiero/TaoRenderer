@@ -31,6 +31,9 @@
     <Filter Include="Shaders\Include">
       <UniqueIdentifier>{d64d77e0-be5e-47b7-817f-c47d0239dda7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders\PostProcessing">
+      <UniqueIdentifier>{97cb4c0f-adcf-449c-adfe-de5a887ecbbf}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="glad.c">
@@ -180,6 +183,15 @@
     </None>
     <None Include="Shaders\Forward\Skybox.vert">
       <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\Velocity.frag">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\PostProcessing\PostProcessing.vert">
+      <Filter>Shaders\PostProcessing</Filter>
+    </None>
+    <None Include="Shaders\PostProcessing\TAA.frag">
+      <Filter>Shaders\PostProcessing</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

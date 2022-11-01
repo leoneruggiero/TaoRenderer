@@ -87,6 +87,9 @@ struct dataPerFrame
 	unsigned int	hasBrdfLut;
 	int				radianceMapMinLevel;
 	int				radianceMapMaxLevel;
+	glm::vec2		taa_jitter;
+	glm::vec2		viewportSize;
+	unsigned int	doTaa;
 };
 
 enum class AOType

@@ -78,6 +78,8 @@ layout (std140) uniform blk_PerFrameData
     uniform bool             f_hasBrdfLut;                                 // 4   byte
     uniform int              f_radiance_minLevel;                          // 4   byte
     uniform int              f_radiance_maxLevel;                          // 4   byte
-
-                                                                           // TOTAL => 784 byte
+    uniform vec2             f_taa_jitter;                                 // 8   byte
+    uniform vec2             f_viewportSize;                               // 8   byte
+    uniform bool             f_doTaa;                                      // 4   byte
+                                                                           // TOTAL => 804 byte
 };

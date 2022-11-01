@@ -20,9 +20,17 @@ out VS_OUT
 
 void main()
 {
-    gl_Position = f_projMat * f_viewMat * o_modelMat * vec4(position, 1.0);
+    vec4 fragPosWorld = o_modelMat * vec4(position, 1.0);
 
-    vs_out.fragPosWorld = (o_modelMat * vec4(position, 1.0)).xyz;
+    vec4 clip = f_projMat * f_viewMat * fragPosWorld;
+    
+    // Jitter sample for TAA.
+    // The jitter value is in the range [0, 1]
+    if(f_doTaa)
+        clip.xy+=((f_taa_jitter.xy*2-1) / f_viewportSize.xy) * clip.w;
+
+    gl_Position = clip;
+    vs_out.fragPosWorld = fragPosWorld.xyz;
     vs_out.worldNormal = normalize((o_normalMat * vec4(normal, 0.0f)).xyz);
     vs_out.textureCoordinates = textureCoordinates;
 

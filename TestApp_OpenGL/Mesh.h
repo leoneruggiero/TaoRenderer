@@ -137,7 +137,7 @@ public:
     void SetUniform_3f(int location, float x, float y, float z) const { glUniform3f(location, x, y, z); }
     void SetUniform_mat4f(int location, const float* value) const { glUniformMatrix4fv(location, 1, false, value); }
 
-
+   
     bool SetSamplerIfValid(int sampler, const char* name)
     {
         if (sampler < 0) return true;
@@ -861,6 +861,103 @@ public:
         ok &= SetSamplerIfValid(shadowMapPoint0, SHADOWMAP_POINT0);
         ok &= SetSamplerIfValid(shadowMapPoint1, SHADOWMAP_POINT1);
         // ok &= SetSamplerIfValid(shadowMapPoint2, SHADOWMAP_POINT2);
+    }
+};
+
+class VelocityPassShader : public ShaderBase
+{
+private:
+   
+    // Uniforms
+    const char* PREV_VP = "u_prevVP";
+    const char* CURR_VP = "u_currVP";
+    const char* PREV_MODEL = "u_prevModel"; // Curretly UNUSED (camera motion only)
+    const char* CURR_MODEL = "u_currModel"; // Curretly UNUSED (camera motion only)
+
+    // Uniform buffers
+    const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* VIEW_DATA = "blk_ViewData";
+    const char* DATA_PER_FRAME = "blk_PerFrameData";
+
+
+public:
+    VelocityPassShader() :
+        ShaderBase(ShaderBase::PreProcess("../../Shaders/Forward/MeshUnlit.vert"), ShaderBase::PreProcess("../../Shaders/Forward/Velocity.frag"))
+    {
+    };
+
+    void SetUniforms(glm::mat4 prevVP, glm::mat4 prevModel, glm::mat4 currVP, glm::mat4 currModel)
+    {
+        bool ok = true;
+        int loc = -1;
+        SetCurrent();
+
+        loc = UniformLocation(PREV_VP);
+        ok &= loc >= 0;
+        SetUniform_mat4f(loc, glm::value_ptr(prevVP));
+
+        loc = UniformLocation(CURR_VP);
+        ok &= loc >= 0;
+        SetUniform_mat4f(loc, glm::value_ptr(currVP));
+
+        OGLUtils::CheckOGLErrors();
+        if (!ok)
+            throw"LOL...\n";
+    }
+
+    void SetUniformBlocks(int dataPerObject, int viewData, int dataPerFrame)
+    {
+        bool ok = true;
+        SetCurrent();
+        ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(viewData, VIEW_DATA);
+        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        OGLUtils::CheckOGLErrors();
+        if (!ok)
+            throw"LOL...\n";
+    }
+};
+
+class TaaPassShader : public ShaderBase
+{
+private:
+    // Samplers
+    const char* MAIN_COLOR      = "t_MainColor";
+    const char* HISTORY_COLOR   = "t_HistoryColor";
+    const char* VELOCITY_BUFFER = "t_VelocityBuffer";
+    const char* DEPTH_BUFFER    = "t_DepthBuffer";
+
+    // Uniform buffers
+    const char* DATA_PER_OBJECT = "blk_PerObjectData";
+    const char* VIEW_DATA       = "blk_ViewData";
+    const char* DATA_PER_FRAME  = "blk_PerFrameData";
+
+public:
+    TaaPassShader() : ShaderBase(
+            ShaderBase::PreProcess("../../Shaders/PostProcessing/PostProcessing.vert"), 
+            ShaderBase::PreProcess("../../Shaders/PostProcessing/TAA.frag"))
+    {
+    };
+
+    void SetUniformBlocks(int dataPerObject, int viewData, int dataPerFrame)
+    {
+        bool ok = true;
+        SetCurrent();
+        ok &= SetUniformBlockIfValid(dataPerObject, DATA_PER_OBJECT);
+        ok &= SetUniformBlockIfValid(viewData, VIEW_DATA);
+        ok &= SetUniformBlockIfValid(dataPerFrame, DATA_PER_FRAME);
+        OGLUtils::CheckOGLErrors();
+        if (!ok)
+            throw"LOL...\n";
+    }
+
+    void SetSamplers(int mainColor, int historyColor, int velocityBuffer, int depthBuffer)
+    {
+        bool ok = true;
+        ok &= SetSamplerIfValid(mainColor, MAIN_COLOR);
+        ok &= SetSamplerIfValid(historyColor, HISTORY_COLOR);
+        ok &= SetSamplerIfValid(velocityBuffer, VELOCITY_BUFFER);
+        ok &= SetSamplerIfValid(depthBuffer, DEPTH_BUFFER);
     }
 };
 
@@ -2322,8 +2419,9 @@ public:
         _vao()
     {
         // FIl VBO and VAO for the full screen quad used to trigger the fragment shader execution
-        _vbo.SetData(18, Utils::fullScreenQuad_verts);
-        _vao.SetAndEnableAttrib(_vbo.ID(), 0, 3, false, 0, 0);
+        _vbo.SetData(30, Utils::fullScreenQuad_verts);
+        _vao.SetAndEnableAttrib(_vbo.ID(), VertexInputType::Position          , 3, false, 20 , 0);
+        _vao.SetAndEnableAttrib(_vbo.ID(), VertexInputType::TextureCoordinates, 2, false, 20 , 3);
 
         InitBlur(maxBlurRadius);
         InitAo(maxAODirectionsToSample);

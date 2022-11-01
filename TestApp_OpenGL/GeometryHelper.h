@@ -386,6 +386,33 @@ namespace Utils
 		return smp2D;
 	}
 
+	/// <summary>
+	/// Returns a <see cref="std::vector"/> of samples from an R2 sequence.
+	/// </summary>
+	/// <param name="samplesCount"> The number of samples.</param>
+	std::vector<glm::vec2> GetR2Sequence(int samplesCount)
+	{
+		// From: http://extremelearning.com.au/unreasonable-effectiveness-of-quasirandom-sequences/
+		//  g = 1.32471795724474602596
+		//	a1 = 1.0 / g
+		//	a2 = 1.0 / (g * g)
+		//	x[n] = (0.5 + a1 * n) % 1
+		//	y[n] = (0.5 + a2 * n) % 1
+
+		float g = 1.32471795724474602596;
+		float a1 = 1.0 / g;
+		float a2 = 1.0 / (g * g);
+
+		std::vector<glm::vec2> res = std::vector<glm::vec2>(samplesCount);
+		for (int i = 1; i <= samplesCount; i++)
+			res[i-1] = glm::vec2(
+				glm::fract(0.5f + a1 * i),
+				glm::fract(0.5f + a2 * i)
+			);
+
+		return res;
+	}
+
 	struct WeightedSample
 	{
 		public:
@@ -725,13 +752,14 @@ namespace Utils
 
 	const float fullScreenQuad_verts[]
 	{
-		-1.0f, -1.0f, -1.0f,
-		 1.0f, -1.0f, -1.0f,
-		 1.0f,  1.0f, -1.0f,
+		// Positions			// UV coord
+		-1.0f, -1.0f, -1.0f,	0.0f, 0.0f,
+		 1.0f, -1.0f, -1.0f,	1.0f, 0.0f,
+		 1.0f,  1.0f, -1.0f,	1.0f, 1.0f,
 
-		-1.0f, -1.0f, -1.0f,
-		 1.0f,  1.0f, -1.0f,
-		-1.0f,  1.0f, -1.0f
+		-1.0f, -1.0f, -1.0f,	0.0f, 0.0f,
+		 1.0f,  1.0f, -1.0f,	1.0f, 1.0f,
+		-1.0f,  1.0f, -1.0f,	0.0f, 1.0f
 	};
 
 

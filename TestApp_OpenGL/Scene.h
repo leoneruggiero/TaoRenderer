@@ -113,6 +113,9 @@ struct ScenePostProcessing
 
 	bool doGammaCorrection;
 	float Gamma;
+
+	bool doTaa;
+	glm::vec2 jitter;
 };
 
 struct DrawParams
