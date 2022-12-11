@@ -2207,7 +2207,8 @@ enum class OGLResourceType
     UNIFORM_BUFFER,
     SHADER_STORAGE_BUFFER,
     TEXTURE,
-    FRAMEBUFFER
+    FRAMEBUFFER,
+    SAMPLER
 };
 
 namespace OGLUtils
@@ -2561,6 +2562,7 @@ namespace OGLResources
         {
             ResourceTypeSwitch(type, true);
         };
+
         void ResourceTypeSwitch(OGLResourceType type, bool destroy)
         {
             switch (type)
@@ -2645,6 +2647,15 @@ namespace OGLResources
                     _id = 0;
                 }
                 break;
+            case(OGLResourceType::SAMPLER):
+                if (!destroy)
+                    glGenSamplers(1, &_id);
+                else
+                {
+                    glDeleteSamplers(1, &_id);
+                    _id = 0;
+                }
+                break;
             default:
                 throw "Unhandled Resource Type";
                 break;
@@ -2718,9 +2729,16 @@ namespace OGLResources
             case(OGLResourceType::FRAMEBUFFER):
                 return "FRAMEBUFFER";
                 break;
+
+            case(OGLResourceType::SAMPLER):
+                return "SAMPLER";
+                break;
+
+            default:
+                throw "Unknown ogl resource type.";
             }
         }
-        void NotifyCreation() { std::cout << std::endl << "Creating OGL Object: " + ResourceType() + "_" + std::to_string(ID()); }
+        void NotifyCreation()    { std::cout << std::endl << "Creating OGL Object: "   + ResourceType() + "_" + std::to_string(ID()); }
         void NotifyDestruction() { std::cout << std::endl << "Destroying OGL Object: " + ResourceType() + "_" + std::to_string(ID()); }
 
     };
@@ -3676,6 +3694,91 @@ namespace OGLResources
         };
 
         ~OGLTextureCubemap()
+        {
+            OGLResource::Destroy();
+        }
+
+    };
+
+
+    struct OGLSamplerDesc
+    {
+        // Right: defualt values 
+        // from : https://registry.khronos.org/OpenGL-Refpages/gl4/html/glSamplerParameter.xhtml
+
+        TextureFiltering MinFilter = TextureFiltering::Nearest_Mip_Linear;
+        TextureFiltering MagFilter = TextureFiltering::Linear;
+
+        float MinLod = -1000.f;
+        float MaxLod =  1000.f;
+
+        TextureWrap WrapS = TextureWrap::Repeat;
+        TextureWrap WrapT = TextureWrap::Repeat;
+        TextureWrap WrapR = TextureWrap::Repeat;
+
+        float BorderColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+
+        // TODO: COMAPRE MODE and FUNC
+    };
+
+    class OGLSampler : public OGLResource
+    {
+
+    private:
+        OGLSamplerDesc _samplerDesc;
+
+        void SetSamplerParams()
+        {
+            unsigned int id = ID();
+
+            glSamplerParameteri (id, GL_TEXTURE_MIN_FILTER,   _samplerDesc.MinFilter   );
+            glSamplerParameteri (id, GL_TEXTURE_MAG_FILTER,   _samplerDesc.MagFilter   );
+            glSamplerParameterf (id, GL_TEXTURE_MIN_LOD,      _samplerDesc.MinLod      );
+            glSamplerParameterf (id, GL_TEXTURE_MAX_LOD,      _samplerDesc.MaxLod      );
+            glSamplerParameteri (id, GL_TEXTURE_WRAP_S,       _samplerDesc.WrapS       );
+            glSamplerParameteri (id, GL_TEXTURE_WRAP_T,       _samplerDesc.WrapT       );
+            glSamplerParameteri (id, GL_TEXTURE_WRAP_R,       _samplerDesc.WrapR       );
+            glSamplerParameterfv(id, GL_TEXTURE_BORDER_COLOR, _samplerDesc.BorderColor );
+        }
+
+    public:
+        OGLSampler(OGLSamplerDesc desc) : _samplerDesc(desc)
+        {
+            OGLResource::Create(OGLResourceType::SAMPLER);
+
+            SetSamplerParams();
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        OGLSampler(OGLSampler&& other) noexcept : OGLResource(std::move(other))
+        {
+            _samplerDesc = other._samplerDesc;
+        };
+
+        void Bind(unsigned int unit) const
+        {
+            glBindSampler(unit, OGLResource::ID());
+        }
+
+        static void UnBind(unsigned int unit)
+        {
+            // If the sampler name zero is bound to a texture unit, 
+            // the currently bound texture's sampler state becomes active.
+            glBindSampler(unit, 0);
+        }
+
+        OGLSampler& operator=(OGLSampler&& other) noexcept
+        {
+            if (this != &other)
+            {
+                OGLResource::operator=(std::move(other));
+                _samplerDesc = other._samplerDesc;
+            }
+            return *this;
+        };
+
+        ~OGLSampler()
         {
             OGLResource::Destroy();
         }
