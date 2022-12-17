@@ -23,13 +23,23 @@
 #include "Scene.h"
 
 
-#define DEBUG_DIRECTIONAL_LIGHT     0
-#define DEBUG_POINT_LIGHT           1
-#define DEBUG_DIRECTIONAL_SPLITS    2
+// Debugging using feedback from shaders.
+// --------------------------------------
+#define GFX_SHADER_DEBUG_VIZ
 
-#define GFX_SHADER_DEBUG_VIZ -1
+#ifdef GFX_SHADER_DEBUG_VIZ
 
+    #define SSBO_CAPACITY 100 // max debug items count
 
+    #define DEBUG_DIRECTIONAL_LIGHT     0
+    #define DEBUG_POINT_LIGHT           1
+    #define DEBUG_DIRECTIONAL_SPLITS    2
+    #define DEBUG_TAA                   3
+
+    #define GFX_SHADER_DEBUG_VIZ  DEBUG_TAA
+    
+#endif
+// --------------------------------------
 
 #if GFX_STOPWATCH
     #include "Diagnostics.h"
@@ -266,7 +276,12 @@ void ShowImGUIWindow()
             
             ImGui::Checkbox("GammaCorrection", &sceneParams.postProcessing.doGammaCorrection);
 
-            ImGui::Checkbox("TAA", &sceneParams.postProcessing.doTaa);
+            if (ImGui::CollapsingHeader("TAA", ImGuiTreeNodeFlags_None))
+            {
+                ImGui::Checkbox("Enabled", &sceneParams.postProcessing.doTaa);
+                ImGui::Checkbox("Use Velocity", &sceneParams.postProcessing.writeVelocity);
+            }
+            
 
             ImGui::EndTabItem();
         }
@@ -306,7 +321,7 @@ void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std
     Mesh planeMesh = Mesh::Box(8, 8, .1);
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-4, -4, 0.0f), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), planeMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
-        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
+        (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::BlackAndWhiteTiles));
     return;
 
     Mesh coneMesh = Mesh::Cone(0.8, 2.6, 16);
@@ -1377,7 +1392,7 @@ void SetupScene(
     std::map<std::string, std::shared_ptr<WiresShader>>* wiresShadersCollection
 )
 {
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, -0.0f);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, -0.0f);
 
 
     //LoadScene_PSSM(sceneMeshCollection, wiresShadersCollection);
@@ -1388,7 +1403,7 @@ void SetupScene(
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
-    LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
+    //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
     //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
     //LoadScene_RadialEngine(sceneMeshCollection, meshShadersCollection);
     //LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
@@ -1403,7 +1418,7 @@ void SetupScene(
     //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
+    LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -2181,7 +2196,7 @@ void DrawShaderDebugViz(
         lineshader.SetUniformBlocks(UBOBinding::PerObjectData, UBOBinding::ViewData, UBOBinding::PerFrameData);
         pointShader.SetUniformBlocks(UBOBinding::PerObjectData, UBOBinding::ViewData, UBOBinding::PerFrameData);
         
-        for (int i = 0; i < counter[0]; i++)
+        for (int i = 0; i < glm::min(SSBO_CAPACITY, static_cast<int>(counter[0])); i++)
         {
             glm::uvec4 uData;
             glm::vec4 
@@ -2711,6 +2726,7 @@ int main()
     std::vector<glm::vec2> taaJitter = GetTaaJitterVectors();
     glm::mat4 taaPrevVP = glm::mat4(1.0f);
     sceneParams.postProcessing.doTaa = true;
+    sceneParams.postProcessing.writeVelocity = true;
     sceneParams.postProcessing.jitter = taaJitter[0];
 
     // Post processing unit (ao, blur, bloom, ...)
@@ -2755,7 +2771,7 @@ int main()
 #ifdef GFX_SHADER_DEBUG_VIZ
 
     ShaderStorageBufferObject debugSsbo = ShaderStorageBufferObject(Usage::DynamicRead);
-    debugSsbo.SetData<float>(12 + 16*50, NULL);
+    debugSsbo.SetData<float>(12 + 16* SSBO_CAPACITY, NULL);
     debugSsbo.SetBindingPoint(SSBOBinding::Debug);
 
     Mesh debugConeMesh   = Mesh::Cone(1.0f, 1.0f, 16);
@@ -2805,6 +2821,8 @@ int main()
         
         unsigned int w = (unsigned int)sceneParams.viewportWidth;
         unsigned int h = (unsigned int)sceneParams.viewportHeight;
+        float clearVal = 0.0f;
+        debugSsbo.ClearData(TextureInternalFormat::R_32f, GL_FLOAT, &clearVal);
         debugSsbo.SetSubData(0, 4,  glm::value_ptr(glm::uvec4(w, h, GFX_SHADER_DEBUG_VIZ, 0)));
         debugSsbo.SetSubData(4, 8,  glm::value_ptr(glm::uvec4((unsigned int)lastX, h - (unsigned int)lastY, 0, 0)));
         debugSsbo.SetSubData(8, 12, glm::value_ptr(glm::uvec4(0, 0, 0, 0)));
@@ -3044,12 +3062,16 @@ int main()
             SetRenderTarget(sceneFBOs, &velocityFBO);
             {
                 glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-                for (int i = 0; i < sceneMeshCollection.size(); i++)
+
+                if (sceneParams.postProcessing.writeVelocity)
                 {
-                    if (MeshRenderer* mr = dynamic_cast<MeshRenderer*>(sceneMeshCollection.at(i).get()))
+                    for (int i = 0; i < sceneMeshCollection.size(); i++)
                     {
-                        UpdateObjectData(sceneUniformBuffers.at(UBOBinding::PerObjectData), mr->GetTransformation());
-                        mr->DrawCustom();
+                        if (MeshRenderer* mr = dynamic_cast<MeshRenderer*>(sceneMeshCollection.at(i).get()))
+                        {
+                            UpdateObjectData(sceneUniformBuffers.at(UBOBinding::PerObjectData), mr->GetTransformation());
+                            mr->DrawCustom();
+                        }
                     }
                 }
             }ResetRenderTarget(sceneFBOs);

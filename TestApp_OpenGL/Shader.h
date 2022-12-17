@@ -2287,6 +2287,7 @@ namespace OGLTextureUtils
         Depth_Stencil = GL_DEPTH_STENCIL,
         R = GL_RED,
         R_16f = GL_R16F,
+        R_32f = GL_R32F,
         R_16ui = GL_R16UI,
         Rg = GL_RG,
         Rg_16f = GL_RG16F,
@@ -2404,6 +2405,8 @@ namespace OGLTextureUtils
         case(TextureInternalFormat::Rg_16f):
             return GL_RG;
             break;
+        case(TextureInternalFormat::R_32f):
+        case(TextureInternalFormat::R_16f):
         case(TextureInternalFormat::R_16ui):
             return GL_RED;
             break;
@@ -2492,6 +2495,18 @@ namespace OGLResources
             Bind(target, id);
             memcpy(destination, (T*) glMapBufferRange(target, startIndex * sizeof(T), count * sizeof(T), GL_MAP_READ_BIT), count * sizeof(T));
             glUnmapBuffer(target);
+            UnBind(target);
+
+            OGLUtils::CheckOGLErrors();
+        }
+
+        // Since we need a format, a generic implementation may not be so flexible? better to be explicit with the format? 
+        void ClearData(unsigned int target, unsigned int id, unsigned int internalFormat, unsigned int format, unsigned int type, const void* data)
+        {
+            OGLUtils::CheckOGLErrors();
+
+            Bind(target, id);
+            glClearBufferData(target, internalFormat, format, type, data);
             UnBind(target);
 
             OGLUtils::CheckOGLErrors();
@@ -3003,6 +3018,11 @@ namespace OGLResources
         void ReadData(unsigned int startIndex, unsigned int count, T* destination)
         {
             OglBuffer::ReadData(GL_SHADER_STORAGE_BUFFER, ID(), startIndex, count, destination);
+        }
+
+        void ClearData(OGLTextureUtils::TextureInternalFormat internalFormat, unsigned int type, const void* data)
+        {
+            OglBuffer::ClearData(GL_SHADER_STORAGE_BUFFER, ID(), internalFormat, OGLTextureUtils::ResolveFormat(internalFormat), type, data);
         }
 
     private:

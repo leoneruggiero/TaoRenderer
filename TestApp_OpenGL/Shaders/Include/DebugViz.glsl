@@ -10,6 +10,7 @@
 #define DEBUG_DIRECTIONAL_LIGHT     0
 #define DEBUG_POINT_LIGHT           1
 #define DEBUG_DIRECTIONAL_SPLITS    2
+#define DEBUG_TAA                   3
 
 struct debugVizItem
 {
@@ -31,24 +32,41 @@ void DViz_DrawCone(vec3 start, vec3 direction, float radius, vec4 color)
 {
     if(uDebug_cnt.x < uDebug_VizItems.length()-1)
     {
-        uDebug_VizItems[uDebug_cnt.x].u4Data.x  = DEBUG_VIZ_CONE;
-        uDebug_VizItems[uDebug_cnt.x].f4Data0   = vec4(start, 0.0);
-        uDebug_VizItems[uDebug_cnt.x].f4Data1   = vec4(direction, radius);
-        uDebug_VizItems[uDebug_cnt.x].f4Data2   = color;
+        uint i = atomicAdd(uDebug_cnt.x, 1);
 
-        atomicAdd(uDebug_cnt.x, 1);
+        uDebug_VizItems[i].u4Data.x  = DEBUG_VIZ_CONE;
+        uDebug_VizItems[i].f4Data0   = vec4(start, 0.0);
+        uDebug_VizItems[i].f4Data1   = vec4(direction, radius);
+        uDebug_VizItems[i].f4Data2   = color;
+ 
     }     
 }
 
+// Line defined by start and end points in world space.
 void DViz_DrawLine(vec3 start, vec3 end, vec4 color)
 {
     if(uDebug_cnt.x < uDebug_VizItems.length()-1)
     {
-        uDebug_VizItems[uDebug_cnt.x].u4Data.x  = DEBUG_VIZ_LINE;
-        uDebug_VizItems[uDebug_cnt.x].f4Data0   = vec4(start, 0.0);
-        uDebug_VizItems[uDebug_cnt.x].f4Data1   = vec4(end, 0.0);
-        uDebug_VizItems[uDebug_cnt.x].f4Data2   = color;
+        uint i = atomicAdd(uDebug_cnt.x, 1);
 
-        atomicAdd(uDebug_cnt.x, 1);
+        uDebug_VizItems[i].u4Data.x  = DEBUG_VIZ_LINE;
+        uDebug_VizItems[i].f4Data0   = vec4(start, 0.0);
+        uDebug_VizItems[i].f4Data1   = vec4(end, 0.0);
+        uDebug_VizItems[i].f4Data2   = color;
+
+        
     }      
+}
+
+// Line defined by start and end points in screen space.
+void DViz_DrawLineSS(vec2 start, vec2 end, vec4 color, mat4 view, mat4 proj)
+{
+    // See  https://www.derschmale.com/2014/09/28/unprojections-explained/
+    mat4 invProj = inverse(proj);
+    mat4 invView = inverse(view);
+
+    vec4 s4 = invView * invProj * vec4(start*2-1, 0.0, 1.0);
+    vec4 e4 = invView * invProj * vec4(end  *2-1, 0.0, 1.0);
+
+    DViz_DrawLine(s4.xyz/s4.w, e4.xyz/e4.w, color);
 }

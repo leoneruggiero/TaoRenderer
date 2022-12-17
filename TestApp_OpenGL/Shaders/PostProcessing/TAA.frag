@@ -146,6 +146,21 @@ void main()
 
 	vec4 resolvedCol = temporal_reprojection(fragCoord_uv, ss_vel);
 
+	#ifdef DEBUG_VIZ
+	
+	if(uDebug_viewport.z == DEBUG_TAA)
+	{
+		ivec2 intFC = ivec2(gl_FragCoord.xy); // trunc
+		int spacing = 20;
+		bool dither = intFC%spacing == ivec2(0);
+		bool crop = all(lessThan(c_frag.xy, vec2(0.54)) && greaterThan(c_frag.xy, vec2(0.46)));
+		if(dither && crop)
+		{
+			DViz_DrawLineSS(c_frag.xy, c_frag.xy + ss_vel.xy, vec4(1.0, 0.0, 1.0, 0.7), f_viewMat, f_projMat);
+		}
+	}
+	#endif
+
     toScreen = resolvedCol;
 
 	//vec4 texel0 = texture(t_MainColor, fragCoord_uv, 0);	

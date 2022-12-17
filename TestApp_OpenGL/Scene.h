@@ -115,6 +115,7 @@ struct ScenePostProcessing
 	float Gamma;
 
 	bool doTaa;
+	bool writeVelocity;
 	glm::vec2 jitter;
 };
 
