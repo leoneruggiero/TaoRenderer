@@ -26,6 +26,7 @@ void main()
     
     // Jitter sample for TAA.
     // The jitter value is in the range [0, 1]
+    // Offset max 0.5 pixels.
     if(f_doTaa)
         clip.xy+=((f_taa_jitter.xy*2-1) / f_viewportSize.xy) * clip.w;
 

@@ -1405,7 +1405,7 @@ void SetupScene(
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
     //LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
     //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
-    //LoadScene_RadialEngine(sceneMeshCollection, meshShadersCollection);
+    LoadScene_RadialEngine(sceneMeshCollection, meshShadersCollection);
     //LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/aoTest.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::PureWhite);
     //LoadSceneFromPath("../../Assets/Models/RadialEngine.fbx", sceneMeshCollection, meshShadersCollection);
@@ -1418,7 +1418,7 @@ void SetupScene(
     //LoadSceneFromPath("../../Assets/Models/OldBridge.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::MatteGray);
     //LoadSceneFromPath("./Assets/Models/Engine.obj", sceneMeshCollection, shadersCollection, MaterialsCollection::PlasticGreen);
     //LoadScene_ALotOfMonkeys(sceneMeshCollection, meshShadersCollection);
-    LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
+   // LoadScene_Primitives(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PCSStest(sceneMeshCollection, meshShadersCollection);
     //LoadScene_Cadillac(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_Dragon(sceneMeshCollection, shadersCollection, sceneBoundingBox);
@@ -2437,29 +2437,15 @@ std::vector<glm::vec2> GetTaaJitterVectors()
 {
     return GetR2Sequence(TAA_JITTER_SAMPLES);
 
-   /* return std::vector<glm::vec2>
+    return std::vector<glm::vec2>
     {
-        
-        glm::vec2(0.25f, 0.25f),
-        glm::vec2(0.75f, 0.75f),
-        glm::vec2(0.25f, 0.25f),
-        glm::vec2(0.75f, 0.25f),
+        glm::vec2(0.5f, 0.5f),
+        glm::vec2(0.0f, 0.0f),
+        glm::vec2(1.0f, 1.0f),
+        glm::vec2(0.0f, 1.0f),
+        glm::vec2(1.0f, 0.0f)
 
-            glm::vec2(0.25f, 0.25f),
-            glm::vec2(0.75f, 0.75f),
-            glm::vec2(0.25f, 0.25f),
-            glm::vec2(0.75f, 0.25f),
-
-            glm::vec2(0.25f, 0.25f),
-            glm::vec2(0.75f, 0.75f),
-            glm::vec2(0.25f, 0.25f),
-            glm::vec2(0.75f, 0.25f),
-
-            glm::vec2(0.25f, 0.25f),
-            glm::vec2(0.75f, 0.75f),
-            glm::vec2(0.25f, 0.25f),
-            glm::vec2(0.75f, 0.25f),
-    };*/
+    };
 }
 
 int main()
@@ -2711,7 +2697,8 @@ int main()
 
     // Velocity buffer 
     FrameBuffer velocityFBO = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, true,
-        TextureInternalFormat::Rg_16f /* overkill ?? */);
+        TextureInternalFormat::Rg_16f /* overkill ?? */,
+        TextureFiltering::Linear, TextureFiltering::Linear);
 
     // "Double-buffered" history (swap each frame)
     FrameBuffer<OGLTexture2D> taaHistoryFBO[2] =
@@ -3044,7 +3031,7 @@ int main()
             {
                 taaHistoryFBO[0]    = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, false, TextureInternalFormat::Rgba_16f, TextureFiltering::Linear, TextureFiltering::Linear);
                 taaHistoryFBO[1]    = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, false, TextureInternalFormat::Rgba_16f, TextureFiltering::Linear, TextureFiltering::Linear);
-                velocityFBO         = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, true, TextureInternalFormat::Rg_16f);
+                velocityFBO         = FrameBuffer(sceneParams.viewportWidth, sceneParams.viewportHeight, true, 1, true,  TextureInternalFormat::Rg_16f  , TextureFiltering::Linear, TextureFiltering::Linear);
                 //init
             }
 
@@ -3089,7 +3076,7 @@ int main()
             glActiveTexture(GL_TEXTURE0 + TextureBinding::Roughness);   // Velocity buffer
             velocityFBO.BindColorAttachment(0);                         
             glActiveTexture(GL_TEXTURE0 + TextureBinding::Metallic);    // Depth Buffer
-            mainFBO.BindDepthAttachment();                              
+            velocityFBO.BindDepthAttachment();
 
             // Just 0, 1, 2, 3....TODO: Not this way
             taaPassShader.SetSamplers(

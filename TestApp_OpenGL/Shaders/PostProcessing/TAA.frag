@@ -5,6 +5,8 @@
 
 #define HISTORY_WEIGHT 0.9
 
+//#define UNJITTER
+
 uniform sampler2D t_MainColor;
 uniform sampler2D t_HistoryColor;
 uniform sampler2D t_VelocityBuffer;
@@ -31,11 +33,11 @@ vec4 clip_aabb(vec3 aabb_min, vec3 aabb_max, vec4 p, vec4 q)
 		vec3 a_unit = abs(v_unit);
 		float ma_unit = max(a_unit.x, max(a_unit.y, a_unit.z));
 
-
-		if (ma_unit > 1.0)
-			return vec4(p_clip, p.w) + v_clip / ma_unit;
+		
+		if (ma_unit > 1.0)	
+				return vec4(p_clip, p.w) + v_clip / ma_unit;
 		else
-		return q;// point inside aabb
+			return q;// point inside aabb
 
 	}
 
@@ -72,12 +74,12 @@ vec2 find_closest_fragment_3x3(vec2 uv)
 
 vec4 temporal_reprojection(vec2 fragPos_uv, vec2 velocity)
 	{
-
-		vec2 texelSize = vec2(1.0)/textureSize(t_MainColor, 0);
+		
+		vec2 texelSize = vec2(1.0)/textureSize(t_MainColor, 0); 
 		vec4 texel0 = texture(t_MainColor, fragPos_uv 
 		
 		#ifdef UNJITTER
-		- texelSize * (f_taa_jitter*-0.5)
+		- texelSize * (f_taa_jitter-0.5)
 		#endif
 		);
 		
@@ -86,9 +88,9 @@ vec4 temporal_reprojection(vec2 fragPos_uv, vec2 velocity)
 		vec4 texel1 = texture(t_HistoryColor, fragPos_uv + velocity);
 
 		vec2 uv = fragPos_uv 
-		#ifdef UNJITTER
-		- texelSize * (f_taa_jitter*-0.5)
-		#endif
+		 #ifdef UNJITTER
+		 - texelSize * (f_taa_jitter*-0.5)
+		 #endif
 		;
 
 		vec2 du = vec2(texelSize.x, 0.0);
@@ -137,9 +139,9 @@ void main()
 	// so that sub-pixel features on edges moves too.
 
 	vec2 c_frag = find_closest_fragment_3x3(fragCoord_uv.xy
-	#if 1
-	- texelSize * (f_taa_jitter*-0.5)
-	#endif
+	//#ifdef UNJITTER
+	- texelSize * (f_taa_jitter-0.5)
+	//#endif
 	);
 
 	vec2 ss_vel = texture(t_VelocityBuffer, c_frag.xy).xy;
@@ -148,17 +150,17 @@ void main()
 
 	#ifdef DEBUG_VIZ
 	
-	if(uDebug_viewport.z == DEBUG_TAA)
-	{
-		ivec2 intFC = ivec2(gl_FragCoord.xy); // trunc
-		int spacing = 20;
-		bool dither = intFC%spacing == ivec2(0);
-		bool crop = all(lessThan(c_frag.xy, vec2(0.54)) && greaterThan(c_frag.xy, vec2(0.46)));
-		if(dither && crop)
-		{
-			DViz_DrawLineSS(c_frag.xy, c_frag.xy + ss_vel.xy, vec4(1.0, 0.0, 1.0, 0.7), f_viewMat, f_projMat);
-		}
-	}
+	 if(uDebug_viewport.z == DEBUG_TAA)
+	 {
+	 	ivec2 intFC = ivec2(gl_FragCoord.xy); // trunc
+	 	int spacing = 20;
+	 	bool dither = intFC%spacing == ivec2(0);
+	 	bool crop = all(lessThan(c_frag.xy, vec2(0.54)) && greaterThan(c_frag.xy, vec2(0.46)));
+	 	if(dither && crop)
+	 	{
+	 		DViz_DrawLineSS(c_frag.xy, c_frag.xy + ss_vel.xy, vec4(1.0, 0.0, 1.0, 0.7), f_viewMat, f_projMat);
+	 	}
+	 }
 	#endif
 
     toScreen = resolvedCol;
