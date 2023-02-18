@@ -5,12 +5,13 @@
 
 #define HISTORY_WEIGHT 0.9
 
-//#define UNJITTER
+#define UNJITTER
 
 uniform sampler2D t_MainColor;
 uniform sampler2D t_HistoryColor;
 uniform sampler2D t_VelocityBuffer;
 uniform sampler2D t_DepthBuffer;
+uniform sampler2D t_PrevDepthBuffer;
 
 in VS_OUT
 {
@@ -57,29 +58,28 @@ vec2 find_closest_fragment_3x3(vec2 uv)
 	vec3 dbl = vec3(-1,  1, texture(t_DepthBuffer, uv + dv - du).x);
 	vec3 dbc = vec3( 0,  1, texture(t_DepthBuffer, uv + dv).x);
 	vec3 dbr = vec3( 1,  1, texture(t_DepthBuffer, uv + dv + du).x);
-
-	vec3 dmin = dtl;
-
+	
+	vec3 dmin = dmc;
+	
+	if (dmin.z > dtl.z) dmin = dtl;
 	if (dmin.z > dtc.z) dmin = dtc;
 	if (dmin.z > dtr.z) dmin = dtr;
 	if (dmin.z > dml.z) dmin = dml;
-	if (dmin.z > dmc.z) dmin = dmc;
 	if (dmin.z > dmr.z) dmin = dmr;
 	if (dmin.z > dbl.z) dmin = dbl;
 	if (dmin.z > dbc.z) dmin = dbc;
 	if (dmin.z > dbr.z) dmin = dbr;
-
+	
 	return vec2(uv + texelSize.xy * dmin.xy);
 }
 
-vec4 temporal_reprojection(vec2 fragPos_uv, vec2 velocity)
+vec4 temporal_reprojection(vec2 fragPos_uv, vec2 velocity, float historyWeight)
 	{
 		
 		vec2 texelSize = vec2(1.0)/textureSize(t_MainColor, 0); 
 		vec4 texel0 = texture(t_MainColor, fragPos_uv 
-		
 		#ifdef UNJITTER
-		- texelSize * (f_taa_jitter-0.5)
+		- texelSize * (f_taa_jitter)
 		#endif
 		);
 		
@@ -89,14 +89,14 @@ vec4 temporal_reprojection(vec2 fragPos_uv, vec2 velocity)
 
 		vec2 uv = fragPos_uv 
 		 #ifdef UNJITTER
-		 - texelSize * (f_taa_jitter*-0.5)
+		 - texelSize * (f_taa_jitter)
 		 #endif
 		;
 
 		vec2 du = vec2(texelSize.x, 0.0);
 		vec2 dv = vec2(0.0, texelSize.y);
 
-		// Get 9 samples in a 3x3 region centered at fragPos_uv
+		// Get 9 samples in a 3x3 region 
 		vec4 ctl = texture(t_MainColor, uv - dv - du);
 		vec4 ctc = texture(t_MainColor, uv - dv);
 		vec4 ctr = texture(t_MainColor, uv - dv + du);
@@ -112,20 +112,29 @@ vec4 temporal_reprojection(vec2 fragPos_uv, vec2 velocity)
 
 		vec4 cavg = (ctl + ctc + ctr + cml + cmc + cmr + cbl + cbc + cbr) / 9.0;
 		
+		vec4 cmin5 = min(ctc, min(cml, min(cmc, min(cmr, cbc))));
+		vec4 cmax5 = max(ctc, max(cml, max(cmc, max(cmr, cbc))));
+		vec4 cavg5 = (ctc + cml + cmc + cmr + cbc) / 5.0;
+		cmin = 0.5 * (cmin + cmin5);
+		cmax = 0.5 * (cmax + cmax5);
+		cavg = 0.5 * (cavg + cavg5);
 		
 		// Clamp to neighbourhood of current sample
 		//
 		// See the Playdead's presentation:
-		// clamping instead of clipping should avoid clustering at the corners
+		// clipping instead of clamping should avoid clustering at the corners
 		// of the color-space aabbox.
 		texel1 = clip_aabb(cmin.xyz, cmax.xyz, clamp(cavg, cmin, cmax), texel1);
 		
 		// output
-		return mix(texel0, texel1, HISTORY_WEIGHT);
+		return mix(texel0, texel1, historyWeight);
 	}
 
 
 	layout (location = 0) out vec4 toScreen;
+	// *** DEBUG ***
+	//layout (location = 1) out vec4 toDebug0;
+	//layout (location = 2) out vec4 toDebug1;
 	
 
 void main()
@@ -138,41 +147,18 @@ void main()
 	// instead find the closest (z) neighbor inside a 3x3 region
 	// so that sub-pixel features on edges moves too.
 
-	vec2 c_frag = find_closest_fragment_3x3(fragCoord_uv.xy
-	//#ifdef UNJITTER
-	- texelSize * (f_taa_jitter-0.5)
-	//#endif
-	);
+	vec2 c_frag = find_closest_fragment_3x3(fragCoord_uv.xy);
 
-	vec2 ss_vel = texture(t_VelocityBuffer, c_frag.xy).xy;
 
-	vec4 resolvedCol = temporal_reprojection(fragCoord_uv, ss_vel);
-
-	#ifdef DEBUG_VIZ
+	 vec3 ss_vel_onEdge = texture(t_VelocityBuffer, c_frag.xy).xyz;
 	
-	 if(uDebug_viewport.z == DEBUG_TAA)
-	 {
-	 	ivec2 intFC = ivec2(gl_FragCoord.xy); // trunc
-	 	int spacing = 20;
-	 	bool dither = intFC%spacing == ivec2(0);
-	 	bool crop = all(lessThan(c_frag.xy, vec2(0.54)) && greaterThan(c_frag.xy, vec2(0.46)));
-	 	if(dither && crop)
-	 	{
-	 		DViz_DrawLineSS(c_frag.xy, c_frag.xy + ss_vel.xy, vec4(1.0, 0.0, 1.0, 0.7), f_viewMat, f_projMat);
-	 	}
-	 }
-	#endif
+
+	vec4 resolvedCol = temporal_reprojection(fragCoord_uv, ss_vel_onEdge.xy, HISTORY_WEIGHT);
 
     toScreen = resolvedCol;
-
-	//vec4 texel0 = texture(t_MainColor, fragCoord_uv, 0);	
-	//vec4 texel1 = texture(t_HistoryColor, fragCoord_uv, 0);
-	//vec4 texel0 = texelFetch(t_MainColor, fragCoord_tex);	
-	//vec4 texel1 = texelFetch(t_HistoryColor, fragCoord_tex, 0);
-	//FragColor = mix (texel0, texel1, 0.9);
-
-	//FragColor = mix(FragColor, vec4(abs(ss_vel)*100.0, 0.0, 1.0), 0.5);
-
-	//FragColor = vec4(fragCoord_uv, 0.0, 1.0);
+	
+	// *** DEBUG ***
+	//toDebug0 = vec4(debug0);
+	//toDebug1 =resolvedCol;
 
 }

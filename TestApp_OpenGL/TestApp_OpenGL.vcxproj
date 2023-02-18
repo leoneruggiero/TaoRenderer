@@ -205,6 +205,7 @@
     <None Include="Shaders\Forward\ThickLineStrip.geom" />
     <None Include="Shaders\Forward\ThickPoints.geom" />
     <None Include="Shaders\Forward\Velocity.frag" />
+    <None Include="Shaders\Forward\Velocity.vert" />
     <None Include="Shaders\Include\DebugViz.glsl" />
     <None Include="Shaders\Include\UboDefs.glsl" />
     <None Include="Shaders\PostProcessing\PostProcessing.vert" />

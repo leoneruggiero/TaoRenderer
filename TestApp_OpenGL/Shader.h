@@ -3818,11 +3818,11 @@ namespace OGLResources
         
         T GetTexture(TextureInternalFormat format, TextureFiltering minFilter, TextureFiltering magFilter) 
         {
-            if constexpr (std::is_same<T, OGLTexture2D>::value)
+            if constexpr (std::is_same_v<T, OGLTexture2D>)
             {
                 return OGLTexture2D(_width, _height, format, minFilter, magFilter);
             }
-            else if constexpr (std::is_same<T, OGLTextureCubemap>::value)
+            else if constexpr (std::is_same_v<T, OGLTextureCubemap>)
             {
                 return OGLTextureCubemap(_width, _height, format, minFilter, magFilter);
             }

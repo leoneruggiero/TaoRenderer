@@ -193,6 +193,9 @@
     <None Include="Shaders\PostProcessing\TAA.frag">
       <Filter>Shaders\PostProcessing</Filter>
     </None>
+    <None Include="Shaders\Forward\Velocity.vert">
+      <Filter>Shaders\Forward</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Image Include="container.jpg">

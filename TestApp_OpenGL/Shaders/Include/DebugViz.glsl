@@ -1,7 +1,5 @@
 //? #version 430 core
 
-#define DEBUG_VIZ
-
 #define DEBUG_VIZ_CONE      0
 #define DEBUG_VIZ_SPHERE    1
 #define DEBUG_VIZ_POINT     2

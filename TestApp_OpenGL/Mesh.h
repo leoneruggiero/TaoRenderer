@@ -56,6 +56,8 @@ protected:
         std::string srcString = buffer.str();
         size_t tokenStart = std::string::npos;
 
+        // Replace each #include directive with the appropriate file.
+        // NOTE: #include <path> => path is relative to each source file location.
         while ((tokenStart = srcString.find(includeDirective)) != std::string::npos)
         {
 
@@ -84,6 +86,26 @@ protected:
 
             srcString.replace(tokenStart, tokenEnd - tokenStart, includeString);
         }
+
+#ifdef  GFX_SHADER_DEBUG_VIZ
+        
+        // Write the pre-processor directive for gl shaders to 
+        // enable the execution of debugging (heavy) code.
+        std::string defineDebugString{ "#define DEBUG_VIZ\n" };
+        size_t firstLineStart, secondLineStart;
+        bool ok = true;
+
+        // Find the first new-line after #version X.xx and write the directive there.
+        ok &= (firstLineStart = srcString.find("#version", 0))          != std::string::npos;
+        ok &= (secondLineStart = srcString.find('\n', firstLineStart))  != std::string::npos;
+        if(ok)
+        {
+            srcString.replace(secondLineStart+1, 0, defineDebugString);
+        }
+        else
+            throw "Something's wrong...";
+#endif
+
         return srcString;
     }
     void SetUBOBindings()
@@ -871,8 +893,8 @@ private:
     // Uniforms
     const char* PREV_VP = "u_prevVP";
     const char* CURR_VP = "u_currVP";
-    const char* PREV_MODEL = "u_prevModel"; // Curretly UNUSED (camera motion only)
-    const char* CURR_MODEL = "u_currModel"; // Curretly UNUSED (camera motion only)
+    const char* PREV_MODEL = "u_prevModel"; // Currently UNUSED (camera motion only)
+    const char* CURR_MODEL = "u_currModel"; // Currently UNUSED (camera motion only)
 
     // Uniform buffers
     const char* DATA_PER_OBJECT = "blk_PerObjectData";
@@ -882,7 +904,7 @@ private:
 
 public:
     VelocityPassShader() :
-        ShaderBase(ShaderBase::PreProcess("../../Shaders/Forward/MeshUnlit.vert"), ShaderBase::PreProcess("../../Shaders/Forward/Velocity.frag"))
+        ShaderBase(ShaderBase::PreProcess("../../Shaders/Forward/Velocity.vert"), ShaderBase::PreProcess("../../Shaders/Forward/Velocity.frag"))
     {
     };
 
@@ -922,10 +944,11 @@ class TaaPassShader : public ShaderBase
 {
 private:
     // Samplers
-    const char* MAIN_COLOR      = "t_MainColor";
-    const char* HISTORY_COLOR   = "t_HistoryColor";
-    const char* VELOCITY_BUFFER = "t_VelocityBuffer";
-    const char* DEPTH_BUFFER    = "t_DepthBuffer";
+    const char* MAIN_COLOR        = "t_MainColor";
+    const char* HISTORY_COLOR     = "t_HistoryColor";
+    const char* VELOCITY_BUFFER   = "t_VelocityBuffer";
+    const char* DEPTH_BUFFER      = "t_DepthBuffer";
+    const char* PREV_DEPTH_BUFFER = "t_PrevDepthBuffer";
 
     // Uniform buffers
     const char* DATA_PER_OBJECT = "blk_PerObjectData";
@@ -951,13 +974,14 @@ public:
             throw"LOL...\n";
     }
 
-    void SetSamplers(int mainColor, int historyColor, int velocityBuffer, int depthBuffer)
+    void SetSamplers(int mainColor, int historyColor, int velocityBuffer, int depthBuffer, int prevDepthBuffer)
     {
         bool ok = true;
-        ok &= SetSamplerIfValid(mainColor, MAIN_COLOR);
-        ok &= SetSamplerIfValid(historyColor, HISTORY_COLOR);
-        ok &= SetSamplerIfValid(velocityBuffer, VELOCITY_BUFFER);
-        ok &= SetSamplerIfValid(depthBuffer, DEPTH_BUFFER);
+        ok &= SetSamplerIfValid(mainColor,          MAIN_COLOR);
+        ok &= SetSamplerIfValid(historyColor,       HISTORY_COLOR);
+        ok &= SetSamplerIfValid(velocityBuffer,     VELOCITY_BUFFER);
+        ok &= SetSamplerIfValid(depthBuffer,        DEPTH_BUFFER);
+        ok &= SetSamplerIfValid(prevDepthBuffer,    PREV_DEPTH_BUFFER);
     }
 };
 
