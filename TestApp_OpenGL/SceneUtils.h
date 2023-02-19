@@ -119,21 +119,22 @@ enum SSBOBinding
 enum TextureBinding
 {
 	Albedo					= 0,
-	Normals					= 1,
-	Roughness				= 2,
-	Metallic				= 3,
-	AoMap					= 4,
-	ShadowMapDirectional	= 5,
-	NoiseMap0				= 6,
-	NoiseMap1				= 7,
-	NoiseMap2				= 8,
-	PoissonSamples			= 9,
-	IrradianceMap			= 10,
-	RadianceMap				= 11,
-	BrdfLut					= 12,
-	ShadowMapPoint0			= 13,
-	ShadowMapPoint1			= 14,
-	ShadowMapPoint2			= 15
+	Emission				= 1,
+	Normals					= 2,
+	Roughness				= 3,
+	Metallic				= 4,
+	AoMap					= 5,
+	ShadowMapDirectional	= 6,
+	NoiseMap0				= 7,
+	NoiseMap1				= 8,
+	NoiseMap2				= 9,
+	PoissonSamples			= 10,
+	IrradianceMap			= 11,
+	RadianceMap				= 12,
+	BrdfLut					= 13,
+	ShadowMapPoint0			= 14,
+	ShadowMapPoint1			= 15,
+	ShadowMapPoint2			= 16
 };
 
 enum VertexInputType

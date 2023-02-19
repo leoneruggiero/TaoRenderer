@@ -1765,13 +1765,13 @@ public:
 
     // Gets and Sets material data
     // ---------------------------
-    virtual void SetMaterial(Material mat) = 0;
+    virtual void SetMaterial(std::shared_ptr<Material> mat) = 0;
     
-    virtual Material& const GetMaterial() = 0;
+    virtual const Material& GetMaterial() const = 0;
 
     // Gets a reference to the current transformation
     // ----------------------------------------------
-    virtual glm::mat4& const GetTransformation() = 0;
+    virtual const glm::mat4& GetTransformation() const = 0;
 
     // Overrides the old transformation with the one provided
     // ------------------------------------------------------
@@ -1834,17 +1834,13 @@ class MeshRenderer : public Renderer
 private:
     MeshShader* _shader;
     MeshShader* _shader_noShadows;
-    Material _material;
+    std::shared_ptr<Material> _material;
     Mesh _mesh;
     int _numIndices;
     VertexAttribArray _vao;
     std::vector<VertexBufferObject> _vbos;
     IndexBufferObject _ebo;
-    std::optional<OGLTexture2D> _albedo;
-    std::optional<OGLTexture2D> _normals;
-    std::optional<OGLTexture2D> _roughness;
-    std::optional<OGLTexture2D> _metallic;
-
+    
     glm::mat4 _modelMatrix;
 
     int ResolveVertexInput(std::string inputName)
@@ -1941,11 +1937,12 @@ public:
 
         // "Saving" the index buffer
         _vao.SetIndexBuffer(_ebo.ID());
-      
-        SetMaterial(MaterialsCollection::NullMaterial);
+
+        // TODO: error material (magenta)
+        SetMaterial(std::make_shared<Material>(Material{glm::vec4(1, 0, 1, 1), 0.0, 0.0}));
     }
 
-    MeshRenderer(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale, Mesh mesh, MeshShader* shader, MeshShader* shaderNoShadows, Material mat)
+    MeshRenderer(glm::vec3 position, float rotation, glm::vec3 rotationAxis, glm::vec3 scale, Mesh mesh, MeshShader* shader, MeshShader* shaderNoShadows, const std::shared_ptr<Material> mat)
         : MeshRenderer(position, rotation, rotationAxis, scale, mesh, shader, shaderNoShadows)
     {
         SetMaterial(mat);
@@ -1991,16 +1988,16 @@ public:
 
         // Material data
         // -------------
-        data.material.Albedo = _material.Albedo;
-        data.material.Emission = glm::vec4(0);
-        data.material.Roughness = _material.Roughness;
-        data.material.Metalness = _material.Metallic;
-        data.material.hasTex_Albedo = _albedo.has_value();
-        data.material.hasTex_Emission = false;
-        data.material.hasTex_Metalness = _metallic.has_value();
-        data.material.hasTex_Normals = _normals.has_value();
-        data.material.hasTex_Occlusion = false;
-        data.material.hasTex_Roughness = _roughness.has_value();
+        data.material.Albedo            = _material->Albedo;
+        data.material.Emission          = glm::vec4(0);
+        data.material.Roughness         = _material->Roughness;
+        data.material.Metalness         = _material->Metallic;
+        data.material.hasTex_Albedo     = _material->_albedo.has_value();
+        data.material.hasTex_Emission   = _material->_emission.has_value();
+        data.material.hasTex_Metalness  = _material->_metallic.has_value();
+        data.material.hasTex_Normals    = _material->_normals.has_value();
+        data.material.hasTex_Occlusion  = false;
+        data.material.hasTex_Roughness  = _material->_roughness.has_value();
 
         ubos.at(UBOBinding::PerObjectData).SetSubData(0, 1, &data);
 
@@ -2009,30 +2006,31 @@ public:
         if (data.material.hasTex_Albedo)
         {
             glActiveTexture(GL_TEXTURE0 + TextureBinding::Albedo);
-            _albedo.value().Bind();
+            _material->_albedo.value().Bind();
            
         }
         if (data.material.hasTex_Metalness)
         {
             glActiveTexture(GL_TEXTURE0 + TextureBinding::Metallic);
-            _metallic.value().Bind();
+            _material->_metallic.value().Bind();
             
         }
         if (data.material.hasTex_Normals)
         {
             glActiveTexture(GL_TEXTURE0 + TextureBinding::Normals);
-            _normals.value().Bind();
+            _material->_normals.value().Bind();
             
         }
         if (data.material.hasTex_Roughness)
         {
             glActiveTexture(GL_TEXTURE0 + TextureBinding::Roughness);
-            _roughness.value().Bind();
+            _material->_roughness.value().Bind();
             
         }
         if (data.material.hasTex_Emission)
         {
-            // TODO
+            glActiveTexture(GL_TEXTURE0 + TextureBinding::Emission);
+            _material->_emission.value().Bind();
         }
         if (data.material.hasTex_Occlusion)
         {
@@ -2065,37 +2063,41 @@ public:
         OGLUtils::CheckOGLErrors();
     }
 
-    Material& const GetMaterial() override{ return _material; }
+    const Material&  GetMaterial() const override{ return *_material; }
 
-    void SetMaterial(Material mat) override
+    void SetMaterial(const std::shared_ptr<Material> mat) override
     {
         _material = mat;
 
         // Load Texture data if any
-        if (_material.Textures != nullptr)
+        // TODO: ma dio....
+        if (_material->Textures != nullptr)
         {
-            std::string path = std::string(MaterialsFolder) + "/" + _material.Textures;
+            std::string path = std::string(MaterialsFolder) + "/" + _material->Textures;
             std::string ext = ".png";
 
             // wow
             if (ContainsExtension(path, ".jpg"))
                 ext = ".jpg";
 
-            if(exists((path + "/Albedo" + ext).c_str()))
-                _albedo = OGLTexture2D((path + "/Albedo" + ext).c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+            if (exists((path + "/Albedo" + ext).c_str()) && !_material->_albedo.has_value())
+                _material->_albedo = OGLTexture2D((path + "/Albedo" + ext).c_str(), Linear_Mip_Linear, Linear, Repeat, Repeat);
 
-            if (exists((path + "/Roughness" + ext).c_str()))
-                _roughness = OGLTexture2D((path + "/Roughness" + ext).c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+            if (exists((path + "/Roughness" + ext).c_str()) && !_material->_roughness.has_value())
+                _material->_roughness = OGLTexture2D((path + "/Roughness" + ext).c_str(), Linear_Mip_Linear, Linear, Repeat, Repeat);
 
-            if (exists((path + "/Metallic" + ext).c_str()))
-                _metallic = OGLTexture2D((path + "/Metallic" + ext).c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+            if (exists((path + "/Metallic" + ext).c_str()) && !_material->_metallic.has_value())
+                _material->_metallic = OGLTexture2D((path + "/Metallic" + ext).c_str(), Linear_Mip_Linear, Linear, Repeat, Repeat);
 
-            if (exists((path + "/Normals" + ext).c_str()))
-                _normals = OGLTexture2D((path + "/Normals" + ext).c_str(), TextureFiltering::Linear_Mip_Linear, TextureFiltering::Linear);
+            if (exists((path + "/Normals" + ext).c_str()) && !_material->_normals.has_value())
+                _material->_normals = OGLTexture2D((path + "/Normals" + ext).c_str(), Linear_Mip_Linear, Linear, Repeat, Repeat);
+
+        	if (exists((path + "/Emission" + ext).c_str()) && !_material->_emission.has_value())
+                _material->_emission = OGLTexture2D((path + "/Emission" + ext).c_str(), Linear_Mip_Linear, Linear, Repeat, Repeat);
         }
     }
 
-    glm::mat4& const GetTransformation() override { return _modelMatrix; };
+    const glm::mat4&  GetTransformation() const override { return _modelMatrix; };
 
     void SetTransformation(glm::mat4 transformation) override { _modelMatrix = transformation; };
 
@@ -2255,17 +2257,17 @@ public:
 
         OGLUtils::CheckOGLErrors();
     }
-    Material& const GetMaterial() override 
+    const Material& GetMaterial() const override 
     { 
-        Material m = Material{ _color };
+        Material m = Material{ _color, 0.0f, 0.0f, nullptr};
         return m; 
     }
-    void SetMaterial(Material mat) override { _color = mat.Albedo; };
+    void SetMaterial(std::shared_ptr<Material> mat) override { _color = mat->Albedo; };
 
     void SetColor(glm::vec4 color)  { _color = color; };
 
     void SetTransformation(glm::mat4 transformation) override { _modelMatrix = transformation; };
-    glm::mat4& const GetTransformation() override { return _modelMatrix; };
+    const glm::mat4& GetTransformation() const override { return _modelMatrix; };
 
     void Transform(glm::mat4 transformation) override { _modelMatrix = transformation * _modelMatrix; };
 

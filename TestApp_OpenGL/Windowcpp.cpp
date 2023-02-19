@@ -55,7 +55,7 @@ const unsigned int directionalShadowMapResolution = 2048;
 const unsigned int pointShadowMapResolution = 1024;
 const int SSAO_MAX_SAMPLES = 64;
 const int SSAO_BLUR_MAX_RADIUS = 16;
-const int TAA_JITTER_SAMPLES = 16;
+const int TAA_JITTER_SAMPLES = 4;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void processInput(GLFWwindow* window);
@@ -307,7 +307,7 @@ void LoadScene_Primitives(SceneMeshCollection& sceneMeshCollection, std::map<std
             (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::ShinyRed));
 
     Mesh planeMesh = Mesh::Box(8, 8, .1);
-    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-4, -4, 0.0f), 0.0, glm::vec3(0, 0, 1), glm::vec3(1, 1, 1), planeMesh,
+    sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(glm::vec3(-4, -4, 0.0f), 0.2, glm::vec3(1, 0, 0), glm::vec3(1, 1, 1), planeMesh,
         (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(),
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::PureWhite));
     return;
@@ -356,7 +356,7 @@ void LoadScene_PbrTestSpheres(SceneMeshCollection& sceneMeshCollection, std::map
             t = glm::translate(t, glm::vec3(-5.0, -5.0, 0.0));
 
             mr.SetTransformation(t);
-            mr.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0, 1.0), (i+1) / 5.0f, (j+1) / 5.0f });
+            mr.SetMaterial(std::make_shared <Material>(Material{glm::vec4(1.0, 1.0, 1.0, 1.0), (i+1) / 5.0f, (j+1) / 5.0f }));
 
             sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(mr)));
         }
@@ -386,7 +386,7 @@ void LoadScene_PbrTestTeapots(SceneMeshCollection& sceneMeshCollection, std::map
             t = glm::translate(t, glm::vec3(-4.0f, -4.0f, 0.0f));
 
             mr.SetTransformation(t);
-            mr.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0, 1.0), (i + 1) / 5.0f, (j + 1) / 5.0f });
+            mr.SetMaterial(std::make_shared <Material>(Material{ glm::vec4(1.0, 1.0, 1.0, 1.0), (i + 1) / 5.0f, (j + 1) / 5.0f }));
 
             sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(mr)));
         }
@@ -418,7 +418,7 @@ void LoadScene_PbrTestKnobs(SceneMeshCollection& sceneMeshCollection, std::map<s
                 t = glm::translate(t, glm::vec3(-3.0f, -3.0f, 0.0f));
 
                 mr.SetTransformation(t);
-                mr.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0, 1.0), (i + 1) / 3.0f, (j + 1) / 3.0f });
+                mr.SetMaterial(std::make_shared <Material>(Material{ glm::vec4(1.0, 1.0, 1.0, 1.0), (i + 1) / 3.0f, (j + 1) / 3.0f }));
 
                 sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(mr)));
             }
@@ -888,7 +888,7 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
     Mesh teapotMesh = reader.Meshes()[0];
 
     MeshRenderer plane = MeshRenderer(planeMesh, (*shadersCollection).at("LIT_WITH_SHADOWS_SSAO").get(), (*shadersCollection).at("LIT_WITH_SSAO").get());
-    plane.SetMaterial(Material{ glm::vec4(1.0, 1.0, 1.0 ,1.0), 0.8, 0.0 });
+    plane.SetMaterial(std::make_shared<Material>( Material{ glm::vec4(1.0, 1.0, 1.0 ,1.0), 0.8, 0.0 } ));
     plane.Renderer::SetTransformation(glm::vec3(-4, -4, -0.25), 0, glm::vec3(1.0, 0, 0), glm::vec3(1, 1, 1));
     
     
@@ -905,11 +905,11 @@ void LoadScene_PCSStest(SceneMeshCollection& sceneMeshCollection, std::map<std::
     teapot4.Renderer::Transform(glm::vec3(-0.5, -0.6, 3.3), 1.4, glm::vec3(1, -0.5, 1.6), glm::vec3(1, 1, 1));
     teapot5.Renderer::Transform(glm::vec3(1.6, 0.8, 1.5), 0.6, glm::vec3(1,1.0,2.0), glm::vec3(1, 1, 1));
 
-    teapot1.SetMaterial(Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.9, 0.0 });
-    teapot2.SetMaterial(Material{ glm::vec4(0.9, 0.5, 0.0 ,1.0), 0.1, 0.0 });
-    teapot3.SetMaterial(Material{ glm::vec4(0.8, 0.3, 0.5 ,1.0), 0.5, 0.0 });
-    teapot4.SetMaterial(Material{ glm::vec4(0.89, 0.92, 0.84 ,1.0), 0.5, 1.0 });
-    teapot5.SetMaterial(Material{ glm::vec4(0.4, 0.4, 0.9 ,1.0), 0.6, 0.0 });
+    teapot1.SetMaterial(std::make_shared<Material>( Material{ glm::vec4(1.0, 0.0, 0.0 ,1.0), 0.9, 0.0 } ));
+    teapot2.SetMaterial(std::make_shared<Material>( Material{ glm::vec4(0.9, 0.5, 0.0 ,1.0), 0.1, 0.0 } ));
+    teapot3.SetMaterial(std::make_shared<Material>( Material{ glm::vec4(0.8, 0.3, 0.5 ,1.0), 0.5, 0.0 } ));
+    teapot4.SetMaterial(std::make_shared<Material>( Material{ glm::vec4(0.89, 0.92, 0.84 ,1.0), 0.5, 1.0 } ));
+    teapot5.SetMaterial(std::make_shared<Material>( Material{ glm::vec4(0.4, 0.4, 0.9 ,1.0), 0.6, 0.0 } ));
 
 
     sceneMeshCollection.AddToCollection(std::make_shared<MeshRenderer>(std::move(plane)));
@@ -1221,7 +1221,7 @@ void LoadScene_AoTest(SceneMeshCollection& sceneMeshCollection, std::map<std::st
 
 }
 
-void LoadSceneFromPath(const char* path, SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection, const Material& material)
+void LoadSceneFromPath(const char* path, SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection, std::shared_ptr<Material> material)
 {
     FileReader reader = FileReader(path);
     reader.Load();
@@ -1296,8 +1296,8 @@ void LoadScene_TechnoDemon(SceneMeshCollection& sceneMeshCollection, std::map<st
     // ---------------------- //
 
     
-    Material matBody = Material{ glm::vec4(1.0),0.9, 0.0, "TechnoDemon_Body" };
-    Material matArm = Material{ glm::vec4(1.0),0.2, 1.0, "TechnoDemon_Arm" };
+    auto matBody = std::make_shared <Material>(Material{ glm::vec4(1.0),0.9, 0.0, "TechnoDemon_Body"});
+    auto matArm  = std::make_shared <Material>(Material{ glm::vec4(1.0),0.2, 1.0, "TechnoDemon_Arm" });
   
     sceneMeshCollection.at(5).get()->SetMaterial(matBody);
     sceneMeshCollection.at(6).get()->SetMaterial(matArm);
@@ -1328,7 +1328,7 @@ void LoadScene_UtilityKnife(SceneMeshCollection& sceneMeshCollection, std::map<s
 
     // ___ Material ___ //
     // ---------------- //
-    Material mat_0 = Material{ glm::vec4(1.0),1.0, 0.0, "UtilityKnife" };
+    auto mat_0 = std::make_shared <Material>(Material{ glm::vec4(1.0),1.0, 0.0, "UtilityKnife" });
     for (int i = 0; i < sceneMeshCollection.size(); i++)
         sceneMeshCollection.at(i).get()->SetMaterial(mat_0);
    
@@ -1361,7 +1361,7 @@ void LoadScene_RadialEngine(SceneMeshCollection& sceneMeshCollection, std::map<s
 
     // ___ Material ___ //
     // ---------------- //
-    Material mat_0 = Material{ glm::vec4(1.0),1.0, 0.0, "RadialEngine" };
+    auto mat_0 = std::make_shared <Material>(Material{ glm::vec4(1.0), 1.0, 0.0, "RadialEngine" });
     for (int i = 0; i < sceneMeshCollection.size(); i++)
         sceneMeshCollection.at(i).get()->SetMaterial(mat_0);
 
@@ -1374,13 +1374,42 @@ void LoadScene_RadialEngine(SceneMeshCollection& sceneMeshCollection, std::map<s
         (*shadersCollection).at("LIT_WITH_SSAO").get(), MaterialsCollection::MatteGray));
 }
 
+void LoadScene_Spaceship(SceneMeshCollection& sceneMeshCollection, std::map<std::string, std::shared_ptr<MeshShader>>* shadersCollection)
+{
+
+    LoadSceneFromPath("../../Assets/Models/Spaceship.fbx", sceneMeshCollection, shadersCollection);
+
+    // ___ Transformation ___ //
+    // ---------------------- //
+     glm::mat4 tr = glm::mat4(1.0);
+     tr = glm::translate(tr, glm::vec3(0, 0,3.0f));
+     tr = glm::scale(tr, glm::vec3(0.01));
+     tr = glm::rotate(tr, glm::pi<float>() / 2.0f, glm::vec3(1.0, 0.0, 0.0));
+     
+     for (int i = 0; i < sceneMeshCollection.size(); i++)
+         sceneMeshCollection.at(i).get()->Transform(tr);
+
+    sceneMeshCollection.UpdateBBox();
+    // ---------------------- //
+
+
+    auto mat = std::make_shared <Material>(Material{ glm::vec4(1.0), 0.9f, 0.0, "Spaceship" });
+   
+    for (int i = 0; i < sceneMeshCollection.size(); i++)
+        sceneMeshCollection.at(i)->SetMaterial(mat);
+    
+
+    // ----------------- //
+    LoadPlane(sceneMeshCollection, shadersCollection, 15.0);
+}
+
 void SetupScene(
     SceneMeshCollection& sceneMeshCollection, 
     std::map<std::string, std::shared_ptr<MeshShader>> *meshShadersCollection,
     std::map<std::string, std::shared_ptr<WiresShader>>* wiresShadersCollection
 )
 {
-    LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, -0.0f);
+    //LoadPlane(sceneMeshCollection, meshShadersCollection, 15.0, -0.0f);
 
 
     //LoadScene_PSSM(sceneMeshCollection, wiresShadersCollection);
@@ -1391,7 +1420,7 @@ void SetupScene(
     //LoadScene_PbrTestTeapots(sceneMeshCollection, meshShadersCollection);
     //LoadScene_PbrTestKnobs(sceneMeshCollection, meshShadersCollection);
     //LoadSceneFromPath("../../Assets/Models/Teapot.obj", sceneMeshCollection, meshShadersCollection, MaterialsCollection::ShinyRed);
-     LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
+	//LoadScene_NormalMapping(sceneMeshCollection, meshShadersCollection);
     //LoadScene_TechnoDemon(sceneMeshCollection, meshShadersCollection);
     //LoadScene_RadialEngine(sceneMeshCollection, meshShadersCollection);
     //LoadScene_UtilityKnife(sceneMeshCollection, meshShadersCollection);
@@ -1417,7 +1446,7 @@ void SetupScene(
     //LoadScene_Knob(sceneMeshCollection, shadersCollection, sceneBoundingBox);
     //LoadScene_AoTest(sceneMeshCollection, shadersCollection);
     //LoadScene_Porsche(sceneMeshCollection, shadersCollection, sceneBoundingBox);
-
+    LoadScene_Spaceship(sceneMeshCollection, meshShadersCollection);
 }
 
 std::map<std::string, std::shared_ptr<WiresShader>> InitializeWiresShaders()
@@ -2426,15 +2455,15 @@ std::vector<glm::vec2> GetTaaJitterVectors()
     auto samples =  GetR2Sequence(TAA_JITTER_SAMPLES);
     std::for_each(samples.begin(), samples.end(), [](glm::vec2 &v) {v -= glm::vec2(0.5); });
 
-	return samples;
+	//return samples;
 
     //return std::vector<glm::vec2>(TAA_JITTER_SAMPLES, glm::vec2(0.0f, 0.0f));
     return std::vector<glm::vec2>
     {
-        glm::vec2(-0.4f, -0.4f),
-        glm::vec2( 0.4f,  0.4f),
-        glm::vec2( 0.4f, -0.4f),
-        glm::vec2(-0.4f,  0.4f)
+        glm::vec2(-0.25f, -0.25f),
+        glm::vec2( 0.25f,  0.25f),
+        glm::vec2( 0.25f, -0.25f),
+        glm::vec2(-0.25f,  0.25f)
     };
 }
 
@@ -2915,7 +2944,7 @@ int main()
         SetRenderTarget(sceneFBOs, &gBuffer);
 
         GPassStandard.SetUniformBlocks(UBOBinding::PerObjectData, UBOBinding::ViewData, UBOBinding::PerFrameData);
-        GPassStandard.SetSamplers(TextureBinding::Normals, TextureBinding::Albedo, TextureBinding::Roughness, TextureBinding::Metallic, -1, -1);
+        GPassStandard.SetSamplers(TextureBinding::Normals, TextureBinding::Albedo, TextureBinding::Roughness, TextureBinding::Metallic, -1, TextureBinding::Emission);
 
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         for (int i = 0; i < sceneMeshCollection.size(); i++)

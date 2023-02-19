@@ -12,8 +12,8 @@ uniform mat4 u_prevModel;
 
 out VS_OUT
 {
-    vec3 curr_pos_ndc;
-    vec3 prev_pos_ndc;
+    vec3 curr_pos_clip;
+    vec3 prev_pos_clip;
 }vs_in;
 
 void main()
@@ -33,6 +33,6 @@ void main()
 
     gl_Position = curr_clip_jittered;
     
-    vs_in.curr_pos_ndc = curr_clip.xyz/curr_clip.w;
-    vs_in.prev_pos_ndc = prev_clip.xyz/prev_clip.w;
+    vs_in.curr_pos_clip = curr_clip.xyw;
+    vs_in.prev_pos_clip = prev_clip.xyw;
 }

@@ -3310,7 +3310,8 @@ namespace OGLResources
         
         }
 
-        OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, TextureFiltering minFilter, TextureFiltering magFilter) 
+        OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, TextureFiltering minFilter, TextureFiltering magFilter,
+            TextureWrap wrapS, TextureWrap wrapT) 
             : _width(width), _height(height)
         {
             OGLResource::Create(OGLResourceType::TEXTURE);
@@ -3322,12 +3323,17 @@ namespace OGLResources
             OGLTextureUtils::SetParameters(
                 OGLResource::ID(), _textureType,
                 minFilter, magFilter,
-                TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
+                wrapS, wrapT);
 
             OGLUtils::CheckOGLErrors();
         }
 
-        OGLTexture2D(const char* path, TextureFiltering minFilter, TextureFiltering magFilter)
+        OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, TextureFiltering minFilter, TextureFiltering magFilter)
+            : OGLTexture2D(width, height, internalFormat, minFilter, magFilter, Clamp_To_Edge, Clamp_To_Edge)
+        {
+        }
+
+        OGLTexture2D(const char* path, TextureFiltering minFilter, TextureFiltering magFilter, TextureWrap wrapS, TextureWrap wrapT)
         {
 
             int width, height, nrChannels;
@@ -3363,11 +3369,16 @@ namespace OGLResources
             OGLTextureUtils::SetParameters(
                 OGLResource::ID(), _textureType,
                 minFilter, magFilter,
-                TextureWrap::Clamp_To_Edge, TextureWrap::Clamp_To_Edge);
+                wrapS, wrapT);
 
             OGLUtils::CheckOGLErrors();
 
             stbi_image_free(data);
+        }
+
+        OGLTexture2D(const char* path, TextureFiltering minFilter, TextureFiltering magFilter)
+	        :OGLTexture2D(path, minFilter, magFilter, Clamp_To_Edge, Clamp_To_Edge)
+        {
         }
 
         OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, void* data, GLenum dataFormat, GLenum type)

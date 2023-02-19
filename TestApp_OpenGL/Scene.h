@@ -181,40 +181,56 @@ constexpr const char* MaterialsFolder = "../../Assets/Materials";
 
 struct Material
 {
+public:
 	glm::vec4 Albedo;
 	float Roughness;
 	float Metallic;
 
 	const char* Textures;
+	std::optional<OGLResources::OGLTexture2D> _albedo;
+	std::optional<OGLResources::OGLTexture2D> _normals;
+	std::optional<OGLResources::OGLTexture2D> _roughness;
+	std::optional<OGLResources::OGLTexture2D> _metallic;
+	std::optional<OGLResources::OGLTexture2D> _emission;
+
+	Material(glm::vec4 albedo, float roughness, float metallic, const char* texturesPath = nullptr)
+		: Albedo{albedo}, Roughness{roughness}, Metallic{metallic}, Textures{texturesPath}
+	{
+		_albedo    = std::optional<OGLResources::OGLTexture2D>{};
+		_normals   = std::optional<OGLResources::OGLTexture2D>{};
+		_roughness = std::optional<OGLResources::OGLTexture2D>{};
+		_metallic  = std::optional<OGLResources::OGLTexture2D>{};
+		_emission  = std::optional<OGLResources::OGLTexture2D>{};
+	}
 };
 
 
 struct MaterialsCollection
 {
-	static const Material NullMaterial;
-	static const Material ShinyRed;
-	static const Material PlasticGreen;
-	static const Material Copper;
-	static const Material PureWhite;
-	static const Material MatteGray;
-	static const Material ClayShingles;
-	static const Material WornFactoryFloor;
-	static const Material Cobblestone;
-	static const Material WoodPlanks;
-	static const Material BlackAndWhiteTiles;
+	static const std::shared_ptr<Material> NullMaterial;
+	static const std::shared_ptr<Material> ShinyRed;
+	static const std::shared_ptr<Material> PlasticGreen;
+	static const std::shared_ptr<Material> Copper;
+	static const std::shared_ptr<Material> PureWhite;
+	static const std::shared_ptr<Material> MatteGray;
+	static const std::shared_ptr<Material> ClayShingles;
+	static const std::shared_ptr<Material> WornFactoryFloor;
+	static const std::shared_ptr<Material> Cobblestone;
+	static const std::shared_ptr<Material> WoodPlanks;
+	static const std::shared_ptr<Material> BlackAndWhiteTiles;
 };
 
-const Material MaterialsCollection::NullMaterial = Material{ glm::vec4(1, 0, 1, 1), 0.0, 0.0 };
-const Material MaterialsCollection::ShinyRed = Material{ glm::vec4(1, 0, 0, 1), 0.2, 0.0 };
-const Material MaterialsCollection::PlasticGreen = Material{ glm::vec4(0, 0.8, 0, 1), 0.3, 0.0 };
-const Material MaterialsCollection::Copper = Material{ glm::vec4(0.8, 0.3, 0, 1),  0.2, 1.0 };
-const Material MaterialsCollection::PureWhite = Material{ glm::vec4(0.9, 0.9, 0.9, 1),0.1, 0.0 };
-const Material MaterialsCollection::MatteGray = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.8 , 0.0 };
-const Material MaterialsCollection::ClayShingles = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0, "Shingles" };
-const Material MaterialsCollection::WornFactoryFloor = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0, "WornFactoryFloor" };
-const Material MaterialsCollection::WoodPlanks = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0,  "WoodPlanks" };
-const Material MaterialsCollection::Cobblestone = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.7, 0.0, "Cobblestone" };
-const Material MaterialsCollection::BlackAndWhiteTiles = Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.5, 0.0,  "BlackAndWhiteTiles" };
+const std::shared_ptr<Material> MaterialsCollection::NullMaterial		= std::make_shared<Material>(Material{ glm::vec4(1, 0, 1, 1), 0.0, 0.0												});
+const std::shared_ptr<Material> MaterialsCollection::ShinyRed			= std::make_shared<Material>(Material{ glm::vec4(1, 0, 0, 1), 0.2, 0.0												});
+const std::shared_ptr<Material> MaterialsCollection::PlasticGreen		= std::make_shared<Material>(Material{ glm::vec4(0, 0.8, 0, 1), 0.3, 0.0											});
+const std::shared_ptr<Material> MaterialsCollection::Copper				= std::make_shared<Material>(Material{ glm::vec4(0.8, 0.3, 0, 1),  0.2, 1.0											});
+const std::shared_ptr<Material> MaterialsCollection::PureWhite			= std::make_shared<Material>(Material{ glm::vec4(0.9, 0.9, 0.9, 1),0.1, 0.0											});
+const std::shared_ptr<Material> MaterialsCollection::MatteGray			= std::make_shared<Material>(Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.8 , 0.0										});
+const std::shared_ptr<Material> MaterialsCollection::ClayShingles		= std::make_shared<Material>(Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0, "Shingles"					});
+const std::shared_ptr<Material> MaterialsCollection::WornFactoryFloor	= std::make_shared<Material>(Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0, "WornFactoryFloor"			});
+const std::shared_ptr<Material> MaterialsCollection::WoodPlanks			= std::make_shared<Material>(Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.4, 0.0,  "WoodPlanks"				});
+const std::shared_ptr<Material> MaterialsCollection::Cobblestone		= std::make_shared<Material>(Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.7, 0.0, "Cobblestone"				});
+const std::shared_ptr<Material> MaterialsCollection::BlackAndWhiteTiles = std::make_shared<Material>(Material{ glm::vec4(0.5, 0.5, 0.5, 1), 0.5, 0.0,  "BlackAndWhiteTiles"		});
 
 
 #endif

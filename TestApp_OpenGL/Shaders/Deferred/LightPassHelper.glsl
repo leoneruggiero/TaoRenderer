@@ -76,9 +76,9 @@ float G_GGXS(vec3 n, vec3 v, float roughness)
 {   
     float k = (roughness + 1.0);
     k = (k*k) / 8.0;     
-    float dot = max(0.0, dot(n, v));
+    float d = max(0.0, dot(n, v));
 
-    return dot / (dot * (1.0 - k) + k);
+    return d / (d * (1.0 - k) + k);
 }
 
     

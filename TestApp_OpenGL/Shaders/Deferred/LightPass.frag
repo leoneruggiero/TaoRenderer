@@ -40,6 +40,7 @@ out vec3 albedo, out vec3 emission, out vec3 position, out vec3 normal, out floa
     position    = buff3.rgb;
     containsData= buff3.a!=0.0;
     normal      = texelFetch(gBuff4, texCoord, 0).rgb;
+    //normal      = normalize(normal); // errors for direct specular illumination without this (don't know why )
 }
 
 out vec4 FragColor;
@@ -84,7 +85,7 @@ void main()
     direct, ambient);
 
     
-    FragColor = vec4(direct + ambient * occlusion, 1.0);
+    FragColor = vec4(emission + direct + ambient * occlusion, 1.0);
 
     #ifdef DEBUG_VIZ 
     if( uDebug_viewport.z == DEBUG_DIRECTIONAL_SPLITS)

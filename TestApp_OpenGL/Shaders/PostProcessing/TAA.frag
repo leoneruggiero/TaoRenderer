@@ -146,13 +146,10 @@ void main()
 	// Don't sample the velocity buffer with the fragment uv,
 	// instead find the closest (z) neighbor inside a 3x3 region
 	// so that sub-pixel features on edges moves too.
-
 	vec2 c_frag = find_closest_fragment_3x3(fragCoord_uv.xy);
 
-
-	 vec3 ss_vel_onEdge = texture(t_VelocityBuffer, c_frag.xy).xyz;
+	vec3 ss_vel_onEdge = texture(t_VelocityBuffer, c_frag.xy).xyz;
 	
-
 	vec4 resolvedCol = temporal_reprojection(fragCoord_uv, ss_vel_onEdge.xy, HISTORY_WEIGHT);
 
     toScreen = resolvedCol;
