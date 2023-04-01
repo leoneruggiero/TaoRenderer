@@ -2194,21 +2194,21 @@ R"(
     }
 }
 
-enum class OGLResourceType
+enum class ogl_resource_type
 {
-    UNDEFINED,
-    VERTEX_SHADER,
-    FRAGMENT_SHADER,
-    GEOMETRY_SHADER,
-    SHADER_PROGRAM,
-    VERTEX_BUFFER_OBJECT,
-    VERTEX_ATTRIB_ARRAY,
-    INDEX_BUFFER,
-    UNIFORM_BUFFER,
-    SHADER_STORAGE_BUFFER,
-    TEXTURE,
-    FRAMEBUFFER,
-    SAMPLER
+    undefined,
+    vertex_shader,
+    fragment_shader,
+    geometry_shader,
+    shader_program,
+    vertex_buffer_object,
+    vertex_attrib_array,
+    index_buffer,
+    uniform_buffer,
+    shader_storage_buffer,
+    texture,
+    framebuffer,
+    sampler
 };
 
 namespace OGLUtils
@@ -2524,7 +2524,7 @@ namespace OGLResources
     {
     public:
         OGLResource()
-            : _id(0), _type(OGLResourceType::UNDEFINED) {};
+            : _id(0), _type(ogl_resource_type::undefined) {};
 
         // No Copy Constructor/Assignment allowed
         OGLResource(const OGLResource&) = delete;
@@ -2535,7 +2535,7 @@ namespace OGLResources
             _id = other._id;
             _type = other._type;
             other._id = 0;
-            other._type = OGLResourceType::UNDEFINED;
+            other._type = ogl_resource_type::undefined;
         };
 
         OGLResource& operator=(OGLResource&& other) noexcept
@@ -2568,21 +2568,21 @@ namespace OGLResources
 
     private:
         unsigned int _id;
-        OGLResourceType _type;
-        void InitResources(OGLResourceType type)
+        ogl_resource_type _type;
+        void InitResources(ogl_resource_type type)
         {
             ResourceTypeSwitch(type, false);
         };
-        void FreeResources(OGLResourceType type)
+        void FreeResources(ogl_resource_type type)
         {
             ResourceTypeSwitch(type, true);
         };
 
-        void ResourceTypeSwitch(OGLResourceType type, bool destroy)
+        void ResourceTypeSwitch(ogl_resource_type type, bool destroy)
         {
             switch (type)
             {
-            case (OGLResourceType::VERTEX_SHADER):
+            case (ogl_resource_type::vertex_shader):
                 if (!destroy)
                     _id = glCreateShader(GL_VERTEX_SHADER);
                 else
@@ -2592,7 +2592,7 @@ namespace OGLResources
                 }
                 break;
 
-            case (OGLResourceType::FRAGMENT_SHADER):
+            case (ogl_resource_type::fragment_shader):
                 if (!destroy)
                     _id = glCreateShader(GL_FRAGMENT_SHADER);
                 else
@@ -2602,7 +2602,7 @@ namespace OGLResources
                 }
                 break;
 
-            case (OGLResourceType::GEOMETRY_SHADER):
+            case (ogl_resource_type::geometry_shader):
                 if (!destroy)
                     _id = glCreateShader(GL_GEOMETRY_SHADER);
                 else
@@ -2612,7 +2612,7 @@ namespace OGLResources
                 }
                 break;
 
-            case (OGLResourceType::SHADER_PROGRAM):
+            case (ogl_resource_type::shader_program):
                 if (!destroy)
                     _id = glCreateProgram();
                 else
@@ -2622,10 +2622,10 @@ namespace OGLResources
                 }
                 break;
 
-            case (OGLResourceType::VERTEX_BUFFER_OBJECT):
-            case (OGLResourceType::INDEX_BUFFER):
-            case (OGLResourceType::UNIFORM_BUFFER):
-            case (OGLResourceType::SHADER_STORAGE_BUFFER):
+            case (ogl_resource_type::vertex_buffer_object):
+            case (ogl_resource_type::index_buffer):
+            case (ogl_resource_type::uniform_buffer):
+            case (ogl_resource_type::shader_storage_buffer):
                 if (!destroy)
                     glGenBuffers(1, &_id);
                 else
@@ -2635,7 +2635,7 @@ namespace OGLResources
                 }
                 break;
 
-            case(OGLResourceType::VERTEX_ATTRIB_ARRAY):
+            case(ogl_resource_type::vertex_attrib_array):
                 if (!destroy)
                     glGenVertexArrays(1, &_id);
                 else
@@ -2644,7 +2644,7 @@ namespace OGLResources
                     _id = 0;
                 }
                 break;
-            case(OGLResourceType::TEXTURE):
+            case(ogl_resource_type::texture):
                 if (!destroy)
                     glGenTextures(1, &_id);
                 else
@@ -2653,7 +2653,7 @@ namespace OGLResources
                     _id = 0;
                 }
                 break;
-            case(OGLResourceType::FRAMEBUFFER):
+            case(ogl_resource_type::framebuffer):
                 if (!destroy)
                     glGenFramebuffers(1, &_id);
                 else
@@ -2662,7 +2662,7 @@ namespace OGLResources
                     _id = 0;
                 }
                 break;
-            case(OGLResourceType::SAMPLER):
+            case(ogl_resource_type::sampler):
                 if (!destroy)
                     glGenSamplers(1, &_id);
                 else
@@ -2678,7 +2678,7 @@ namespace OGLResources
         }
 
     protected:
-        void Create(OGLResourceType type)
+        void Create(ogl_resource_type type)
         {
             _type = type;
             InitResources(_type);
@@ -2701,51 +2701,51 @@ namespace OGLResources
         {
             switch (_type)
             {
-            case (OGLResourceType::VERTEX_SHADER):
+            case (ogl_resource_type::vertex_shader):
                 return "VERTEX_SHADER";
                 break;
 
-            case (OGLResourceType::FRAGMENT_SHADER):
+            case (ogl_resource_type::fragment_shader):
                 return "FRAGMENT_SHADER";
                 break;
 
-            case (OGLResourceType::GEOMETRY_SHADER):
+            case (ogl_resource_type::geometry_shader):
                 return "GEOMETRY_SHADER";
                 break;
 
-            case (OGLResourceType::SHADER_PROGRAM):
+            case (ogl_resource_type::shader_program):
                 return "SHADER_PROGRAM";
                 break;
 
-            case (OGLResourceType::VERTEX_BUFFER_OBJECT):
+            case (ogl_resource_type::vertex_buffer_object):
                 return "VERTEX_BUFFER_OBJECT";
                 break;
 
-            case (OGLResourceType::INDEX_BUFFER):
+            case (ogl_resource_type::index_buffer):
                 return "INDEX_BUFFER";
                 break;
 
-            case (OGLResourceType::UNIFORM_BUFFER):
+            case (ogl_resource_type::uniform_buffer):
                 return "UNIFORM_BUFFER";
                 break;
 
-            case (OGLResourceType::SHADER_STORAGE_BUFFER):
+            case (ogl_resource_type::shader_storage_buffer):
                 return "SHADER_STORAGE_BUFFER";
                 break;
 
-            case(OGLResourceType::VERTEX_ATTRIB_ARRAY):
+            case(ogl_resource_type::vertex_attrib_array):
                 return "VERTEX_ATTRIB_ARRAY";
                 break;
 
-            case(OGLResourceType::TEXTURE):
+            case(ogl_resource_type::texture):
                 return "TEXTURE";
                 break;
 
-            case(OGLResourceType::FRAMEBUFFER):
+            case(ogl_resource_type::framebuffer):
                 return "FRAMEBUFFER";
                 break;
 
-            case(OGLResourceType::SAMPLER):
+            case(ogl_resource_type::sampler):
                 return "SAMPLER";
                 break;
 
@@ -2766,7 +2766,7 @@ namespace OGLResources
 
         VertexBufferObject(Usage type) : _type(type)
         {
-            OGLResource::Create(OGLResourceType::VERTEX_BUFFER_OBJECT);
+            OGLResource::Create(ogl_resource_type::vertex_buffer_object);
         }
 
         VertexBufferObject(VertexBufferObject&& other) noexcept : OGLResource(std::move(other))
@@ -2833,7 +2833,7 @@ namespace OGLResources
     public:
         IndexBufferObject(Usage type) : _type(type)
         {
-            OGLResource::Create(OGLResourceType::INDEX_BUFFER);
+            OGLResource::Create(ogl_resource_type::index_buffer);
         }
 
         IndexBufferObject(IndexBufferObject&& other) noexcept : OGLResource(std::move(other))
@@ -2899,7 +2899,7 @@ namespace OGLResources
     public:
         UniformBufferObject(Usage type) : _type(type)
         {
-            OGLResource::Create(OGLResourceType::UNIFORM_BUFFER);
+            OGLResource::Create(ogl_resource_type::uniform_buffer);
         }
 
         UniformBufferObject(UniformBufferObject&& other) noexcept : OGLResource(std::move(other))
@@ -2962,7 +2962,7 @@ namespace OGLResources
     public:
         ShaderStorageBufferObject(Usage type) : _type(type)
         {
-            OGLResource::Create(OGLResourceType::SHADER_STORAGE_BUFFER);
+            OGLResource::Create(ogl_resource_type::shader_storage_buffer);
         }
 
         ShaderStorageBufferObject(ShaderStorageBufferObject&& other) noexcept : OGLResource(std::move(other))
@@ -3036,7 +3036,7 @@ namespace OGLResources
     public:
         VertexAttribArray()
         {
-            OGLResource::Create(OGLResourceType::VERTEX_ATTRIB_ARRAY);
+            OGLResource::Create(ogl_resource_type::vertex_attrib_array);
         }
 
         VertexAttribArray(VertexAttribArray&& other) noexcept : OGLResource(std::move(other)) {};
@@ -3105,7 +3105,7 @@ namespace OGLResources
     public:
         OGLFragmentShader(std::string source) : _source{ source }
         {
-            OGLResource::Create(OGLResourceType::FRAGMENT_SHADER);
+            OGLResource::Create(ogl_resource_type::fragment_shader);
 
             const char* fsc = source.data();
             glShaderSource(OGLResource::ID(), 1, &fsc, NULL);
@@ -3143,7 +3143,7 @@ namespace OGLResources
     public:
         OGLGeometryShader(std::string source) : _source{ source }
         {
-            OGLResource::Create(OGLResourceType::GEOMETRY_SHADER);
+            OGLResource::Create(ogl_resource_type::geometry_shader);
 
             const char* gsc = source.data();
             glShaderSource(OGLResource::ID(), 1, &gsc, NULL);
@@ -3181,7 +3181,7 @@ namespace OGLResources
     public:
         OGLVertexShader(std::string source) : _source{ source }
         {
-            OGLResource::Create(OGLResourceType::VERTEX_SHADER);
+            OGLResource::Create(ogl_resource_type::vertex_shader);
 
             const char* vsc = source.data();
             glShaderSource(OGLResource::ID(), 1, &vsc, NULL);
@@ -3224,7 +3224,7 @@ namespace OGLResources
             OGLVertexShader vertex(vShaderCode);
             OGLFragmentShader fragment(fShaderCode);
 
-            OGLResource::Create(OGLResourceType::SHADER_PROGRAM);
+            OGLResource::Create(ogl_resource_type::shader_program);
 
             glAttachShader(OGLResource::ID(), vertex.ID());
             glAttachShader(OGLResource::ID(), fragment.ID());
@@ -3314,7 +3314,7 @@ namespace OGLResources
             TextureWrap wrapS, TextureWrap wrapT) 
             : _width(width), _height(height)
         {
-            OGLResource::Create(OGLResourceType::TEXTURE);
+            OGLResource::Create(ogl_resource_type::texture);
 
             OGLTextureUtils::Init(
                 OGLResource::ID(), _textureType,
@@ -3346,7 +3346,7 @@ namespace OGLResources
                 throw "Texture data loading failed";
             }
 
-            OGLResource::Create(OGLResourceType::TEXTURE);
+            OGLResource::Create(ogl_resource_type::texture);
 
             OGLUtils::CheckOGLErrors();
 
@@ -3383,7 +3383,7 @@ namespace OGLResources
 
         OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, void* data, GLenum dataFormat, GLenum type)
         {
-            OGLResource::Create(OGLResourceType::TEXTURE);
+            OGLResource::Create(ogl_resource_type::texture);
 
             OGLTextureUtils::Init(
                 OGLResource::ID(), _textureType,
@@ -3400,7 +3400,7 @@ namespace OGLResources
         OGLTexture2D(int width, int height, TextureInternalFormat internalFormat, void* data, GLenum dataFormat, GLenum type,
             TextureFiltering minFilter, TextureFiltering magFilter, TextureWrap wrapS, TextureWrap wrapT)
         {
-            OGLResource::Create(OGLResourceType::TEXTURE);
+            OGLResource::Create(ogl_resource_type::texture);
 
             OGLTextureUtils::Init(
                 OGLResource::ID(), _textureType,
@@ -3457,7 +3457,7 @@ namespace OGLResources
     public:
         OGLTexture1D(int width, TextureInternalFormat internalFormat, float* data) : _width(width)
         {
-            OGLResource::Create(OGLResourceType::TEXTURE);
+            OGLResource::Create(ogl_resource_type::texture);
 
             OGLTextureUtils::Init(
                 OGLResource::ID(), _textureType,
@@ -3635,7 +3635,7 @@ namespace OGLResources
             : _width(0), _height(0), _minLevel(0), _maxLevel(0)
         {
 
-            OGLResource::Create(OGLResourceType::TEXTURE);
+            OGLResource::Create(ogl_resource_type::texture);
 
             if (ContainsExtension(folderPath, ".hdr"))
                 LoadFromPath_HDR(folderPath);
@@ -3658,7 +3658,7 @@ namespace OGLResources
             : _width(width), _height(height), _minLevel(0), _maxLevel(0)
         {
 
-            OGLResource::Create(OGLResourceType::TEXTURE);
+            OGLResource::Create(ogl_resource_type::texture);
 
             for (int i = 0; i < 6; i++)
             {
@@ -3775,7 +3775,7 @@ namespace OGLResources
     public:
         OGLSampler(OGLSamplerDesc desc) : _samplerDesc(desc)
         {
-            OGLResource::Create(OGLResourceType::SAMPLER);
+            OGLResource::Create(ogl_resource_type::sampler);
 
             SetSamplerParams();
 
@@ -3900,7 +3900,7 @@ namespace OGLResources
             T depthTexture, std::vector<T> colorTextures)
             :_width(width), _height(height)
         {
-            OGLResource::Create(OGLResourceType::FRAMEBUFFER);
+            OGLResource::Create(ogl_resource_type::framebuffer);
 
             _depthTexture = std::optional<T>(std::move(depthTexture));
             _colorTextures = std::vector<T>(std::move(colorTextures));
@@ -3911,7 +3911,7 @@ namespace OGLResources
             TextureInternalFormat colorTextureFormat, TextureFiltering minFilter, TextureFiltering magFilter)
             :_width(width), _height(height)
         {
-            OGLResource::Create(OGLResourceType::FRAMEBUFFER);
+            OGLResource::Create(ogl_resource_type::framebuffer);
 
             GenTextures(depth, color, colorAttachments, colorTextureFormat, minFilter, magFilter);
             Initialize(depth, color, colorAttachments);
