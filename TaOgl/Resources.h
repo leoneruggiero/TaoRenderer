@@ -1,18 +1,17 @@
 #pragma once
 
 #include <iostream>
-#include <glad/glad.h>
 #include <concepts>
 #include <string>
 #include <type_traits>
 
 #include "OglUtils.h"
 
-namespace render_context
+namespace tao_render_context
 {
 	class RenderContext;
 }
-namespace ogl_resources
+namespace tao_ogl_resources
 {
 	/////////////////////
 	// Wrapped OGL resources inspired by:
@@ -73,7 +72,19 @@ namespace ogl_resources
 		static void Destroy(GLuint);
 		static constexpr const char* to_string = "shader storage buffer";
 	};
-	struct texture
+	struct texture_1D
+	{
+		static GLuint Create();
+		static void Destroy(GLuint);
+		static constexpr const char* to_string = "texture";
+	};
+	struct texture_2D
+	{
+		static GLuint Create();
+		static void Destroy(GLuint);
+		static constexpr const char* to_string = "texture";
+	};
+	struct texture_cube
 	{
 		static GLuint Create();
 		static void Destroy(GLuint);
@@ -103,7 +114,9 @@ namespace ogl_resources
 		std::is_same_v<T, index_buffer> ||
 		std::is_same_v<T, uniform_buffer> ||
 		std::is_same_v<T, shader_storage_buffer> ||
-		std::is_same_v<T, texture> ||
+		std::is_same_v<T, texture_1D> ||
+		std::is_same_v<T, texture_2D> ||
+		std::is_same_v<T, texture_cube> ||
 		std::is_same_v<T, framebuffer> ||
 		std::is_same_v<T, sampler>;
 
@@ -125,7 +138,7 @@ namespace ogl_resources
 	{
 
 		// RenderContext is the one in charge of calling the private constructor
-		friend class render_context::RenderContext; 
+		friend class tao_render_context::RenderContext; 
 
 	public:
 		using type = T;
@@ -187,7 +200,7 @@ namespace ogl_resources
 	{
 		using ogl_resource_type = vertex_shader;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 		friend class OglShaderProgram;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
@@ -202,7 +215,7 @@ namespace ogl_resources
 	{
 		using ogl_resource_type = fragment_shader;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 		friend class OglShaderProgram;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
@@ -217,7 +230,7 @@ namespace ogl_resources
 	{
 		using ogl_resource_type = geometry_shader;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 		friend class OglShaderProgram;
 	private:
 		OglResource<geometry_shader> _ogl_obj;
@@ -232,7 +245,7 @@ namespace ogl_resources
 	{
 		using ogl_resource_type = shader_program;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
 		OglShaderProgram(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
@@ -260,10 +273,12 @@ namespace ogl_resources
 		template <typename T> void SetUniform(const char* name, T v0, T v1, T v2, T v3) { SetUniform(GetUniformLocation(name), v0, v1, v2, v3); }
 
 		// ReSharper disable CppMemberFunctionMayBeConst
-		void SetUniformMatrix2(const char* name, GLsizei count, GLboolean transpose, const GLfloat* value) { SetUniformMatrix2(GetUniformLocation(name), count, transpose, value); }
-		void SetUniformMatrix3(const char* name, GLsizei count, GLboolean transpose, const GLfloat* value) { SetUniformMatrix3(GetUniformLocation(name), count, transpose, value); }
-		void SetUniformMatrix4(const char* name, GLsizei count, GLboolean transpose, const GLfloat* value) { SetUniformMatrix4(GetUniformLocation(name), count, transpose, value); }
+		void SetUniformMatrix2(const char* name, const GLfloat* value) { SetUniformMatrix2(GetUniformLocation(name), 1, false, value); }
+		void SetUniformMatrix3(const char* name, const GLfloat* value) { SetUniformMatrix3(GetUniformLocation(name), 1, false, value); }
+		void SetUniformMatrix4(const char* name, const GLfloat* value) { SetUniformMatrix4(GetUniformLocation(name), 1, false, value); }
 		// ReSharper restore CppMemberFunctionMayBeConst
+
+		void SetUniformBlockBinding(const char* name, GLuint uniformBlockBinding);
 		
 	};
 
@@ -273,7 +288,7 @@ namespace ogl_resources
 	{
 		using ogl_resource_type = vertex_buffer_object;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 		friend class OglVertexAttribArray;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
@@ -284,7 +299,6 @@ namespace ogl_resources
 		static void UnBind();
 		void SetData(GLsizeiptr size, const void* data, ogl_buffer_usage usage);
 		void SetSubData(GLintptr offset, GLsizeiptr size, const void* data);
-
 	};
 
 	/// EBO
@@ -293,7 +307,7 @@ namespace ogl_resources
 	{
 		using ogl_resource_type = index_buffer;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 		friend class OglVertexAttribArray;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
@@ -309,20 +323,22 @@ namespace ogl_resources
 
 	/// VAO
 	//////////////////////////////////////
-	class OGlVertexAttribArray
+	class OglVertexAttribArray
 	{
 		using ogl_resource_type = vertex_attrib_array;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 		friend class OglVertexAttribArray;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
-		OGlVertexAttribArray(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
+		OglVertexAttribArray(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
 
 	public:
 		void Bind();
 		static void UnBind();
-		void SetVertexAttribPointer(OglVertexBuffer vertexBuffer, GLuint index, GLint size, ogl_vertex_attrib_type type, GLboolean normalized, GLsizei stride, const void* pointer);
+		void EnableVertexAttrib(GLuint index);
+		void DisableVertexAttrib(GLuint index);
+		void SetVertexAttribPointer(OglVertexBuffer& vertexBuffer, GLuint index, GLint size, ogl_vertex_attrib_type type, GLboolean normalized, GLsizei stride, const void* pointer, GLuint divisor=0);
 		void SetIndexBuffer(OglIndexBuffer indexBuffer);
 	};
 
@@ -332,7 +348,7 @@ namespace ogl_resources
 	{
 		using ogl_resource_type = uniform_buffer;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 		friend class OglVertexAttribArray;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
@@ -351,7 +367,7 @@ namespace ogl_resources
 	{
 		using ogl_resource_type = shader_storage_buffer;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 		friend class OglVertexAttribArray;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
@@ -368,9 +384,9 @@ namespace ogl_resources
 	//////////////////////////////////////
 	class OglTexture1D
 	{
-		using ogl_resource_type = texture;
+		using ogl_resource_type = texture_1D;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
@@ -378,6 +394,8 @@ namespace ogl_resources
 	public:
 		void Bind();
 		static void UnBind();
+		void BindToTextureUnit  (ogl_texture_unit unit);
+		static void UnBindToTextureUnit(ogl_texture_unit unit);
 		void TexImage(GLint level, ogl_texture_internal_format internalFormat, GLint width, GLint height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data);
 		void GenerateMipmap();
 		void SetFilterParams(ogl_tex_filter_params params);
@@ -389,10 +407,10 @@ namespace ogl_resources
 	//////////////////////////////////////
 	class OglTexture2D
 	{
-		using ogl_resource_type = texture;
+		using ogl_resource_type = texture_2D;
 
 		friend class OglFramebufferTex2D;
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
@@ -400,7 +418,9 @@ namespace ogl_resources
 	public:
 		void Bind();
 		static void UnBind();
-		void TexImage(GLint level, ogl_texture_internal_format internalFormat, GLint width, GLint height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data);
+		void BindToTextureUnit(ogl_texture_unit unit);
+		static void UnBindToTextureUnit(ogl_texture_unit unit);
+		void TexImage(GLint level, ogl_texture_internal_format internalFormat, GLint width, GLint height, ogl_texture_format format, ogl_texture_data_type type, const void* data);
 		void GenerateMipmap();
 		void SetDepthStencilMode(ogl_texture_depth_stencil_tex_mode mode);
 		void SetCompareParams(ogl_tex_compare_params params);
@@ -414,9 +434,9 @@ namespace ogl_resources
 	//////////////////////////////////////
 	class OglTextureCube
 	{
-		using ogl_resource_type = texture;
+		using ogl_resource_type = texture_cube;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
@@ -424,6 +444,8 @@ namespace ogl_resources
 	public:
 		void Bind();
 		static void UnBind();
+		void BindToTextureUnit(ogl_texture_unit unit);
+		static void UnBindToTextureUnit(ogl_texture_unit unit);
 		void TexImage(ogl_texture_cube_target target, GLint level, ogl_texture_internal_format internalFormat, GLint width, GLint height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data);
 		void GenerateMipmap();
 		void SetDepthStencilMode(ogl_texture_depth_stencil_tex_mode mode);
@@ -440,14 +462,14 @@ namespace ogl_resources
 	{
 		using ogl_resource_type = sampler;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
 		OglSampler(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
 	public:
-		void Bind(GLuint unit);
-		static void UnBind(GLuint unit);
+		void BindToTextureUnit(ogl_texture_unit unit);
+		static void UnBindToTextureUnit(ogl_texture_unit unit);
 		void SetCompareParams(ogl_sampler_compare_params params);
 		void SetFilterParams (ogl_sampler_filter_params params);
 		void SetLodParams    (ogl_sampler_lod_params params);
@@ -461,7 +483,7 @@ namespace ogl_resources
 	{
 		using ogl_resource_type = framebuffer;
 
-		friend class render_context::RenderContext;
+		friend class tao_render_context::RenderContext;
 
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;

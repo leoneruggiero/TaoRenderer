@@ -4,96 +4,273 @@
 #include "RenderContext.h"
 
 using namespace render_context;
+using namespace std;
 
 
-void APIENTRY glDebugOutput(GLenum source,
-    GLenum type,
-    unsigned int id,
-    GLenum severity,
-    GLsizei length,
-    const char* message,
-    const void* userParam)
+struct MeshRenderer
 {
-    // ignore non-significant error/warning codes
-    if (id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
+	vector<shared_ptr<OglVertexBuffer>> vertexBuffers;
+	shared_ptr<OglVertexAttribArray> vertexAttribArray;
+};
 
-    std::cout << "---------------" << std::endl;
-    std::cout << "Debug message (" << id << "): " << message << std::endl;
+/**
+ * \brief Creates a MeshRenderer.
+ * \param rc The render context.
+ * \param positions The vertices positions.
+ * \param normals The vertices normals.
+ * \param textureCoordinates The vertices texture coordinates.
+ * \param colors The vertices colors.
+ * \return The MeshRenderer containing the provided vertex attributes.
+ */
+MeshRenderer CreateMeshRenderer(
+	RenderContext& rc,
+	const vector<float>& positions,
+	const vector<float>& normals,
+	const vector<float>& textureCoordinates,
+	const vector<float>& colors)
+{
+	int vCount = positions.size() / 3;
 
-    switch (source)
-    {
-    case GL_DEBUG_SOURCE_API:             std::cout << "Source: API"; break;
-    case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   std::cout << "Source: Window System"; break;
-    case GL_DEBUG_SOURCE_SHADER_COMPILER: std::cout << "Source: Shader Compiler"; break;
-    case GL_DEBUG_SOURCE_THIRD_PARTY:     std::cout << "Source: Third Party"; break;
-    case GL_DEBUG_SOURCE_APPLICATION:     std::cout << "Source: Application"; break;
-    case GL_DEBUG_SOURCE_OTHER:           std::cout << "Source: Other"; break;
-    } std::cout << std::endl;
+	// interleaved attribs: PPP0-NNN0-PPP1-NNN1-...
+	vector<float> posNrm(positions.size()* 2);
 
-    switch (type)
-    {
-    case GL_DEBUG_TYPE_ERROR:               std::cout << "Type: Error"; break;
-    case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: std::cout << "Type: Deprecated Behaviour"; break;
-    case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  std::cout << "Type: Undefined Behaviour"; break;
-    case GL_DEBUG_TYPE_PORTABILITY:         std::cout << "Type: Portability"; break;
-    case GL_DEBUG_TYPE_PERFORMANCE:         std::cout << "Type: Performance"; break;
-    case GL_DEBUG_TYPE_MARKER:              std::cout << "Type: Marker"; break;
-    case GL_DEBUG_TYPE_PUSH_GROUP:          std::cout << "Type: Push Group"; break;
-    case GL_DEBUG_TYPE_POP_GROUP:           std::cout << "Type: Pop Group"; break;
-    case GL_DEBUG_TYPE_OTHER:               std::cout << "Type: Other"; break;
-    } std::cout << std::endl;
+	for (int i = 0, j = 0; i < vCount * 3;/**/)
+	{
+		posNrm[i + j] = positions[i];i++;
+		posNrm[i + j] = positions[i];i++;
+		posNrm[i + j] = positions[i];i++;
+		posNrm[i + j] = normals[j];j++;
+		posNrm[i + j] = normals[j];j++;
+		posNrm[i + j] = normals[j];j++;
+	}
 
-    switch (severity)
-    {
-    case GL_DEBUG_SEVERITY_HIGH:         std::cout << "Severity: high"; break;
-    case GL_DEBUG_SEVERITY_MEDIUM:       std::cout << "Severity: medium"; break;
-    case GL_DEBUG_SEVERITY_LOW:          std::cout << "Severity: low"; break;
-    case GL_DEBUG_SEVERITY_NOTIFICATION: std::cout << "Severity: notification"; break;
-    } std::cout << std::endl;
-    std::cout << std::endl;
+	// creating VBOs ////////////////////////
+	auto posNrmVbo = rc.CreateVertexBuffer(posNrm.data(), sizeof(float) * 6 * vCount);				// VBO 1 -> Positions and Normals
+	auto texCoorVbo = rc.CreateVertexBuffer(textureCoordinates.data(), sizeof(float) * 2 * vCount);	// VBO 2 -> TextureCoordinates
+	auto colorsVbo = rc.CreateVertexBuffer(colors.data(), sizeof(float) * 4 * vCount);				// VBO 3 -> Color 
+
+	// creating VAO  ////////////////////////
+	vertex_attribute_desc vboDsc_posNrm[] = {
+		vertex_attribute_desc{
+			.index = 0,
+			.element_count = 3,
+			.offset = 0,
+			.stride = sizeof(float) * 6,
+			.element_type = vao_typ_float
+		},
+		vertex_attribute_desc{
+			.index = 1,
+			.element_count = 3,
+			.offset = sizeof(float) * 3,
+			.stride = sizeof(float) * 6,
+			.element_type = vao_typ_float
+		}
+	};
+	vertex_buffer_layout_desc vboLayout_posNrm{ .attrib_count = 2, .attrib_descriptors = vboDsc_posNrm };
+
+	vertex_attribute_desc  vboDsc_tex{
+		.index = 2,
+		.element_count = 2,
+		.offset = 0,
+		.stride = 0,
+		.element_type = vao_typ_float
+	};
+	vertex_buffer_layout_desc vboLayout_tex{ .attrib_count = 1, .attrib_descriptors = &vboDsc_tex };
+
+	vertex_attribute_desc  vboDsc_cols{
+		.index = 3,
+		.element_count = 4,
+		.offset = 0,
+		.stride = 0,
+		.element_type = vao_typ_float
+	};
+	vertex_buffer_layout_desc vboLayout_cols{ .attrib_count = 1, .attrib_descriptors = &vboDsc_cols };
+
+	auto vao = rc.CreateVertexAttribArray({
+		{ posNrmVbo,vboLayout_posNrm},
+		{texCoorVbo,vboLayout_tex },
+		{ colorsVbo, vboLayout_cols }
+		});
+
+	return MeshRenderer{
+		.vertexBuffers = {posNrmVbo, texCoorVbo, colorsVbo},
+		.vertexAttribArray = vao
+	};
+}
+
+void GetVertexData(vector<float>& positions, vector<float>& normals, vector<float>& texCoords, vector<float>& colors)
+{
+	positions=
+	{
+		0.0f, 0.0f, 0.0f,
+		1.0f, 1.0f, 0.0f,
+		0.0f, 1.0f, 0.0f
+	};
+	normals=
+	{
+		0.0f, 0.0f, 1.0f,
+		0.0f, 0.0f, 1.0f,
+		0.0f, 0.0f, 1.0f
+	};
+	texCoords =
+	{
+		0.0f, 0.0f,
+		1.0f, 0.0f,
+		0.0f, 1.0f,
+	};
+	colors =
+	{
+		1.0f, 0.3f, 0.1f, 1.0f,
+		0.2f, 1.0f, 0.2f, 1.0f,
+		0.2f, 0.2f, 1.0f, 1.0f
+	};
+}
+
+shared_ptr<OglShaderProgram> GetShader(RenderContext& rc)
+{
+	// Vertex shader
+	////////////////////////////////////////////
+	const char* vs =
+		R"(
+	        #version 330 core
+
+			layout(location = 0) in vec3 pos;
+			layout(location = 1) in vec3 nrm;
+			layout(location = 2) in vec2 tex;
+			layout(location = 3) in vec4 col;
+			    
+			struct VS_OUT
+			{
+				vec3 nrm;
+				vec2 tex;
+				vec4 col;
+			};
+
+			out VS_OUT vs_out;
+
+	        uniform mat4 m_model;             
+			uniform mat4 m_view;
+			uniform mat4 m_proj;
+	        void main()
+	        {
+	            gl_Position = m_proj*m_view*m_model * vec4(pos, 1.0);
+
+				vs_out.nrm = nrm;
+				vs_out.tex = tex;
+				vs_out.col = col;
+	        }
+    )";
+
+
+	// Fragment shader
+	////////////////////////////////////////////
+	const char* fs =
+		R"(
+			#version 330 core
+
+			struct VS_OUT
+			{
+				vec3 nrm;
+				vec2 tex;
+				vec4 col;
+			};
+
+			in VS_OUT vs_out;
+
+			out vec4 out_fragColor;
+
+			void main()
+			{
+				out_fragColor = vs_out.col;
+			}
+)";
+
+
+	// Shader program
+	////////////////////////////////////////////
+	return rc.CreateShaderProgram(vs, fs);
+}
+
+void GetCameraMatrices(vector<float>& viewMat, vector<float>& projMat, float winW, float winH)
+{
+
+	viewMat =
+	{
+	1.0f, 0.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f, 0.0f,
+	0.0f, 0.0f,-1.0f, 0.0f,
+	0.0f, 0.0f, 0.0f, 1.0f,
+	};
+
+	float scaleW = 5.0f;
+	float scaleH = scaleW * (winH / winW);
+
+	projMat = 
+	{
+		1.0f/scaleW, 0.0f, 0.0f, 0.0f,
+		0.0f, 1.0f/scaleH, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		0.0f, 0.0f, 0.0f, 1.0f,
+	};
+}
+
+void GetModelMatrix(vector<float>& modelMat)
+{
+	modelMat =
+	{
+	1.0f, 0.0f, 0.0f, 0.0f,
+	0.0f, 1.0f, 0.0f, 0.0f,
+	0.0f, 0.0f, 1.0f, 0.0f,
+	0.0f, 0.0f, 0.0f, 1.0f,
+	};
 }
 
 int main()
 {
-    glfwInit();
-    // glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true); // enables debug output
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-    
-    GLFWwindow* window = glfwCreateWindow(800, 800, "TestApp_OpenGL", nullptr, nullptr);
+	try 
+	{
+		int windowW = 1000;
+		int windowH = 600;
+		RenderContext renderContext{ windowW, windowH, "MyWindow" };
+		
+		vector<float> vPos, vNrm, vTex, vCol, modelMat, projMat, viewMat;
 
-    if (window == nullptr)
-    {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
+		GetVertexData(vPos, vNrm, vTex, vCol);
+		GetCameraMatrices(viewMat, projMat, windowW, windowH);
+		GetModelMatrix(modelMat);
 
-    RenderContext rc = RenderContext{ window };
+		auto mesh = CreateMeshRenderer(renderContext, vPos, vNrm, vTex, vCol);
+		auto shader = GetShader(renderContext);
 
-    int flags; glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
-    if (flags & GL_CONTEXT_FLAG_DEBUG_BIT)
-    {
-        glEnable(GL_DEBUG_OUTPUT);
-        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
-        glDebugMessageCallback(glDebugOutput, nullptr);
-        glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, nullptr, GL_TRUE);
-    }
+		while (!renderContext.ShouldClose())
+		{
+			renderContext.ClearColor(0.2f, 0.1f, 0.2f);
+			renderContext.ClearDepthStencil();
 
-    try
-    {
-        auto v = rc.CreateVertexShader("ciao");
-        auto s = rc.CreateShaderProgram("ciao", "come", "ti chiami?");
-        auto s2 = rc.CreateShaderProgram("", nullptr, "ti chiami?");
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_LESS);
 
-        float p0 = 110;
-        s2->SetUniform("param1", p0);
-    }
-    catch(const GlException &ex)
-    {
-        std::cout << ex.what() << std::endl;
-    }
+			shader->UseProgram();
+			shader->SetUniformMatrix4("m_model", modelMat.data());
+			shader->SetUniformMatrix4("m_view", viewMat.data());
+			shader->SetUniformMatrix4("m_proj", projMat.data());
+
+			mesh.vertexAttribArray->Bind();
+			glDrawArrays(GL_TRIANGLES, 0, 3);
+
+			renderContext.PollEvents();
+			renderContext.SwapBuffers();
+		}
+
+		return 0;
+	}
+	catch (exception& ex)
+	{
+		cout << ex.what() << std::endl;
+		return -1;
+	}
+	
+	
 }
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu

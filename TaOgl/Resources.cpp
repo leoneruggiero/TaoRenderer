@@ -1,44 +1,37 @@
 #include "Resources.h"
 
-namespace ogl_resources
+namespace tao_ogl_resources
 {
     // ReSharper disable CppMemberFunctionMayBeConst
 
-    GLuint vertex_shader::Create() { return glCreateShader(GL_VERTEX_SHADER); }
-    void   vertex_shader::Destroy(GLuint id) { glDeleteShader(id); }
-
-    GLuint fragment_shader::Create() { return glCreateShader(GL_FRAGMENT_SHADER); }
-    void   fragment_shader::Destroy(GLuint id) { glDeleteShader(id); }
-
-    GLuint geometry_shader::Create() { return glCreateShader(GL_GEOMETRY_SHADER); }
-    void   geometry_shader::Destroy(GLuint id) { glDeleteShader(id); }
-
-    GLuint shader_program::Create() { return glCreateProgram(); }
-    void   shader_program::Destroy(GLuint id) { glDeleteProgram(id); }
-
-    GLuint vertex_buffer_object::Create() { GLuint id = 0; glGenBuffers(1, &id); return id; }
-    void   vertex_buffer_object::Destroy(GLuint id) { glDeleteBuffers(1, &id); }
-
-    GLuint index_buffer::Create() { GLuint id = 0; glGenBuffers(1, &id); return id; }
-    void   index_buffer::Destroy(GLuint id) { glDeleteBuffers(1, &id); }
-
-    GLuint uniform_buffer::Create() { GLuint id = 0; glGenBuffers(1, &id); return id; }
-    void   uniform_buffer::Destroy(GLuint id) { glDeleteBuffers(1, &id); }
-
-    GLuint shader_storage_buffer::Create() { GLuint id = 0; glGenBuffers(1, &id); return id; }
-    void   shader_storage_buffer::Destroy(GLuint id) { glDeleteBuffers(1, &id); }
-
-    GLuint vertex_attrib_array::Create() { GLuint id = 0; glGenVertexArrays(1, &id); return id; }
-    void   vertex_attrib_array::Destroy(GLuint id) { glDeleteVertexArrays(1, &id); }
-
-    GLuint texture::Create() { GLuint id = 0; glGenTextures(1, &id); return id; }
-    void   texture::Destroy(GLuint id) { glDeleteTextures(1, &id); }
-
-    GLuint framebuffer::Create() { GLuint id = 0; glGenFramebuffers(1, &id); return id; }
-    void   framebuffer::Destroy(GLuint id) { glDeleteFramebuffers(1, &id); }
-
-    GLuint sampler::Create() { GLuint id = 0; glGenSamplers(1, &id); return id; }
-    void   sampler::Destroy(GLuint id) { glDeleteSamplers(1, &id); }
+    GLuint vertex_shader::Create() { GLuint id = 0; GL_CALL(id = glCreateShader(GL_VERTEX_SHADER)); return id; }
+    void   vertex_shader::Destroy(GLuint id) { GL_CALL(glDeleteShader(id)); }
+    GLuint fragment_shader::Create() { GLuint id = 0; GL_CALL(id = glCreateShader(GL_FRAGMENT_SHADER));  return id; }
+    void   fragment_shader::Destroy(GLuint id) { GL_CALL(glDeleteShader(id)); }
+    GLuint geometry_shader::Create() { GLuint id = 0; GL_CALL(id = glCreateShader(GL_GEOMETRY_SHADER)); return id; }
+    void   geometry_shader::Destroy(GLuint id) { GL_CALL(glDeleteShader(id)); }
+    GLuint shader_program::Create() { GLuint id = 0; GL_CALL(id = glCreateProgram()); return id; }
+    void   shader_program::Destroy(GLuint id) { GL_CALL(glDeleteProgram(id)); }
+    GLuint vertex_buffer_object::Create() { GLuint id = 0; GL_CALL(glCreateBuffers(1, &id)); return id; }
+    void   vertex_buffer_object::Destroy(GLuint id) { GL_CALL(glDeleteBuffers(1, &id)); }
+    GLuint index_buffer::Create() { GLuint id = 0; GL_CALL(glCreateBuffers(1, &id)); return id; }
+    void   index_buffer::Destroy(GLuint id) { GL_CALL(glDeleteBuffers(1, &id)); }
+    GLuint uniform_buffer::Create() { GLuint id = 0; GL_CALL(glCreateBuffers(1, &id)); return id; }
+    void   uniform_buffer::Destroy(GLuint id) { GL_CALL(glDeleteBuffers(1, &id)); }
+    GLuint shader_storage_buffer::Create() { GLuint id = 0; GL_CALL(glCreateBuffers(1, &id)); return id; }
+    void   shader_storage_buffer::Destroy(GLuint id) { GL_CALL(glDeleteBuffers(1, &id)); }
+    GLuint vertex_attrib_array::Create() { GLuint id = 0; GL_CALL(glCreateVertexArrays(1, &id)); return id; }
+    void   vertex_attrib_array::Destroy(GLuint id) { GL_CALL(glDeleteVertexArrays(1, &id)); }
+    GLuint texture_1D::Create() { GLuint id = 0; GL_CALL(glCreateTextures(GL_TEXTURE_1D, 1, &id)); return id; }
+    void   texture_1D::Destroy(GLuint id) { GL_CALL(glDeleteTextures(1, &id)); }
+    GLuint texture_2D::Create() { GLuint id = 0; GL_CALL(glCreateTextures(GL_TEXTURE_2D, 1, &id)); return id; }
+    void   texture_2D::Destroy(GLuint id) { GL_CALL(glDeleteTextures(1, &id)); }
+    GLuint texture_cube::Create() { GLuint id = 0; GL_CALL(glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &id)); return id; }
+    void   texture_cube::Destroy(GLuint id) { GL_CALL(glDeleteTextures(1, &id)); }
+    GLuint framebuffer::Create() { GLuint id = 0; GL_CALL(glCreateFramebuffers(1, &id)); return id; }
+    void   framebuffer::Destroy(GLuint id) { GL_CALL(glDeleteFramebuffers(1, &id)); }
+    GLuint sampler::Create() { GLuint id = 0; GL_CALL(glCreateSamplers(1, &id)); return id; }
+    void   sampler::Destroy(GLuint id) { GL_CALL(glDeleteSamplers(1, &id)); }
 
 
     /// SHADER
@@ -48,12 +41,36 @@ namespace ogl_resources
     {
         GL_CALL(glShaderSource(obj.ID(), 1, &src, nullptr));
         GL_CALL(glCompileShader(obj.ID()));
+
+        // compile error check
+        int ok = 1;
+        GL_CALL(glGetShaderiv(obj.ID(), GL_COMPILE_STATUS, &ok));
+        if (!ok)
+        {
+            char buf[1024];
+            GL_CALL(glGetShaderInfoLog(obj.ID(), 1024, nullptr, buf));
+            throw std::exception((std::string{ "Shader compile error: \n" } + std::string(buf)).c_str());
+        }
     }
 
     void OglVertexShader::Compile(const char* source) { compileShader(_ogl_obj, source); }
     void OglGeometryShader::Compile(const char* source) { compileShader(_ogl_obj, source); }
     void OglFragmentShader::Compile(const char* source) { compileShader(_ogl_obj, source); }
-    void OglShaderProgram::LinkProgram() { GL_CALL(glLinkProgram(_ogl_obj.ID())); }
+    void OglShaderProgram::LinkProgram()
+    {
+	    GL_CALL(glLinkProgram(_ogl_obj.ID()));
+
+        // link error check
+        int ok = 1;
+        GL_CALL(glGetProgramiv(_ogl_obj.ID(), GL_LINK_STATUS, &ok));
+        if (!ok)
+        {
+            char buf[1024];
+            GL_CALL(glGetProgramInfoLog(_ogl_obj.ID(), 1024, nullptr, buf));
+            throw std::exception((std::string{ "Shader program link error: \n" } + std::string(buf)).c_str());
+        }
+
+    }
     void OglShaderProgram::AttachShader(GLuint shader) { GL_CALL(glAttachShader(_ogl_obj.ID(), shader)); }
     void OglShaderProgram::UseProgram() { GL_CALL(glUseProgram(_ogl_obj.ID())); }
     
@@ -64,7 +81,6 @@ namespace ogl_resources
     }
 
     // fail at compile-time if T is not one of uint/int/float
-    // TODO: the error is ugly...a Link error. Ask StackOverflow
     template <typename T>void OglShaderProgram::SetUniform(GLint location, T v0) { static_assert(false); }
     template <typename T>void OglShaderProgram::SetUniform(GLint location, T v0, T v1) { static_assert(false); }
     template <typename T>void OglShaderProgram::SetUniform(GLint location, T v0, T v1, T v2) { static_assert(false); }
@@ -92,6 +108,13 @@ namespace ogl_resources
     void OglShaderProgram::SetUniformMatrix3(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value) { GL_CALL(glUniformMatrix3fv(location, count, transpose, value)); }
     void OglShaderProgram::SetUniformMatrix4(GLint location, GLsizei count, GLboolean transpose, const GLfloat* value) { GL_CALL(glUniformMatrix4fv(location, count, transpose, value)); }
 
+    void OglShaderProgram::SetUniformBlockBinding(const char* name, GLuint uniformBlockBinding)
+    {
+        GL_CALL(GLuint uboIdx = glGetUniformBlockIndex(_ogl_obj.ID(), name);      );
+        GL_CALL(glUniformBlockBinding(_ogl_obj.ID(), uboIdx, uniformBlockBinding););
+    }
+
+
     /// Vertex Buffer
     ///////////////////
     static void namedBufferData(GLuint buffer, GLsizeiptr size, const void* data, GLenum usage) { GL_CALL(glNamedBufferData(buffer, size, data, usage)); }
@@ -111,19 +134,25 @@ namespace ogl_resources
 
     /// VertexAttrib Array
     //////////////////////////
-    void OGlVertexAttribArray::Bind() { GL_CALL(glBindVertexArray(_ogl_obj.ID())); };
-    void OGlVertexAttribArray::UnBind() { GL_CALL(glBindVertexArray(0)); };
-    void OGlVertexAttribArray::SetVertexAttribPointer(OglVertexBuffer vertexBuffer, GLuint index, GLint size, ogl_vertex_attrib_type type, GLboolean normalized, GLsizei stride, const void* pointer)
+    void OglVertexAttribArray::Bind() { GL_CALL(glBindVertexArray(_ogl_obj.ID())); };
+    void OglVertexAttribArray::UnBind() { GL_CALL(glBindVertexArray(0)); };
+    void OglVertexAttribArray::EnableVertexAttrib(GLuint index)  { GL_CALL(glEnableVertexArrayAttrib( _ogl_obj.ID(), index)); }
+    void OglVertexAttribArray::DisableVertexAttrib(GLuint index) { GL_CALL(glDisableVertexArrayAttrib(_ogl_obj.ID(), index)); }
+    void OglVertexAttribArray::SetVertexAttribPointer(OglVertexBuffer& vertexBuffer, GLuint index, GLint size, ogl_vertex_attrib_type type, GLboolean normalized, GLsizei stride, const void* pointer, GLuint divisor)
     {
         Bind();
 
         vertexBuffer.Bind();
+
         GL_CALL(glVertexAttribPointer(index, size, type, normalized, stride, pointer));
+        GL_CALL(glVertexAttribDivisor(index,divisor));
+
         OglVertexBuffer::UnBind();
 
         UnBind();
     }
-	void OGlVertexAttribArray::SetIndexBuffer(OglIndexBuffer indexBuffer)
+    
+	void OglVertexAttribArray::SetIndexBuffer(OglIndexBuffer indexBuffer)
 	{
         Bind();
         indexBuffer.Bind();
@@ -147,6 +176,16 @@ namespace ogl_resources
     ///////////////////
     static void bind(GLenum target, GLuint texture) { GL_CALL(glBindTexture( target, texture)); }
     static void unBind(GLenum target) { GL_CALL(glBindTexture(target, 0)); }
+    static void bindToTextureUnit(GLenum target, GLuint texture, GLenum unit)
+    {
+        GL_CALL(glActiveTexture(unit));
+	    GL_CALL(glBindTexture(target, texture));
+    }
+    static void unBindToTextureUnit(GLenum target, GLenum unit)
+    {
+        GL_CALL(glActiveTexture(unit));
+	    GL_CALL(glBindTexture(target, 0));
+    }
     static void texImage1D(GLuint texture, GLenum target, GLint level, ogl_texture_internal_format internalFormat,
         GLint width, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
@@ -201,8 +240,11 @@ namespace ogl_resources
 
     /// Texture1D
     ///////////////////
-    void OglTexture1D::Bind() { bind(GL_TEXTURE_1D, _ogl_obj.ID()); }
-    void OglTexture1D::UnBind() { unBind(GL_TEXTURE_1D); }
+    void OglTexture1D::Bind()                                       { bind(GL_TEXTURE_1D, _ogl_obj.ID()); }
+    void OglTexture1D::UnBind()                                     { unBind(GL_TEXTURE_1D); }
+    void OglTexture1D::BindToTextureUnit(ogl_texture_unit unit)     { bindToTextureUnit(GL_TEXTURE_1D, _ogl_obj.ID(), unit); }
+    void OglTexture1D::UnBindToTextureUnit(ogl_texture_unit unit)   { unBindToTextureUnit(GL_TEXTURE_1D, unit); }
+
     void OglTexture1D::TexImage(GLint level, ogl_texture_internal_format internalFormat, GLint width, GLint height, 
         GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
@@ -215,12 +257,15 @@ namespace ogl_resources
 
     /// Texture2D
     ///////////////////
-    void OglTexture2D::Bind() { bind(GL_TEXTURE_2D, _ogl_obj.ID()); }
-    void OglTexture2D::UnBind() { unBind(GL_TEXTURE_2D); }
+    void OglTexture2D::Bind()                                       { bind(GL_TEXTURE_2D, _ogl_obj.ID()); }
+    void OglTexture2D::UnBind()                                     { unBind(GL_TEXTURE_2D); }
+    void OglTexture2D::BindToTextureUnit(ogl_texture_unit unit)     { bindToTextureUnit(GL_TEXTURE_2D, _ogl_obj.ID(), unit); }
+    void OglTexture2D::UnBindToTextureUnit(ogl_texture_unit unit)   { unBindToTextureUnit(GL_TEXTURE_2D, unit); }
+
     void OglTexture2D::TexImage(GLint level, ogl_texture_internal_format internalFormat,
-        GLint width, GLint height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data)
+        GLint width, GLint height, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
-        texImage2D(_ogl_obj.ID(), GL_TEXTURE_2D, level, internalFormat, width, height, border, format, type, data);
+        texImage2D(_ogl_obj.ID(), GL_TEXTURE_2D, level, internalFormat, width, height, 0, format, type, data);
     }
     void OglTexture2D::GenerateMipmap() { generateMipmap(_ogl_obj.ID()); }
     void OglTexture2D::SetDepthStencilMode(ogl_texture_depth_stencil_tex_mode mode) { setDepthStencilTextureMode(_ogl_obj.ID(), mode); }
@@ -232,8 +277,11 @@ namespace ogl_resources
 
     /// Texture Cube
     ///////////////////
-    void OglTextureCube::Bind() { bind(GL_TEXTURE_CUBE_MAP, _ogl_obj.ID()); }
-    void OglTextureCube::UnBind() { unBind(GL_TEXTURE_CUBE_MAP); };
+    void OglTextureCube::Bind()                                       { bind(GL_TEXTURE_CUBE_MAP, _ogl_obj.ID()); }
+    void OglTextureCube::UnBind()                                     { unBind(GL_TEXTURE_CUBE_MAP); }
+    void OglTextureCube::BindToTextureUnit(ogl_texture_unit unit)     { bindToTextureUnit(GL_TEXTURE_CUBE_MAP, _ogl_obj.ID(), unit); }
+    void OglTextureCube::UnBindToTextureUnit(ogl_texture_unit unit)   { unBindToTextureUnit(GL_TEXTURE_CUBE_MAP, unit); }
+
     void OglTextureCube::TexImage(ogl_texture_cube_target target, GLint level, ogl_texture_internal_format internalFormat, 
         GLint width, GLint height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
@@ -249,12 +297,13 @@ namespace ogl_resources
 
     /// Sampler
     ///////////////////
-    void OglSampler::Bind(GLuint unit) { GL_CALL(glBindSampler(unit, _ogl_obj.ID())); }
-    void OglSampler::UnBind(GLuint unit) { GL_CALL(glBindSampler(unit, 0)); }
+    void OglSampler::BindToTextureUnit  (ogl_texture_unit unit) { GL_CALL(glBindSampler(unit - GL_TEXTURE0, _ogl_obj.ID())); }
+    void OglSampler::UnBindToTextureUnit(ogl_texture_unit unit) { GL_CALL(glBindSampler(unit - GL_TEXTURE0, 0)); }
+
     void OglSampler::SetCompareParams(ogl_sampler_compare_params params)
     {
         GL_CALL(glSamplerParameteri(_ogl_obj.ID(), GL_TEXTURE_COMPARE_MODE, params.compare_mode));
-        GL_CALL(glSamplerParameteri(_ogl_obj.ID(), GL_TEXTURE_COMPARE_FUNC, params.compare_mode));
+        GL_CALL(glSamplerParameteri(_ogl_obj.ID(), GL_TEXTURE_COMPARE_FUNC, params.compare_func));
     }
     void OglSampler::SetFilterParams(ogl_sampler_filter_params params)
     {

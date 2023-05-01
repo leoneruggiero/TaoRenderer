@@ -8,9 +8,10 @@
 #define GL_CALL(f)\
 while (glGetError() != GL_NO_ERROR){}\
 f;\
-if(GLenum e=glGetError(); e != GL_NO_ERROR){throw GlException(e);}
+if(GLenum e=glGetError(); e != GL_NO_ERROR){throw GlException(e);}\
 
-class GlException : std::exception
+
+class GlException : public std::exception
 {
 public:
 	GLenum gl_error_code;
@@ -24,8 +25,26 @@ private:
 	std::string _message;
 };
 
+namespace  tao_render_context
+{
+	enum ogl_primitive_type
+	{
+		pmt_type_points						= GL_POINTS,
+		pmt_type_line_strip					= GL_LINE_STRIP,
+		pmt_type_line_loop					= GL_LINE_LOOP,
+		pmt_type_lines						= GL_LINES,
+		pmt_type_line_strip_adjacency		= GL_LINE_STRIP_ADJACENCY,
+		pmt_type_line_adjacency				= GL_LINES_ADJACENCY,
+		pmt_type_triangle_strip				= GL_TRIANGLE_STRIP,
+		pmt_type_triangle_fan				= GL_TRIANGLE_FAN,
+		pmt_type_triangles					= GL_TRIANGLES,
+		pmt_type_triangle_strip_adjacency	= GL_TRIANGLE_STRIP_ADJACENCY,
+		pmt_type_triangles_adjacency		= GL_TRIANGLES_ADJACENCY,
+		pmt_type_patches					= GL_PATCHES
+	};
+}
 
-namespace ogl_resources
+namespace tao_ogl_resources
 {
 	enum ogl_buffer_usage
 	{
@@ -54,6 +73,26 @@ namespace ogl_resources
 		vao_typ_fixed = GL_FIXED,
 
 		/// ... some other esoteric formats... ///
+	};
+
+	enum ogl_texture_unit
+	{
+		tex_unit_0  = GL_TEXTURE0,
+		tex_unit_1  = GL_TEXTURE1,
+		tex_unit_2  = GL_TEXTURE2,
+		tex_unit_3  = GL_TEXTURE3,
+		tex_unit_4  = GL_TEXTURE4,
+		tex_unit_5  = GL_TEXTURE5,
+		tex_unit_6  = GL_TEXTURE6,
+		tex_unit_7  = GL_TEXTURE7,
+		tex_unit_8  = GL_TEXTURE8,
+		tex_unit_9  = GL_TEXTURE9,
+		tex_unit_10 = GL_TEXTURE10,
+		tex_unit_11 = GL_TEXTURE11,
+		tex_unit_12 = GL_TEXTURE12,
+		tex_unit_13 = GL_TEXTURE13,
+		tex_unit_14 = GL_TEXTURE14,
+		tex_unit_15 = GL_TEXTURE16,
 	};
 
 	enum ogl_texture_cube_target
@@ -125,7 +164,7 @@ namespace ogl_resources
 		tex_int_for_rgba2 = GL_RGBA2,
 		tex_int_for_rgba4 = GL_RGBA4,
 		tex_int_for_rgb5_a1 = GL_RGB5_A1,
-		tex_int_for_rga8 = GL_RGBA8,
+		tex_int_for_rgba8 = GL_RGBA8,
 		tex_int_for_rgba8_snorm = GL_RGBA8_SNORM,
 		tex_int_for_rgb10_a2 = GL_RGB10_A2,
 		tex_int_for_rgb10_a2_ui = GL_RGB10_A2UI,
@@ -367,6 +406,35 @@ namespace ogl_resources
 	{
 		fbo_copy_filter_nearest = GL_NEAREST,
 		fbo_copy_filter_linear = GL_LINEAR,
+	};
+
+	enum ogl_clear_mask
+	{
+		color_bit = GL_COLOR_BUFFER_BIT,
+		depth_bit = GL_DEPTH_BUFFER_BIT,
+		stencil_bit = GL_STENCIL_BUFFER_BIT,
+	};
+
+	enum ogl_depth_func
+	{
+		depth_func_equal = GL_EQUAL,
+		depth_func_not_equal = GL_NOTEQUAL,
+		depth_func_less = GL_LESS,
+		depth_func_less_equal = GL_LEQUAL,
+		depth_func_greater = GL_GREATER,
+		depth_func_greate_equal = GL_GEQUAL,
+		depth_func_always = GL_ALWAYS,
+		depth_func_never = GL_NEVER,
+	};
+
+	struct ogl_depth_state
+	{
+		bool depth_test_enable		= false;
+		ogl_depth_func depth_func	= depth_func_always;
+		double depth_range_near		= 0.0;
+		double depth_range_far		= 1.0;
+
+		//todo polygon offset
 	};
 
 }
