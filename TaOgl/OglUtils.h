@@ -437,4 +437,105 @@ namespace tao_ogl_resources
 		//todo polygon offset
 	};
 
+	enum ogl_blend_func
+	{
+		blend_func_add = GL_FUNC_ADD,
+		blend_func_subtract = GL_FUNC_SUBTRACT,
+		blend_func_reverese_subtract = GL_FUNC_REVERSE_SUBTRACT,
+		blend_func_min = GL_MIN,
+		blend_func_max = GL_MAX
+	};
+
+	enum ogl_blend_factor
+	{
+		blend_fac_zero					= GL_ZERO,
+		blend_fac_one					= GL_ONE,
+		blend_fac_src_col				= GL_SRC_COLOR,
+		blend_fac_one_minus_src_col		= GL_ONE_MINUS_SRC_COLOR,
+		blend_fac_dst_col				= GL_DST_COLOR,
+		blend_fac_one_minus_dst_col		= GL_ONE_MINUS_DST_COLOR,
+		blend_fac_src_alpha				= GL_SRC_ALPHA,
+		blend_fac_one_minus_src_alpha	= GL_ONE_MINUS_SRC_ALPHA,
+		blend_fac_dst_alpha				= GL_DST_ALPHA,
+		blend_fac_one_minus_dst_alpha	= GL_ONE_MINUS_DST_ALPHA,
+		blend_fac_const_col				= GL_CONSTANT_COLOR,
+		blend_fac_one_minus_const_col	= GL_ONE_MINUS_CONSTANT_COLOR,
+		blend_fac_const_alpha			= GL_CONSTANT_ALPHA,
+		blend_fac_one_minus_const_alpha = GL_ONE_MINUS_CONSTANT_ALPHA,
+		blend_fac_alpha_sat				= GL_SRC_ALPHA_SATURATE,
+		blend_fac_src1_col				= GL_SRC1_COLOR,
+		blend_fac_one_minus_src1_col	= GL_ONE_MINUS_SRC1_COLOR,
+		blend_fac_src1_alpha			= GL_SRC1_ALPHA,
+		blend_fac_one_minus_src1_alpha	= GL_ONE_MINUS_SRC1_ALPHA
+	};
+
+	struct ogl_blend_equation
+	{
+		ogl_blend_func   blend_func			= blend_func_add;
+		ogl_blend_factor blend_factor_src	= blend_fac_one;
+		ogl_blend_factor blend_factor_dst	= blend_fac_one;
+	};
+
+	struct ogl_blend_state
+	{
+		bool blend_enable = false;
+		ogl_blend_equation blend_equation_rgb;
+		ogl_blend_equation blend_equation_alpha;
+		float blend_const_color_r = 0.0f;
+		float blend_const_color_g = 0.0f;
+		float blend_const_color_b = 0.0f;
+		float blend_const_color_a = 0.0f;
+	};
+
+	constexpr ogl_blend_state no_blend
+	{
+		.blend_enable = false
+	};
+
+	constexpr ogl_blend_state alpha_interpolate
+	{
+		.blend_enable = true,
+		.blend_equation_rgb =
+	{
+			.blend_func		  = blend_func_add,
+			.blend_factor_src = blend_fac_src_alpha,
+			.blend_factor_dst = blend_fac_one_minus_src_alpha
+		},
+		.blend_equation_alpha
+	{
+			.blend_func		  = blend_func_add,
+			.blend_factor_src = blend_fac_one,
+			.blend_factor_dst = blend_fac_src_alpha
+		},
+	};
+
+	enum ogl_front_face
+	{
+		front_face_ccw = GL_CCW,
+		front_face_cw  = GL_CW
+	};
+
+	enum ogl_cull_mode
+	{
+		cull_mode_front			 = GL_FRONT,
+		cull_mode_back			 = GL_BACK,
+		cull_mode_front_and_back = GL_FRONT_AND_BACK
+	};
+
+	enum ogl_polygon_mode
+	{
+		polygon_mode_fill  = GL_FILL,
+		polygon_mode_line  = GL_LINE,
+		polygon_mode_point = GL_POINT
+	};
+
+	struct ogl_rasterizer_state
+	{
+		bool			 culling_enable		= false;
+		ogl_front_face   front_face			= front_face_ccw;
+		ogl_cull_mode    cull_mode			= cull_mode_back;
+		ogl_polygon_mode polygon_mode       = polygon_mode_fill;
+		bool  multisample_enable			= false;
+		bool  alpha_to_coverage_enable		= false;
+	};
 }

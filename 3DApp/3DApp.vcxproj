@@ -155,7 +155,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\TestApp_OpenGL\stb_image_cpp.cpp" />
     <ClCompile Include="3DApp.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\TestApp_OpenGL\stb_image.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

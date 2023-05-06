@@ -3,7 +3,7 @@
 #ifdef GIZMOS_POINTS
     layout (std140) uniform blk_PerObjectData
     {
-        uniform float   o_size;         // 4  byte
+        uniform uint    o_size;         // 4  byte
         uniform bool    o_snap;         // 4  byte
         uniform bool    o_hasTexture;   // 4 bytes
                                         // TOTAL => 12 byte

@@ -32,12 +32,69 @@ namespace tao_render_context
 
 	void RenderContext::SetDepthState(ogl_depth_state state)
 	{
-		GL_CALL(
-		if (state.depth_test_enable)glEnable (GL_DEPTH_TEST); 
-		else						glDisable(GL_DEPTH_TEST);)
+		GL_CALL
+		(
+			if (state.depth_test_enable) glEnable (GL_DEPTH_TEST);
+			else						 glDisable(GL_DEPTH_TEST);
+		);
+
 		GL_CALL(glDepthFunc(state.depth_func);								);
 		GL_CALL(glDepthRange(state.depth_range_near, state.depth_range_far););
 	}
+
+	void RenderContext::SetBlendState(ogl_blend_state state)
+	{
+		// todo: dual source blending
+		GL_CALL
+		(
+			if (state.blend_enable)	glEnable (GL_BLEND);
+			else					glDisable(GL_BLEND);
+		);
+		GL_CALL
+		(
+			glBlendFuncSeparate(
+				state.blend_equation_rgb.blend_factor_src,   // src rgb
+				state.blend_equation_rgb.blend_factor_dst,	 // dst rgb
+				state.blend_equation_alpha.blend_factor_src, // src alpha
+				state.blend_equation_alpha.blend_factor_dst  // dst alpha
+			);
+		);
+		GL_CALL
+		(
+			glBlendEquationSeparate(
+				state.blend_equation_rgb.blend_func,		// func rgb
+				state.blend_equation_alpha.blend_func		// func alpha
+			);
+		);
+		GL_CALL(
+			glBlendColor(
+				state.blend_const_color_r,
+				state.blend_const_color_g,
+				state.blend_const_color_b,
+				state.blend_const_color_a
+			);
+		);
+	}
+
+	void RenderContext::SetRasterizerState(ogl_rasterizer_state state)
+	{
+		GL_CALL(
+			if (state.multisample_enable) glEnable(GL_MULTISAMPLE);
+			else glDisable(GL_MULTISAMPLE);
+		);
+		GL_CALL(
+			if (state.alpha_to_coverage_enable) glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+			else glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+		);
+		GL_CALL(
+			if (state.culling_enable) glEnable(GL_CULL_FACE);
+			else glDisable(GL_CULL_FACE);
+		);
+		GL_CALL(glFrontFace(state.front_face););
+		GL_CALL(glCullFace(state.cull_mode););
+		GL_CALL(glPolygonMode(GL_FRONT_AND_BACK, state.polygon_mode););
+	}
+
 
 	void RenderContext::DrawArrays(ogl_primitive_type mode, GLint first, GLsizei count)
 	{
@@ -164,9 +221,15 @@ namespace tao_render_context
 	{
 		return OglUniformBuffer{ OglResource<uniform_buffer>{} };
 	}
+
 	OglTexture2D RenderContext::CreateTexture2D()
 	{
 		return OglTexture2D{ OglResource<texture_2D>{} };
+	}
+
+	OglTexture2DMultisample RenderContext::CreateTexture2DMultisample()
+	{
+		return OglTexture2DMultisample{ OglResource<texture_2D_multisample>{} };
 	}
 
 	OglSampler RenderContext::CreateSampler()
@@ -183,10 +246,16 @@ namespace tao_render_context
 		return s;
 	}
 
-	OglFramebufferTex2D RenderContext::CreateFramebufferTex2D()
+	template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+	OglFramebuffer<Tex> RenderContext::CreateFramebuffer()
 	{
-		return OglFramebufferTex2D{ OglResource<framebuffer>{} };
+		return OglFramebuffer<Tex>{ OglResource<framebuffer>{} };
 	}
+
+	// Forcing template instantiation
+	template OglFramebuffer<OglTexture2D>			 RenderContext::CreateFramebuffer();
+	template OglFramebuffer<OglTexture2DMultisample> RenderContext::CreateFramebuffer();
+	template OglFramebuffer<OglTextureCube>			 RenderContext::CreateFramebuffer();
 
 	// ReSharper restore CppMemberFunctionMayBeStatic
 }

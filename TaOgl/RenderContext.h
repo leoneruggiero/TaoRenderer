@@ -102,6 +102,10 @@ namespace tao_render_context
 
         void SetDepthState(ogl_depth_state state);
 
+        void SetBlendState(ogl_blend_state state);
+
+        void SetRasterizerState(ogl_rasterizer_state state);
+
         void DrawArrays(ogl_primitive_type mode, GLint first, GLsizei count);
 
         [[nodiscard]] OglVertexShader   CreateVertexShader();
@@ -125,10 +129,13 @@ namespace tao_render_context
 
         [[nodiscard]] OglTexture2D  CreateTexture2D();
 
+        [[nodiscard]] OglTexture2DMultisample  CreateTexture2DMultisample();
+
         [[nodiscard]] OglSampler CreateSampler();
         [[nodiscard]] OglSampler CreateSampler(ogl_sampler_params params);
 
-        [[nodiscard]] OglFramebufferTex2D CreateFramebufferTex2D();
+        template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+        [[nodiscard]] OglFramebuffer<Tex> CreateFramebuffer();
 
         [[nodiscard]] OglUniformBuffer CreateUniformBuffer();
     };

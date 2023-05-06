@@ -9,7 +9,7 @@ namespace tao_gizmos
 			_vbo{rc.CreateVertexBuffer()},
 			_vao{rc.CreateVertexAttribArray()},
 			_pointSize(desc.point_size),
-			_snap(desc.pixel_snapping)
+			_snap(desc.snap_to_pixel)
 	 {
 		 // vbo layout for points:
 		 // pos(vec3)-color(vec4)-tex(vec4) interleaved
@@ -26,6 +26,7 @@ namespace tao_gizmos
 		// --------------------------------------------
 		if(desc.symbol_atlas_descriptor)
 		{
+			_symbolAtlasLinearFilter = desc.symbol_atlas_descriptor->symbol_filter_smooth;
 			_symbolAtlas.emplace(rc.CreateTexture2D());
 			_symbolAtlas.value().TexImage(
 				0,
@@ -126,20 +127,20 @@ namespace tao_gizmos
 		 _pointsObjDataUbo	(rc.CreateUniformBuffer()),
 		 _linesObjDataUbo	(rc.CreateUniformBuffer()),
 		 _frameDataUbo		(rc.CreateUniformBuffer()),
-		 _colorTex			(rc.CreateTexture2D()),
-		 _deptheTex			(rc.CreateTexture2D()),
-		 _mainFramebuffer	(rc.CreateFramebufferTex2D()),
 		 _nearestSampler	(rc.CreateSampler()),
 		 _linearSampler		(rc.CreateSampler()),
+		 _colorTex			(rc.CreateTexture2DMultisample()),
+		 _depthTex			(rc.CreateTexture2DMultisample()),
+		 _mainFramebuffer	(rc.CreateFramebuffer<OglTexture2DMultisample>()),
 		 _pointGizmos		{}
 	 {
 		 // main fbo
 		 // ----------------------------
-		 _colorTex.TexImage(0, tex_int_for_rgba, _windowWidth, _windowHeight, tex_for_rgba, tex_typ_byte, nullptr);
-		 _deptheTex.TexImage(0, tex_int_for_depth, _windowWidth, _windowHeight, tex_for_depth, tex_typ_float, nullptr);
+		 _colorTex.TexImage(8, tex_int_for_rgba , _windowWidth, _windowHeight, false);
+		 _depthTex.TexImage(8, tex_int_for_depth, _windowWidth, _windowHeight, false);
 
-		 _mainFramebuffer.AttachTex2D(fbo_attachment_color0, _colorTex, 0);
-		 _mainFramebuffer.AttachTex2D(fbo_attachment_depth, _deptheTex, 0);
+		 _mainFramebuffer.AttachTexture(fbo_attachment_color0, _colorTex, 0);
+		 _mainFramebuffer.AttachTexture(fbo_attachment_depth,  _depthTex, 0);
 
 		 // shaders ubo bindings
 		 // ----------------------------
@@ -225,22 +226,30 @@ namespace tao_gizmos
 		_pointGizmos.at(pointGizmoIndex).SetInstanceData(positions, colors, indices);
 	}
 
-	void GizmosRenderer::Render(glm::mat4 viewMatrix, glm::mat4 projectionMatrix)
+	const OglFramebuffer<OglTexture2DMultisample>& GizmosRenderer::Render(glm::mat4 viewMatrix, glm::mat4 projectionMatrix)
 	{
 		// todo isCurrent()
 		// rc.MakeCurrent();
 
 		// todo: how to show results? maybe return a texture or let the user access the drawn surface.
-		//_mainFramebuffer.Bind(fbo_read_draw);
+		_mainFramebuffer.Bind(fbo_read_draw);
 
-		_renderContext->ClearColor(0.1f, 0.1f, 0.1f);
+		_renderContext->ClearColor(0.5f, 0.5f, 0.5f);
 		_renderContext->ClearDepthStencil();
-		_renderContext->SetDepthState(ogl_depth_state{
-			.depth_test_enable = true,
-			.depth_func = depth_func_less,
-			.depth_range_near = 0.0,
-			.depth_range_far = 1.0
-			});
+		_renderContext->SetDepthState(ogl_depth_state
+		{
+			.depth_test_enable			= true,
+			.depth_func					= depth_func_less,
+			.depth_range_near			= 0.0,
+			.depth_range_far			= 1.0
+		});
+		_renderContext->SetRasterizerState(ogl_rasterizer_state
+		{
+			.multisample_enable			= true,
+			.alpha_to_coverage_enable	= true
+		});
+
+		_renderContext->SetBlendState(no_blend);
 
 		frame_data_block const frameData
 		{
@@ -261,14 +270,19 @@ namespace tao_gizmos
 			if (hasTexture)
 			{
 				pGzm.second._symbolAtlas->BindToTextureUnit(tex_unit_0);
-				_linearSampler           .BindToTextureUnit(tex_unit_0);
+
+				(pGzm.second._symbolAtlasLinearFilter
+					? _linearSampler
+					: _nearestSampler)
+					                     .BindToTextureUnit(tex_unit_0);
+
 				_pointsShader.SetUniform  (POINTS_TEX_ATLAS_NAME, 0);
 			}
 			points_obj_data_block const objData
 			{
-				.size = pGzm.second._pointSize,
-				.snap = pGzm.second._snap,
-				.has_texture = hasTexture
+				.size		  = pGzm.second._pointSize,
+				.snap		  = pGzm.second._snap,
+				.has_texture  = hasTexture
 			};
 			_pointsObjDataUbo.SetSubData(0, sizeof(points_obj_data_block), &objData);
 
@@ -282,8 +296,9 @@ namespace tao_gizmos
 			}
 		}
 
-		//OglFramebufferTex2D::UnBind(fbo_read_draw);
+		OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
 
+		return _mainFramebuffer;
 	}
 
 }

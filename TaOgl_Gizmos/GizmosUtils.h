@@ -18,9 +18,9 @@ namespace tao_gizmos
 	#pragma pack(4)
 	struct points_obj_data_block
 	{
-		float	size;
-		int     snap;
-		int     has_texture;
+		unsigned int	size;
+		int				snap;
+		int				has_texture;
 	};
 
 	#pragma pack(4)

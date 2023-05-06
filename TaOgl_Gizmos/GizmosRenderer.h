@@ -45,8 +45,8 @@ namespace tao_gizmos
 	};
 	struct point_gizmo_descriptor
 	{
-		float					 point_size				 = 1.0f;
-		bool					 pixel_snapping			 = false;
+		unsigned int			 point_size				 = 1;
+		bool					 snap_to_pixel			 = false;
 		symbol_atlas_descriptor* symbol_atlas_descriptor = nullptr;
 	};
 	class PointGizmo
@@ -67,8 +67,9 @@ namespace tao_gizmos
 		optional<vector<vec4>>  _symbolAtlasTexCoordLUT;
 		// settings
 		// ------------------------------
-		float _pointSize;
-		bool  _snap;
+		unsigned int _pointSize;
+		bool		 _snap;
+		bool		 _symbolAtlasLinearFilter;
 
 		// static utils
 		// ------------------------------
@@ -96,19 +97,20 @@ namespace tao_gizmos
 		OglUniformBuffer    _linesObjDataUbo;
 		OglUniformBuffer    _frameDataUbo;
 
-		OglTexture2D		_colorTex;
-		OglTexture2D		_deptheTex;
-		OglFramebufferTex2D _mainFramebuffer;
-
 		OglSampler			_nearestSampler;
 		OglSampler			_linearSampler;
 
+		OglTexture2DMultisample					_colorTex;
+		OglTexture2DMultisample					_depthTex;
+		OglFramebuffer<OglTexture2DMultisample> _mainFramebuffer;
+
 		map<unsigned int, PointGizmo> _pointGizmos;
+
 	public:
 		GizmosRenderer(RenderContext& rc, int windowWidth, int windowHeight);
 
 		// todo: projection matrix is not a parameter (near and far should be modified)
-		void Render(glm::mat4 viewMatrix, glm::mat4 projectionMatrix);
+		[[nodiscard]] const OglFramebuffer<OglTexture2DMultisample>& Render(glm::mat4 viewMatrix, glm::mat4 projectionMatrix);
 
 		void CreatePointGizmo(unsigned int pointGizmoIndex, const point_gizmo_descriptor& desc);
 		void DestroyPointGizmo(unsigned int pointGizmoIndex);

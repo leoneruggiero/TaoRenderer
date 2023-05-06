@@ -26,6 +26,8 @@ namespace tao_ogl_resources
     void   texture_1D::Destroy(GLuint id) { GL_CALL(glDeleteTextures(1, &id)); }
     GLuint texture_2D::Create() { GLuint id = 0; GL_CALL(glCreateTextures(GL_TEXTURE_2D, 1, &id)); return id; }
     void   texture_2D::Destroy(GLuint id) { GL_CALL(glDeleteTextures(1, &id)); }
+    GLuint texture_2D_multisample::Create() { GLuint id = 0; GL_CALL(glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, &id)); return id; }
+    void   texture_2D_multisample::Destroy(GLuint id) { GL_CALL(glDeleteTextures(1, &id)); }
     GLuint texture_cube::Create() { GLuint id = 0; GL_CALL(glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &id)); return id; }
     void   texture_cube::Destroy(GLuint id) { GL_CALL(glDeleteTextures(1, &id)); }
     GLuint framebuffer::Create() { GLuint id = 0; GL_CALL(glCreateFramebuffers(1, &id)); return id; }
@@ -187,14 +189,14 @@ namespace tao_ogl_resources
 	    GL_CALL(glBindTexture(target, 0));
     }
     static void texImage1D(GLuint texture, GLenum target, GLint level, ogl_texture_internal_format internalFormat,
-        GLint width, ogl_texture_format format, ogl_texture_data_type type, const void* data)
+        GLsizei width, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
         bind(target, texture);
         GL_CALL(glTexImage1D(GL_TEXTURE_1D, level, internalFormat, width, 0, format, type, data));
         unBind(target);
     }
     static void texImage2D(GLuint texture, GLenum target, GLint level, ogl_texture_internal_format internalFormat,
-        GLint width, GLint height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data)
+        GLsizei width, GLint height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
         bind(target, texture);
         GL_CALL(glTexImage2D(GL_TEXTURE_2D, level, internalFormat, width, height, border, format, type, data));
@@ -245,7 +247,7 @@ namespace tao_ogl_resources
     void OglTexture1D::BindToTextureUnit(ogl_texture_unit unit)     { bindToTextureUnit(GL_TEXTURE_1D, _ogl_obj.ID(), unit); }
     void OglTexture1D::UnBindToTextureUnit(ogl_texture_unit unit)   { unBindToTextureUnit(GL_TEXTURE_1D, unit); }
 
-    void OglTexture1D::TexImage(GLint level, ogl_texture_internal_format internalFormat, GLint width, GLint height, 
+    void OglTexture1D::TexImage(GLint level, ogl_texture_internal_format internalFormat, GLsizei width, GLsizei height,
         GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
         texImage1D(_ogl_obj.ID(), GL_TEXTURE_1D, level, internalFormat, width, format, type, data);
@@ -263,7 +265,7 @@ namespace tao_ogl_resources
     void OglTexture2D::UnBindToTextureUnit(ogl_texture_unit unit)   { unBindToTextureUnit(GL_TEXTURE_2D, unit); }
 
     void OglTexture2D::TexImage(GLint level, ogl_texture_internal_format internalFormat,
-        GLint width, GLint height, ogl_texture_format format, ogl_texture_data_type type, const void* data)
+        GLsizei width, GLsizei height, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
         texImage2D(_ogl_obj.ID(), GL_TEXTURE_2D, level, internalFormat, width, height, 0, format, type, data);
     }
@@ -275,6 +277,21 @@ namespace tao_ogl_resources
     void OglTexture2D::SetWrapParams(ogl_tex_wrap_params params) { setTextureWrapParams(_ogl_obj.ID(), params); }
     void OglTexture2D::SetParams(ogl_tex_params params) { setTextureParams(_ogl_obj.ID(), params); }
 
+    /// Texture2D Multisample
+    ///////////////////
+    void OglTexture2DMultisample::Bind() { bind(GL_TEXTURE_2D_MULTISAMPLE, _ogl_obj.ID()); }
+    void OglTexture2DMultisample::UnBind() { unBind(GL_TEXTURE_2D_MULTISAMPLE); }
+    void OglTexture2DMultisample::BindToTextureUnit(ogl_texture_unit unit) { bindToTextureUnit(GL_TEXTURE_2D_MULTISAMPLE, _ogl_obj.ID(), unit); }
+    void OglTexture2DMultisample::UnBindToTextureUnit(ogl_texture_unit unit) { unBindToTextureUnit(GL_TEXTURE_2D_MULTISAMPLE, unit); }
+
+    void OglTexture2DMultisample::TexImage(GLsizei samples, ogl_texture_internal_format internalFormat,
+        GLsizei width, GLsizei height, GLboolean fixedSampleLocation)
+    {
+        bind(GL_TEXTURE_2D_MULTISAMPLE, _ogl_obj.ID());
+        GL_CALL(glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, samples, internalFormat, width, height, fixedSampleLocation););
+        unBind(GL_TEXTURE_2D_MULTISAMPLE);
+    }
+
     /// Texture Cube
     ///////////////////
     void OglTextureCube::Bind()                                       { bind(GL_TEXTURE_CUBE_MAP, _ogl_obj.ID()); }
@@ -283,7 +300,7 @@ namespace tao_ogl_resources
     void OglTextureCube::UnBindToTextureUnit(ogl_texture_unit unit)   { unBindToTextureUnit(GL_TEXTURE_CUBE_MAP, unit); }
 
     void OglTextureCube::TexImage(ogl_texture_cube_target target, GLint level, ogl_texture_internal_format internalFormat, 
-        GLint width, GLint height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data)
+        GLsizei width, GLsizei height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
         texImage2D(_ogl_obj.ID(), target, level, internalFormat, width, height, border, format, type, data);
     }
@@ -330,19 +347,31 @@ namespace tao_ogl_resources
         SetWrapParams(params.wrap_params);
     }
 
-    /// FBO - Texture2D
+    /// FBO 
     ///////////////////
-    void OglFramebufferTex2D::Bind(ogl_framebuffer_binding target) { GL_CALL(glBindFramebuffer(target, _ogl_obj.ID())); }
-    void OglFramebufferTex2D::UnBind(ogl_framebuffer_binding target) { GL_CALL(glBindFramebuffer(target, 0)); }
-    void OglFramebufferTex2D::AttachTex2D(ogl_framebuffer_attachment attachment, const OglTexture2D& texture, GLint level)
+    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+	void OglFramebuffer<Tex>::Bind(ogl_framebuffer_binding target) { GL_CALL(glBindFramebuffer(target, _ogl_obj.ID())); }
+    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+	void OglFramebuffer<Tex>::UnBind(ogl_framebuffer_binding target) { GL_CALL(glBindFramebuffer(target, 0)); }
+    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+	void OglFramebuffer<Tex>::AttachTexture(ogl_framebuffer_attachment attachment, const Tex& texture, GLint level)
     {
 	    GL_CALL(glNamedFramebufferTexture(_ogl_obj.ID(), attachment, texture._ogl_obj.ID(), level));
     }
-    void OglFramebufferTex2D::SetDrawBuffers(GLsizei n, const ogl_framebuffer_read_draw_buffs* buffs)
+    template<> // Texture 2D Multisample template spec
+    void OglFramebuffer<OglTexture2DMultisample>::AttachTexture(ogl_framebuffer_attachment attachment, const OglTexture2DMultisample& texture, GLint level)
+    {
+        // level is *silently* ignored (is it bad?)
+        GL_CALL(glNamedFramebufferTexture(_ogl_obj.ID(), attachment, texture._ogl_obj.ID(), 0 /*level must be zero*/));
+    }
+
+    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+    void OglFramebuffer<Tex>::SetDrawBuffers(GLsizei n, const ogl_framebuffer_read_draw_buffs* buffs)
     {
     	GL_CALL(glNamedFramebufferDrawBuffers(_ogl_obj.ID(), n, reinterpret_cast<const GLenum*>(buffs)));
     }
-    void OglFramebufferTex2D::SetReadBuffer(ogl_framebuffer_read_draw_buffs buff)
+    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+    void OglFramebuffer<Tex>::SetReadBuffer(ogl_framebuffer_read_draw_buffs buff)
     {
         GL_CALL(glNamedFramebufferReadBuffer(_ogl_obj.ID(), buff));
     }
@@ -356,26 +385,40 @@ namespace tao_ogl_resources
         GL_CALL(glBlitNamedFramebuffer(readFbo, drawFbo, srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter));
     }
 
-    void OglFramebufferTex2D::CopyFrom(const OglFramebufferTex2D& src, GLint width, GLint height, ogl_framebuffer_copy_mask mask)
+    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+	void OglFramebuffer<Tex>::CopyFrom(const OglFramebuffer* src, GLint width, GLint height, ogl_framebuffer_copy_mask mask)
     {
         // src and dst have the same size.
         // copies a rect from <0,0> to <width, height>
-        FramebufferBlit(src._ogl_obj.ID(), _ogl_obj.ID(), 0, 0, width, height, 0, 0, width, height, mask, ogl_framebuffer_copy_filter::fbo_copy_filter_nearest);
+        GLuint const srcId = src ? src->_ogl_obj.ID() : 0;
+        FramebufferBlit(srcId, _ogl_obj.ID(), 0, 0, width, height, 0, 0, width, height, mask, ogl_framebuffer_copy_filter::fbo_copy_filter_nearest);
     }
-    void OglFramebufferTex2D::CopyFrom(const OglFramebufferTex2D& src, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter)
+    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+	void OglFramebuffer<Tex>::CopyFrom(const OglFramebuffer* src, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter)
     {
-        FramebufferBlit(src._ogl_obj.ID(), _ogl_obj.ID(), srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+        GLuint const srcId = src ? src->_ogl_obj.ID() : 0;
+        FramebufferBlit(srcId, _ogl_obj.ID(), srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
     }
-    void OglFramebufferTex2D::CopyTo(const OglFramebufferTex2D& dst, GLint width, GLint height, ogl_framebuffer_copy_mask mask)
+    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+	void OglFramebuffer<Tex>::CopyTo(const OglFramebuffer* dst, GLint width, GLint height, ogl_framebuffer_copy_mask mask) const
     {
         // src and dst have the same size.
         // copies a rect from <0,0> to <width, height>
-        FramebufferBlit(_ogl_obj.ID(), dst._ogl_obj.ID(), 0, 0, width, height, 0, 0, width, height, mask, ogl_framebuffer_copy_filter::fbo_copy_filter_nearest);
+        GLuint const dstId = dst ? dst->_ogl_obj.ID() : 0;
+        FramebufferBlit(_ogl_obj.ID(), dstId, 0, 0, width, height, 0, 0, width, height, mask, ogl_framebuffer_copy_filter::fbo_copy_filter_nearest);
     }
-    void OglFramebufferTex2D::CopyTo(const OglFramebufferTex2D& dst, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter)
+    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+	void OglFramebuffer<Tex>::CopyTo(const OglFramebuffer* dst, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter) const
     {
-        FramebufferBlit(_ogl_obj.ID(), dst._ogl_obj.ID(), srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+        GLuint const dstId = dst ? dst->_ogl_obj.ID() : 0;
+        FramebufferBlit(_ogl_obj.ID(), dstId, srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
     }
+
+    // Forcing template instantiation....ugly, really ugly
+    template class OglFramebuffer<OglTexture2D>;
+    template class OglFramebuffer<OglTexture2DMultisample>;
+    template class OglFramebuffer<OglTextureCube>;
+
 
 	// ReSharper restore CppMemberFunctionMayBeConst
 }

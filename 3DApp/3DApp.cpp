@@ -7,7 +7,7 @@
 #include <chrono>
 #include "RenderContext.h"
 #include "GizmosRenderer.h"
-
+#include "../../TestApp_OpenGL/TestApp_OpenGL/stb_image.h"
 
 using namespace std;
 using namespace std::chrono;
@@ -122,38 +122,49 @@ int main()
 
 		time_point startTime = high_resolution_clock::now();
 
-		constexpr int xSub		= 50;
-		constexpr int ySub		= 50;
+		constexpr int xSub		= 20;
+		constexpr int ySub		= 20;
 		constexpr float scale	= 6.0f;
-		constexpr float speed	= 0.005f;
+		constexpr float speed	= 0.0005f;
 		constexpr float sinFreq = 3.0f;
 		constexpr float sinAmpl = 0.25f;
 		vector<point_gizmo_instance> ptsInstances{ xSub * ySub };
 
-		float image[] =
+		int textAtlasW;
+		int texAtlasH;
+		int texAtlasChannels;
+		stbi_set_flip_vertically_on_load(true);
+		const void* texAtlasData = stbi_load("c:\\Users\\Admin\\Downloads\\textAtlas03.png", &textAtlasW, &texAtlasH, &texAtlasChannels, STBI_rgb_alpha);
+
+		vector<symbol_mapping> texAtlasMapping{ 64 };
+		float sx = 1.0f / 8;
+		float sy = 1.0f / 4;
+		for (int i = 0; i < 8; i++)
+		for (int j = 0; j < 4; j++)
 		{
-			1.0f, 0.0f, 0.0f, 1.0f,
-			0.0f, 1.0f, 0.0f, 1.0f,
-			0.0f, 0.0f, 1.0f, 1.0f,
-			1.0f, 1.0f, 1.0f, 1.0f
-		};
+			texAtlasMapping[i+j*8] = symbol_mapping
+			{
+				.uv_min = vec2(sx   *i,    sy *  j),
+				.uv_max = vec2(sx * (i+1), sy * (j+1))
+			};
+		}
 
 		symbol_atlas_descriptor desc =
 		{
-			.symbol_atlas_data			= &image,
+			.symbol_atlas_data			= texAtlasData,
 			.symbol_atlas_data_format	= tex_for_rgba,
-			.symbol_atlas_data_type		= tex_typ_float,
-			.symbol_atlas_width			= 2,
-			.symbol_atlas_height		= 2,
-			.symbol_atlas_mapping		= vector{symbol_mapping{vec2(0.0f, 0.0f), vec2(1.0f, 1.0f)}},
+			.symbol_atlas_data_type		= tex_typ_unsigned_byte,
+			.symbol_atlas_width			= textAtlasW,
+			.symbol_atlas_height		= texAtlasH,
+			.symbol_atlas_mapping		= texAtlasMapping,
 			.symbol_filter_smooth		= false
 		};
 
 		gizRdr.CreatePointGizmo(1, point_gizmo_descriptor
 			{
-				.point_size = 25.0f,
-				.pixel_snapping = false,
-				.symbol_atlas_descriptor = nullptr // &desc
+				.point_size = 50,
+				.snap_to_pixel = true,
+				.symbol_atlas_descriptor = &desc
 			});
 
 		while (!rc.ShouldClose())
@@ -215,13 +226,13 @@ int main()
 					ptsInstances[i * ySub + j] = point_gizmo_instance
 					{
 						.position = vec3(xPos, yPos, func),
-						.color = color,
-						.symbol_index = 0
+						.color = vec4(1.0f),
+						.symbol_index = 6 //  static_cast<unsigned int>((func / sinAmpl * 0.5 + 0.5) * 8)
 					};
 				}
 
 			gizRdr.InstancePointGizmo(1, ptsInstances);
-			gizRdr.Render(viewMatrix, projMatrix);
+			gizRdr.Render(viewMatrix, projMatrix).CopyTo(nullptr, width, height, fbo_copy_mask_color_bit);
 
 #if DEBUG_MOUSE
 			float mmbX, mmbY, mmbXsmooth, mmbYsmooth;

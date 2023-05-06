@@ -76,19 +76,25 @@ namespace tao_ogl_resources
 	{
 		static GLuint Create();
 		static void Destroy(GLuint);
-		static constexpr const char* to_string = "texture";
+		static constexpr const char* to_string = "texture 1D";
 	};
 	struct texture_2D
 	{
 		static GLuint Create();
 		static void Destroy(GLuint);
-		static constexpr const char* to_string = "texture";
+		static constexpr const char* to_string = "texture 2D";
+	};
+	struct texture_2D_multisample
+	{
+		static GLuint Create();
+		static void Destroy(GLuint);
+		static constexpr const char* to_string = "texture 2D multisample";
 	};
 	struct texture_cube
 	{
 		static GLuint Create();
 		static void Destroy(GLuint);
-		static constexpr const char* to_string = "texture";
+		static constexpr const char* to_string = "texture cube";
 	};
 	struct framebuffer
 	{
@@ -105,33 +111,41 @@ namespace tao_ogl_resources
 
 	template<typename T>
 	concept ogl_resource =
-		std::is_same_v<T, vertex_shader> ||
-		std::is_same_v<T, fragment_shader> ||
-		std::is_same_v<T, geometry_shader> ||
-		std::is_same_v<T, shader_program> ||
-		std::is_same_v<T, vertex_buffer_object> ||
-		std::is_same_v<T, vertex_attrib_array> ||
-		std::is_same_v<T, index_buffer> ||
-		std::is_same_v<T, uniform_buffer> ||
-		std::is_same_v<T, shader_storage_buffer> ||
-		std::is_same_v<T, texture_1D> ||
-		std::is_same_v<T, texture_2D> ||
-		std::is_same_v<T, texture_cube> ||
-		std::is_same_v<T, framebuffer> ||
+		std::is_same_v<T, vertex_shader>			||
+		std::is_same_v<T, fragment_shader>			||
+		std::is_same_v<T, geometry_shader>			||
+		std::is_same_v<T, shader_program>			||
+		std::is_same_v<T, vertex_buffer_object>		||
+		std::is_same_v<T, vertex_attrib_array>		||
+		std::is_same_v<T, index_buffer>				||
+		std::is_same_v<T, uniform_buffer>			||
+		std::is_same_v<T, shader_storage_buffer>	||
+		std::is_same_v<T, texture_1D>				||
+		std::is_same_v<T, texture_2D>				||
+		std::is_same_v<T, texture_2D_multisample>	||
+		std::is_same_v<T, texture_cube>				||
+		std::is_same_v<T, framebuffer>				||
 		std::is_same_v<T, sampler>;
 
 	template<typename T>
 	concept ogl_shader =
-		std::is_same_v<T, vertex_shader> ||
-		std::is_same_v<T, fragment_shader> ||
+		std::is_same_v<T, vertex_shader>	||
+		std::is_same_v<T, fragment_shader>	||
 		std::is_same_v<T, geometry_shader>;
 
 	template<typename T>
 	concept ogl_buffer =
 		std::is_same_v<T, vertex_buffer_object> ||
-		std::is_same_v<T, index_buffer> ||
-		std::is_same_v<T, uniform_buffer> ||
+		std::is_same_v<T, index_buffer>			||
+		std::is_same_v<T, uniform_buffer>		||
 		std::is_same_v<T, shader_storage_buffer>;
+
+	template<typename T>
+	concept ogl_texture =
+		std::is_same_v<T, texture_1D>			||
+		std::is_same_v<T, texture_2D>			||
+		std::is_same_v<T, texture_cube>			||
+		std::is_same_v<T, texture_2D_multisample>;
 
 	template <typename T> requires ogl_resource<T>
 	class OglResource
@@ -208,6 +222,9 @@ namespace tao_ogl_resources
 	public:
 		void Compile(const char* source);
 	};
+
+	template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+		class OglFramebuffer;
 
 	/// Fragment Shader
 	//////////////////////////////////////
@@ -396,7 +413,7 @@ namespace tao_ogl_resources
 		static void UnBind();
 		void BindToTextureUnit  (ogl_texture_unit unit);
 		static void UnBindToTextureUnit(ogl_texture_unit unit);
-		void TexImage(GLint level, ogl_texture_internal_format internalFormat, GLint width, GLint height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data);
+		void TexImage(GLint level, ogl_texture_internal_format internalFormat, GLsizei width, GLsizei height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data);
 		void GenerateMipmap();
 		void SetFilterParams(ogl_tex_filter_params params);
 		void SetLodParams(ogl_tex_lod_params params);
@@ -409,7 +426,8 @@ namespace tao_ogl_resources
 	{
 		using ogl_resource_type = texture_2D;
 
-		friend class OglFramebufferTex2D;
+		template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+		friend class OglFramebuffer;
 		friend class tao_render_context::RenderContext;
 
 	private:
@@ -420,7 +438,7 @@ namespace tao_ogl_resources
 		static void UnBind();
 		void BindToTextureUnit(ogl_texture_unit unit);
 		static void UnBindToTextureUnit(ogl_texture_unit unit);
-		void TexImage(GLint level, ogl_texture_internal_format internalFormat, GLint width, GLint height, ogl_texture_format format, ogl_texture_data_type type, const void* data);
+		void TexImage(GLint level, ogl_texture_internal_format internalFormat, GLsizei width, GLsizei height, ogl_texture_format format, ogl_texture_data_type type, const void* data);
 		void GenerateMipmap();
 		void SetDepthStencilMode(ogl_texture_depth_stencil_tex_mode mode);
 		void SetCompareParams(ogl_tex_compare_params params);
@@ -430,12 +448,35 @@ namespace tao_ogl_resources
 		void SetParams(ogl_tex_params params);
 	};
 
+	/// Texture2D Multisample
+	//////////////////////////////////////
+	class OglTexture2DMultisample
+	{
+		using ogl_resource_type = texture_2D_multisample;
+
+		template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+		friend class OglFramebuffer;
+		friend class tao_render_context::RenderContext;
+
+	private:
+		OglResource<ogl_resource_type> _ogl_obj;
+		OglTexture2DMultisample(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
+	public:
+		void Bind();
+		static void UnBind();
+		void BindToTextureUnit(ogl_texture_unit unit);
+		static void UnBindToTextureUnit(ogl_texture_unit unit);
+		void TexImage(GLsizei samples, ogl_texture_internal_format internalFormat, GLsizei width, GLsizei height, GLboolean fixedSampleLocation);
+	};
+
 	/// Texture Cube
 	//////////////////////////////////////
 	class OglTextureCube
 	{
 		using ogl_resource_type = texture_cube;
 
+		template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+		friend class OglFramebuffer;
 		friend class tao_render_context::RenderContext;
 
 	private:
@@ -446,7 +487,7 @@ namespace tao_ogl_resources
 		static void UnBind();
 		void BindToTextureUnit(ogl_texture_unit unit);
 		static void UnBindToTextureUnit(ogl_texture_unit unit);
-		void TexImage(ogl_texture_cube_target target, GLint level, ogl_texture_internal_format internalFormat, GLint width, GLint height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data);
+		void TexImage(ogl_texture_cube_target target, GLint level, ogl_texture_internal_format internalFormat, GLsizei width, GLsizei height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data);
 		void GenerateMipmap();
 		void SetDepthStencilMode(ogl_texture_depth_stencil_tex_mode mode);
 		void SetCompareParams(ogl_tex_compare_params params);
@@ -477,9 +518,10 @@ namespace tao_ogl_resources
 		void SetParams       (ogl_sampler_params params);
 	};
 
-	/// FBO - Texture2D
+	/// FBO 
 	//////////////////////////////////////
-	class OglFramebufferTex2D
+	template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type> 
+	class OglFramebuffer
 	{
 		using ogl_resource_type = framebuffer;
 
@@ -487,17 +529,18 @@ namespace tao_ogl_resources
 
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
-		OglFramebufferTex2D(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
+		OglFramebuffer(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
+
 	public:
 		void Bind(ogl_framebuffer_binding target);
 		static void UnBind(ogl_framebuffer_binding target);
-		void AttachTex2D(ogl_framebuffer_attachment attachment, const OglTexture2D& texture, GLint level);
+		void AttachTexture(ogl_framebuffer_attachment attachment, const Tex& texture, GLint level);
 		void SetDrawBuffers(GLsizei n, const ogl_framebuffer_read_draw_buffs* buffs);
 		void SetReadBuffer(ogl_framebuffer_read_draw_buffs buff);
-		void CopyFrom(const OglFramebufferTex2D& src, GLint width, GLint height, ogl_framebuffer_copy_mask mask);
-		void CopyTo  (const OglFramebufferTex2D& dst, GLint width, GLint height, ogl_framebuffer_copy_mask mask);
-		void CopyFrom(const OglFramebufferTex2D& src, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter);
-		void CopyTo  (const OglFramebufferTex2D& dst, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter);
+		void CopyFrom(const OglFramebuffer* src, GLint width, GLint height, ogl_framebuffer_copy_mask mask);
+		void CopyTo  (const OglFramebuffer* dst, GLint width, GLint height, ogl_framebuffer_copy_mask mask) const;
+		void CopyFrom(const OglFramebuffer* src, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter);
+		void CopyTo  (const OglFramebuffer* dst, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter) const;
 	};
 
 }
