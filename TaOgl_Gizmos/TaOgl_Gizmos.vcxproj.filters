@@ -64,5 +64,11 @@
     <None Include="Shaders\Points.frag">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="Shaders\Lines.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\Lines.frag">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

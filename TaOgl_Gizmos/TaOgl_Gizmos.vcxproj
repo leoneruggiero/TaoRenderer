@@ -162,6 +162,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Shaders\Include\UboDefs.glsl" />
+    <None Include="Shaders\Lines.frag" />
+    <None Include="Shaders\Lines.vert" />
     <None Include="Shaders\MeshUnlit.frag" />
     <None Include="Shaders\MeshUnlit.vert" />
     <None Include="Shaders\Points.frag" />

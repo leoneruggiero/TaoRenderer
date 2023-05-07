@@ -89,11 +89,12 @@ namespace tao_render_context
 	        glfwTerminate();
         }
 
-        void MakeCurrent()              { glfwMakeContextCurrent(_glf_window); }
-        bool ShouldClose()       const  { return glfwWindowShouldClose(_glf_window) != 0; }
-        void PollEvents()        const  { glfwPollEvents(); Mouse().Poll(); }
-        MouseInput& Mouse()      const  { return *_mouseInput; }
-        void SwapBuffers()       const  { glfwSwapBuffers(_glf_window); }
+        void GetFramebufferSize(int& width, int& height)  const  { glfwGetFramebufferSize(_glf_window, &width, &height); }
+        void MakeCurrent()                                       { glfwMakeContextCurrent(_glf_window); }
+        bool ShouldClose()                                const  { return glfwWindowShouldClose(_glf_window) != 0; }
+        void PollEvents()                                 const  { glfwPollEvents(); Mouse().Poll(); }
+        MouseInput& Mouse()                               const  { return *_mouseInput; }
+        void SwapBuffers()                                const  { glfwSwapBuffers(_glf_window); }
 
         void ClearColor(float red, float green, float blue, float alpha = 1.0f);
         void ClearDepth(float value = 1.0f);

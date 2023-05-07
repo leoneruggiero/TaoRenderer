@@ -8,7 +8,7 @@ namespace tao_gizmos
 	 PointGizmo::PointGizmo(RenderContext& rc, const point_gizmo_descriptor& desc):
 			_vbo{rc.CreateVertexBuffer()},
 			_vao{rc.CreateVertexAttribArray()},
-			_pointSize(desc.point_size),
+			_pointSize(desc.point_half_size),
 			_snap(desc.snap_to_pixel)
 	 {
 		 // vbo layout for points:
@@ -81,7 +81,7 @@ namespace tao_gizmos
 
 	 void PointGizmo::SetInstanceData(const vector<vec3>& positions, const vector<vec4>& colors, const optional<vector<unsigned int>>& symbolIndices)
 	 {
-		 constexpr int vertexSize = sizeof(float) * 11;
+		 constexpr int vertexSize = sizeof(float) * 11; // position(3) + color(4) + texCoord(4)
 		 const unsigned int posLen = positions.size();
 
 		 if (posLen != colors.size() || (symbolIndices && symbolIndices->size()!= colors.size()))
@@ -94,7 +94,7 @@ namespace tao_gizmos
 		 for(int i=0, j=0;i<posLen;i++)
 		 {
 			 data[j++] = positions[i].x; data[j++] = positions[i].y; data[j++] = positions[i].z;
-			 data[j++] =    colors[i].x; data[j++] =    colors[i].y; data[j++] =    colors[i].z; data[j++] = colors[i].z;
+			 data[j++] =    colors[i].x; data[j++] =    colors[i].y; data[j++] =    colors[i].z; data[j++] = colors[i].w;
 
 			 if (symbolIndices&&_symbolAtlasTexCoordLUT)
 			 {
@@ -104,6 +104,50 @@ namespace tao_gizmos
 				 data[j++] = uv.x; data[j++] = uv.y; data[j++] = uv.z; data[j++] = uv.w;
 			 }
 			 else j += 4;
+		 }
+
+		 const unsigned int vboVertCount = ResizeVbo(_vboCapacity, _instanceCount);
+
+		 if (vboVertCount > _vboCapacity) // init buffer if necessary
+		 {
+			 _vbo.SetData(vboVertCount * vertexSize, nullptr, buf_usg_static_draw);
+			 _vboCapacity = vboVertCount;
+		 }
+
+		 _vbo.SetSubData(0, _instanceCount * vertexSize, data.data());
+	 }
+
+	 LineGizmo::LineGizmo(RenderContext& rc, const line_gizmo_descriptor& desc) :
+		 _vbo{ rc.CreateVertexBuffer()      },
+		 _vao{ rc.CreateVertexAttribArray() },
+		 _lineSize{desc.line_size}
+	 {
+		 // vbo layout for points:
+		 // pos(vec3)-color(vec4)
+		 //--------------------------------------------
+		 int vertexSize = 7 * sizeof(float);
+		 _vao.SetVertexAttribPointer(_vbo, 0, 3, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(0));
+		 _vao.SetVertexAttribPointer(_vbo, 1, 4, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(3 * sizeof(float)));
+		 _vao.EnableVertexAttrib(0);
+		 _vao.EnableVertexAttrib(1);
+	 }
+
+	 void LineGizmo::SetInstanceData(const vector<vec3>& positions, const vector<vec4>& colors)
+	 {
+		 constexpr int vertexSize = sizeof(float) * 7; // position(3) + color(4)
+		 const unsigned int posLen = positions.size();
+
+		 if (posLen != colors.size())
+			 throw exception{ "Instance data must match in count." };
+
+		 _instanceCount = posLen;
+		 _colorList = colors;
+
+		 vector<float> data(posLen * 7, 0.0f);
+		 for (int i = 0, j = 0; i < posLen; i++)
+		 {
+			 data[j++] = positions[i].x; data[j++] = positions[i].y; data[j++] = positions[i].z;
+			 data[j++] =	colors[i].x; data[j++] =	colors[i].y; data[j++] =	colors[i].z; data[j++] = colors[i].w;
 		 }
 
 		 const unsigned int vboVertCount = ResizeVbo(_vboCapacity, _instanceCount);
@@ -132,7 +176,8 @@ namespace tao_gizmos
 		 _colorTex			(rc.CreateTexture2DMultisample()),
 		 _depthTex			(rc.CreateTexture2DMultisample()),
 		 _mainFramebuffer	(rc.CreateFramebuffer<OglTexture2DMultisample>()),
-		 _pointGizmos		{}
+		 _pointGizmos		{},
+		 _lineGizmos		{}
 	 {
 		 // main fbo
 		 // ----------------------------
@@ -226,6 +271,143 @@ namespace tao_gizmos
 		_pointGizmos.at(pointGizmoIndex).SetInstanceData(positions, colors, indices);
 	}
 
+	void GizmosRenderer::CreateLineGizmo(unsigned int lineGizmoIndex, const line_gizmo_descriptor& desc)
+	{
+		if (_lineGizmos.contains(lineGizmoIndex))
+			throw exception(
+				string{}.append(EXC_PREAMBLE)
+				.append("a line gizmo at index ")
+				.append(to_string(lineGizmoIndex))
+				.append(" already exist.").c_str());
+
+		_lineGizmos.insert(make_pair(lineGizmoIndex, LineGizmo{ *_renderContext, desc }));
+	}
+
+	void GizmosRenderer::DestroyLineGizmo(unsigned int lineGizmoIndex)
+	{
+		if (!_lineGizmos.contains(lineGizmoIndex))
+			throw exception(
+				string{}.append(EXC_PREAMBLE)
+				.append("a line gizmo at index ")
+				.append(to_string(lineGizmoIndex))
+				.append(" doesn't exist.").c_str());
+
+		_lineGizmos.erase(lineGizmoIndex);
+	}
+
+	void GizmosRenderer::InstanceLineGizmo(unsigned lineGizmoIndex, const vector<line_gizmo_instance>& instances)
+	{
+		if (!_lineGizmos.contains(lineGizmoIndex))
+			throw exception(
+				string{}.append(EXC_PREAMBLE)
+				.append("cannot instance line gizmo at index ")
+				.append(to_string(lineGizmoIndex))
+				.append(". It doesn't exist.").c_str());
+
+		vector<vec3>			positions(instances.size() * 2);
+		vector<vec4>			colors   (instances.size() * 2);
+
+		auto iter = instances.begin();
+		for (int i = 0; i < instances.size()*2; /**/)
+		{
+			positions[i  ] = iter->start;
+			colors	 [i++] = iter->color;
+
+			positions[i  ] = iter->end;
+			colors	 [i++] = iter->color;
+			
+			++iter;
+		}
+
+		_lineGizmos.at(lineGizmoIndex).SetInstanceData(positions, colors);
+	}
+
+	void GizmosRenderer::RenderPointGizmos()
+	 {
+		_renderContext->SetDepthState(ogl_depth_state
+		{
+			.depth_test_enable = true,
+			.depth_func = depth_func_less,
+			.depth_range_near = 0.0,
+			.depth_range_far = 1.0
+		});
+		_renderContext->SetRasterizerState(ogl_rasterizer_state
+		{
+			.multisample_enable = true,
+			.alpha_to_coverage_enable = true
+		});
+		_renderContext->SetBlendState(no_blend);
+
+		_pointsShader.UseProgram();
+
+		for (auto& pGzm : _pointGizmos)
+		{
+			const bool hasTexture = pGzm.second._symbolAtlas.has_value();
+			if (hasTexture)
+			{
+				pGzm.second._symbolAtlas->BindToTextureUnit(tex_unit_0);
+
+				(pGzm.second._symbolAtlasLinearFilter
+					? _linearSampler
+					: _nearestSampler)
+										 .BindToTextureUnit(tex_unit_0);
+
+				_pointsShader.SetUniform(POINTS_TEX_ATLAS_NAME, 0);
+			}
+			points_obj_data_block const objData
+			{
+				.size = pGzm.second._pointSize,
+				.snap = pGzm.second._snap,
+				.has_texture = hasTexture
+			};
+
+			_pointsObjDataUbo.SetSubData(0, sizeof(points_obj_data_block), &objData);
+
+			pGzm.second._vao.Bind();
+
+			_renderContext->DrawArrays(pmt_type_points, 0, pGzm.second._instanceCount);
+
+			if (hasTexture)
+			{
+				OglTexture2D::UnBindToTextureUnit(tex_unit_0);
+				OglSampler  ::UnBindToTextureUnit(tex_unit_0);
+			}
+		}
+	 }
+
+	void GizmosRenderer::RenderLineGizmos()
+	 {
+		_renderContext->SetDepthState(ogl_depth_state
+		{
+			.depth_test_enable = true,
+			.depth_func = depth_func_less,
+			.depth_range_near = 0.0,
+			.depth_range_far = 1.0
+		});
+		_renderContext->SetRasterizerState(ogl_rasterizer_state
+		{
+			.multisample_enable = true,
+			.alpha_to_coverage_enable = true
+		});
+		_renderContext->SetBlendState(no_blend);
+
+		_linesShader.UseProgram();
+
+		for (auto& lGzm : _lineGizmos)
+		{
+			lines_obj_data_block const objData
+			{
+				.size = lGzm.second._lineSize,
+			};
+
+			_linesObjDataUbo.SetSubData(0, sizeof(lines_obj_data_block), &objData);
+
+			lGzm.second._vao.Bind();
+
+			_renderContext->DrawArrays(pmt_type_lines, 0, lGzm.second._instanceCount);
+		}
+	 }
+
 	const OglFramebuffer<OglTexture2DMultisample>& GizmosRenderer::Render(glm::mat4 viewMatrix, glm::mat4 projectionMatrix)
 	{
 		// todo isCurrent()
@@ -234,22 +416,8 @@ namespace tao_gizmos
 		// todo: how to show results? maybe return a texture or let the user access the drawn surface.
 		_mainFramebuffer.Bind(fbo_read_draw);
 
-		_renderContext->ClearColor(0.5f, 0.5f, 0.5f);
+		_renderContext->ClearColor(0.2f, 0.2f, 0.2f);
 		_renderContext->ClearDepthStencil();
-		_renderContext->SetDepthState(ogl_depth_state
-		{
-			.depth_test_enable			= true,
-			.depth_func					= depth_func_less,
-			.depth_range_near			= 0.0,
-			.depth_range_far			= 1.0
-		});
-		_renderContext->SetRasterizerState(ogl_rasterizer_state
-		{
-			.multisample_enable			= true,
-			.alpha_to_coverage_enable	= true
-		});
-
-		_renderContext->SetBlendState(no_blend);
 
 		frame_data_block const frameData
 		{
@@ -262,39 +430,9 @@ namespace tao_gizmos
 
 		_frameDataUbo.SetSubData(0, sizeof(frame_data_block), &frameData);
 
-		_pointsShader.UseProgram();
+		RenderPointGizmos();
 
-		for(auto& pGzm : _pointGizmos)
-		{
-			const bool hasTexture = pGzm.second._symbolAtlas.has_value();
-			if (hasTexture)
-			{
-				pGzm.second._symbolAtlas->BindToTextureUnit(tex_unit_0);
-
-				(pGzm.second._symbolAtlasLinearFilter
-					? _linearSampler
-					: _nearestSampler)
-					                     .BindToTextureUnit(tex_unit_0);
-
-				_pointsShader.SetUniform  (POINTS_TEX_ATLAS_NAME, 0);
-			}
-			points_obj_data_block const objData
-			{
-				.size		  = pGzm.second._pointSize,
-				.snap		  = pGzm.second._snap,
-				.has_texture  = hasTexture
-			};
-			_pointsObjDataUbo.SetSubData(0, sizeof(points_obj_data_block), &objData);
-
-			pGzm.second._vao.Bind();
-			_renderContext->DrawArrays(pmt_type_points, 0, pGzm.second._instanceCount);
-
-			if(hasTexture)
-			{
-				OglTexture2D::UnBindToTextureUnit(tex_unit_0);
-				OglSampler::  UnBindToTextureUnit(tex_unit_0);
-			}
-		}
+		RenderLineGizmos();
 
 		OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
 

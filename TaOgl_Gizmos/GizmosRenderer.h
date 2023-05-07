@@ -10,10 +10,6 @@ namespace tao_gizmos
 	using namespace glm;
 	using namespace std;
 
-	class LineGizmo
-	{
-
-	};
 	class PolylineGizmo
 	{
 
@@ -45,7 +41,7 @@ namespace tao_gizmos
 	};
 	struct point_gizmo_descriptor
 	{
-		unsigned int			 point_size				 = 1;
+		unsigned int			 point_half_size		 = 1;
 		bool					 snap_to_pixel			 = false;
 		symbol_atlas_descriptor* symbol_atlas_descriptor = nullptr;
 	};
@@ -65,6 +61,7 @@ namespace tao_gizmos
 		OglVertexAttribArray	_vao;
 		optional<OglTexture2D>  _symbolAtlas;
 		optional<vector<vec4>>  _symbolAtlasTexCoordLUT;
+
 		// settings
 		// ------------------------------
 		unsigned int _pointSize;
@@ -74,11 +71,46 @@ namespace tao_gizmos
 		// static utils
 		// ------------------------------
 		static ogl_texture_internal_format GetSymbolAtlasFormat(ogl_texture_format format);
-		static vector<vec4> GetSymbolAtlasTexCoordLUT(symbol_atlas_descriptor desc);
-
+		
 		// this will be called by GizomsRenderer instances
 		PointGizmo(RenderContext& rc, const point_gizmo_descriptor& desc);
-		void SetInstanceData(const vector<vec3>& positions, const vector<vec4>& colors, const optional<vector<unsigned int>>&);
+		void SetInstanceData(const vector<vec3>& positions, const vector<vec4>& colors, const optional<vector<unsigned int>>& symbolIndices);
+	};
+
+	struct line_gizmo_instance
+	{
+		vec3			start;
+		vec3			end;
+		vec4			color;
+	};
+
+	struct line_gizmo_descriptor
+	{
+		unsigned int line_size = 1;
+	};
+
+	class LineGizmo
+	{
+		friend class GizmosRenderer;
+	private:
+		unsigned int _instanceCount = 0;
+		unsigned int _vboCapacity   = 0;
+
+		// graphics data
+		// -----------------------------
+		vector<vec3> _positionList;
+		vector<vec4> _colorList;
+
+		OglVertexBuffer			_vbo;
+		OglVertexAttribArray	_vao;
+
+		// settings
+		// ------------------------------
+		unsigned int _lineSize;
+
+		// this will be called by GizomsRenderer instances
+		LineGizmo(RenderContext& rc, const line_gizmo_descriptor& desc);
+		void SetInstanceData(const vector<vec3>& positions, const vector<vec4>& colors);
 	};
 
 	class GizmosRenderer
@@ -105,6 +137,11 @@ namespace tao_gizmos
 		OglFramebuffer<OglTexture2DMultisample> _mainFramebuffer;
 
 		map<unsigned int, PointGizmo> _pointGizmos;
+		map<unsigned int, LineGizmo>  _lineGizmos;
+
+		void RenderPointGizmos();
+		void RenderLineGizmos();
+		void RenderMeshGizmos();
 
 	public:
 		GizmosRenderer(RenderContext& rc, int windowWidth, int windowHeight);
@@ -115,5 +152,9 @@ namespace tao_gizmos
 		void CreatePointGizmo(unsigned int pointGizmoIndex, const point_gizmo_descriptor& desc);
 		void DestroyPointGizmo(unsigned int pointGizmoIndex);
 		void InstancePointGizmo(unsigned int pointGizmoIndex, const vector<point_gizmo_instance>& instances);
+
+		void CreateLineGizmo(unsigned int lineGizmoIndex, const line_gizmo_descriptor& desc);
+		void DestroyLineGizmo(unsigned int lineGizmoIndex);
+		void InstanceLineGizmo(unsigned int lineGizmoIndex, const vector<line_gizmo_instance>& instances);
 	};
 }

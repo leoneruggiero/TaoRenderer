@@ -26,8 +26,7 @@ namespace tao_gizmos
 	#pragma pack(4)
 	struct lines_obj_data_block
 	{
-		glm::mat4	model_matrix;
-		float		size;
+		unsigned int size;
 	};
 
 	#pragma pack(4)

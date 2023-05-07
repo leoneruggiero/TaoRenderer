@@ -63,20 +63,25 @@ int main()
 {
 	try
 	{
-		int width = 1920;
-		int height = 1080;
-		RenderContext rc{width, height};
-		GizmosRenderer gizRdr{rc, width, height};
+		int windowWidth  = 1920;
+		int windowHeight = 1080;
+		int fboWidth	 = 0;
+		int fboHeight	 = 0;
+
+		RenderContext rc{ windowWidth, windowHeight };
+		rc.GetFramebufferSize(fboWidth, fboHeight);
+		GizmosRenderer gizRdr{rc, fboWidth, fboHeight};
 
 		mouse_input_data mouseRotateData;
 		mouse_input_data mouseZoomData;
-		bool enableRotate = false;
-		bool enableZoom = false;
-		MouseInputListener mouseRotate{
+		bool enableRotate	= false;
+		bool enableZoom		= false;
+		MouseInputListener mouseRotate
+		{
 			[&rc]()
 			{
 				return
-					rc.Mouse().IsPressed(middle_mouse_button) &&
+					rc.Mouse().IsPressed(left_mouse_button) &&
 					!rc.Mouse().IsKeyPressed(left_shift_key);
 			},
 			[&mouseRotateData, &enableRotate]()
@@ -89,11 +94,12 @@ int main()
 			},
 			120.0f
 		};
-		MouseInputListener mouseZoom{
+		MouseInputListener mouseZoom
+		{
 			[&rc]()
 			{
 				return
-					rc.Mouse().IsPressed(middle_mouse_button) &&
+					rc.Mouse().IsPressed(left_mouse_button) &&
 					rc.Mouse().IsKeyPressed(left_shift_key);
 			},
 			[&mouseZoomData, &enableZoom ]()
@@ -106,35 +112,64 @@ int main()
 			},
 			120.0f
 		};
+
 		rc.Mouse().AddListener(mouseRotate);
 		rc.Mouse().AddListener(mouseZoom);
 
-		vec3 eyePos = vec3(0.f, -5.f, 5.f);
-		vec3 eyeTrg = vec3(0.f);
-		vec3 up = vec3(0.f, 0.f, 1.f);
+		vec3 eyePos		= vec3(0.f, -5.f, 5.f);
+		vec3 eyeTrg		= vec3(0.f);
+		vec3 up			= vec3(0.f, 0.f, 1.f);
 		mat4 viewMatrix = glm::lookAt(eyePos, eyeTrg, up);
-		mat4 projMatrix = glm::perspective(radians<float>(60), static_cast<float>(width) / height, 0.01f, 20.f);
+		mat4 projMatrix = glm::perspective(radians<float>(60), static_cast<float>(fboWidth) / fboHeight, 0.01f, 20.f);
 
-		float zoomDeltaX = 0.0f;
-		float zoomDeltaY = 0.0f;
-		float rotateDeltaX = 0.0f;
-		float rotateDeltaY = 0.0f;
+		float zoomDeltaX	= 0.0f;
+		float zoomDeltaY	= 0.0f;
+		float rotateDeltaX	= 0.0f;
+		float rotateDeltaY	= 0.0f;
 
 		time_point startTime = high_resolution_clock::now();
 
-		constexpr int xSub		= 20;
-		constexpr int ySub		= 20;
+		constexpr int xSub		= 40;
+		constexpr int ySub		= 40;
 		constexpr float scale	= 6.0f;
-		constexpr float speed	= 0.0005f;
+		constexpr float speed	= 0.004f;
 		constexpr float sinFreq = 3.0f;
 		constexpr float sinAmpl = 0.25f;
+
+		gizRdr.CreateLineGizmo(0, line_gizmo_descriptor
+		{
+				.line_size = 4
+		});
+
+		gizRdr.InstanceLineGizmo(0,
+		{
+			line_gizmo_instance
+			{
+				.start	= vec3(0.0f),
+				.end	= vec3(3.0f, 0.0f, 0.0f),
+				.color  = vec4(0.9f, 0.0f, 0.1f, 1.0f)
+			},
+			line_gizmo_instance
+			{
+				.start	= vec3(0.0f),
+				.end	= vec3(0.0f, 3.0f, 0.0f),
+				.color	= vec4(0.0f, 0.9f, 0.1f, 1.0f)
+			},
+			line_gizmo_instance
+			{
+				.start	= vec3(0.0f),
+				.end	= vec3(0.0f, 0.0f, 3.0f),
+				.color	= vec4(0.0f, 0.0f, 0.9f, 1.0f)
+			}
+		});
+
 		vector<point_gizmo_instance> ptsInstances{ xSub * ySub };
 
 		int textAtlasW;
 		int texAtlasH;
 		int texAtlasChannels;
 		stbi_set_flip_vertically_on_load(true);
-		const void* texAtlasData = stbi_load("c:\\Users\\Admin\\Downloads\\textAtlas03.png", &textAtlasW, &texAtlasH, &texAtlasChannels, STBI_rgb_alpha);
+		const void* texAtlasData = stbi_load("c:\\Users\\Admin\\Pictures\\pointSprite32.png", &textAtlasW, &texAtlasH, &texAtlasChannels, STBI_rgb_alpha);
 
 		vector<symbol_mapping> texAtlasMapping{ 64 };
 		float sx = 1.0f / 8;
@@ -156,15 +191,15 @@ int main()
 			.symbol_atlas_data_type		= tex_typ_unsigned_byte,
 			.symbol_atlas_width			= textAtlasW,
 			.symbol_atlas_height		= texAtlasH,
-			.symbol_atlas_mapping		= texAtlasMapping,
-			.symbol_filter_smooth		= false
+			.symbol_atlas_mapping		= {symbol_mapping{.uv_min = vec2(0), .uv_max = vec2(1)}},
+			.symbol_filter_smooth		= true
 		};
 
 		gizRdr.CreatePointGizmo(1, point_gizmo_descriptor
 			{
-				.point_size = 50,
-				.snap_to_pixel = true,
-				.symbol_atlas_descriptor = &desc
+				.point_half_size = 8,
+				.snap_to_pixel = false,
+				.symbol_atlas_descriptor =  &desc
 			});
 
 		while (!rc.ShouldClose())
@@ -211,28 +246,28 @@ int main()
 				duration<double, std::milli>(speed * (high_resolution_clock::now() - startTime)).count();
 
 			for (int i = 0; i < xSub; i++)
-				for (int j = 0; j < ySub; j++)
-				{
-					const float xPos = static_cast<float>(i) / xSub * scale - scale * 0.5f;
-					const float yPos = static_cast<float>(j) / ySub * scale - scale * 0.5f;
+			for (int j = 0; j < ySub; j++)
+			{
+				const float xPos = static_cast<float>(i) / xSub * scale - scale * 0.5f;
+				const float yPos = static_cast<float>(j) / ySub * scale - scale * 0.5f;
 
-					const float dst =  sqrt(pow(xPos, 2.f) + pow(yPos, 2.f));
-					const float func = sinAmpl * sin(sinFreq * dst - offset);
-					const vec4  color = Gradient(func / sinAmpl * 0.5f + 0.5f,
-						vec4(0.1f, 0.f, 0.3f, 1.f),
-						vec4(0.2f, 0.5f, 0.5f, 1.f),
-						vec4(1.f, 0.f, 0.6f, 1.0f)
-					);
-					ptsInstances[i * ySub + j] = point_gizmo_instance
-					{
-						.position = vec3(xPos, yPos, func),
-						.color = vec4(1.0f),
-						.symbol_index = 6 //  static_cast<unsigned int>((func / sinAmpl * 0.5 + 0.5) * 8)
-					};
-				}
+				const float dst =  sqrt(pow(xPos, 2.f) + pow(yPos, 2.f));
+				const float func = sinAmpl * sin(sinFreq * dst - offset);
+				const vec4  color = Gradient(func / sinAmpl * 0.5f + 0.5f,
+					vec4(0.1f, 0.f, 0.3f, 1.f),
+					vec4(0.2f, 0.5f, 0.5f, 1.f),
+					vec4(1.f, 0.f, 0.6f, 1.0f)
+				);
+				ptsInstances[i * ySub + j] = point_gizmo_instance
+				{
+					.position		= vec3(xPos, yPos, func),
+					.color			= color,
+					.symbol_index	= 0 //static_cast<unsigned int>((func / sinAmpl * 0.5 + 0.5) * 8)
+				};
+			}
 
 			gizRdr.InstancePointGizmo(1, ptsInstances);
-			gizRdr.Render(viewMatrix, projMatrix).CopyTo(nullptr, width, height, fbo_copy_mask_color_bit);
+			gizRdr.Render(viewMatrix, projMatrix).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
 
 #if DEBUG_MOUSE
 			float mmbX, mmbY, mmbXsmooth, mmbYsmooth;

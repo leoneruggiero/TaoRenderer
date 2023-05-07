@@ -8,13 +8,18 @@ layout(triangle_strip, max_vertices = 4) out;
 out GS_OUT
 {
     vec4 v_color;
-    vec2 v_texCoord;
-}gs_out;
+}
+gs_out;
+
+in VS_OUT
+{
+    vec4  v_color;
+}
+gs_in[];
 
 void main() {
         
-    gs_out.v_color = vec4(0.0);
-    gs_out.v_texCoord = vec2(0.0);
+    gs_out.v_color = gs_in[0].v_color;
 
     // Normal in screen space
     vec2 n0_ss = 

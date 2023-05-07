@@ -49,7 +49,7 @@ namespace tao_gizmos
         switch (shaderType)
         {
         case(gizmos_shader_type::points):   vertSrcFile = POINTS_VERT_SRC;  geomSrcFile = POINTS_GEO_SRC;       fragSrcFile = POINTS_FRAG_SRC;  break;
-        case(gizmos_shader_type::lines):    vertSrcFile = LINES_VERT_SRC;   geomSrcFile = LINES_GEO_SRC;        fragSrcFile = FRAG_SRC;         break;
+        case(gizmos_shader_type::lines):    vertSrcFile = LINES_VERT_SRC;   geomSrcFile = LINES_GEO_SRC;        fragSrcFile = LINES_FRAG_SRC;   break;
         case(gizmos_shader_type::lineStrip):vertSrcFile = LINES_VERT_SRC;   geomSrcFile = LINE_STRIP_GEO_SRC;   fragSrcFile = FRAG_SRC;         break;
         default: throw exception(GenericExceptionMsg().c_str());
         }

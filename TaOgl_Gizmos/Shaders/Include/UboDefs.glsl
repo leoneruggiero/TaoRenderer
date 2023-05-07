@@ -13,9 +13,8 @@
 #ifdef GIZMOS_LINES
     layout (std140) uniform blk_PerObjectData
     {
-        uniform mat4    o_modelMat;     // 64  byte
-        uniform float   o_size;         // 4   byte
-                                        // TOTAL => 68 byte
+        uniform uint   o_size;          // 4   byte
+                                        // TOTAL => 4 byte
     };
 #endif
 

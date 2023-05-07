@@ -325,7 +325,7 @@ namespace tao_ogl_resources
     void OglSampler::SetFilterParams(ogl_sampler_filter_params params)
     {
         GL_CALL(glSamplerParameteri(_ogl_obj.ID(), GL_TEXTURE_MIN_FILTER, params.min_filter));
-        GL_CALL(glSamplerParameteri(_ogl_obj.ID(), GL_TEXTURE_MIN_FILTER, params.mag_filter));
+        GL_CALL(glSamplerParameteri(_ogl_obj.ID(), GL_TEXTURE_MAG_FILTER, params.mag_filter));
     }
     void OglSampler::SetLodParams(ogl_sampler_lod_params params)
     {
