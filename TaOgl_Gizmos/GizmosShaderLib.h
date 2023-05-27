@@ -20,16 +20,23 @@ namespace tao_gizmos
 
     private:
 
-        static constexpr const char* INCLUDE_DIRECTIVE  = "//! #include";
-        static constexpr const char* LINE_STRIP_GEO_SRC = "ThickLineStrip.geom";
-        static constexpr const char* POINTS_GEO_SRC     = "ThickPoints.geom";
-        static constexpr const char* POINTS_VERT_SRC    = "Points.vert";
-        static constexpr const char* POINTS_FRAG_SRC    = "Points.frag";
-        static constexpr const char* LINES_VERT_SRC     = "Lines.vert";
-        static constexpr const char* LINES_GEO_SRC      = "ThickLines.geom";
-        static constexpr const char* LINES_FRAG_SRC     = "Lines.frag";
-        static constexpr const char* FRAG_SRC           = "MeshUnlit.frag";
-        static constexpr const char* EXC_PREAMBLE       = "GizmosShaderLibrary: ";
+        static constexpr const char* INCLUDE_DIRECTIVE   = "//! #include";
+
+        static constexpr const char* LINE_STRIP_VERT_SRC = "LineStrip.vert";
+        static constexpr const char* LINE_STRIP_GEO_SRC  = "ThickLineStrip.geom";
+        static constexpr const char* LINE_STRIP_FRAG_SRC = "LineStrip.frag";
+
+        static constexpr const char* POINTS_GEO_SRC      = "ThickPoints.geom";
+        static constexpr const char* POINTS_VERT_SRC     = "Points.vert";
+        static constexpr const char* POINTS_FRAG_SRC     = "Points.frag";
+
+        static constexpr const char* LINES_VERT_SRC      = "Lines.vert";
+        static constexpr const char* LINES_GEO_SRC       = "ThickLines.geom";
+        static constexpr const char* LINES_FRAG_SRC      = "Lines.frag";
+
+        static constexpr const char* FRAG_SRC            = "MeshUnlit.frag";
+        static constexpr const char* EXC_PREAMBLE        = "GizmosShaderLibrary: ";
+
         static string FileNotFoundExceptionMsg(const char* filePath)
         {
             return string{}

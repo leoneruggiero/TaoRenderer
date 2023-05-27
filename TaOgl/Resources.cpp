@@ -73,8 +73,8 @@ namespace tao_ogl_resources
         }
 
     }
-    void OglShaderProgram::AttachShader(GLuint shader) { GL_CALL(glAttachShader(_ogl_obj.ID(), shader)); }
-    void OglShaderProgram::UseProgram() { GL_CALL(glUseProgram(_ogl_obj.ID())); }
+    void OglShaderProgram::AttachShader(GLuint shader)  { GL_CALL(glAttachShader(_ogl_obj.ID(), shader)); }
+    void OglShaderProgram::UseProgram()                 { GL_CALL(glUseProgram  (_ogl_obj.ID())); }
     
     GLint OglShaderProgram::GetUniformLocation(const char* name) const
     {
@@ -171,6 +171,7 @@ namespace tao_ogl_resources
     /// Shader Storage Buffer
     ////////////////////////////
     void OglShaderStorageBuffer::Bind(GLuint index) { GL_CALL(glBindBufferBase(GL_SHADER_STORAGE_BUFFER, index, _ogl_obj.ID())); }
+    void OglShaderStorageBuffer::BindRange(GLuint index, GLintptr offset, GLsizeiptr size) { GL_CALL(glBindBufferRange(GL_SHADER_STORAGE_BUFFER, index, _ogl_obj.ID(), offset, size)); }
     void OglShaderStorageBuffer::SetData(GLsizeiptr size, const void* data, ogl_buffer_usage usage) { namedBufferData(_ogl_obj.ID(), size, data, usage); }
     void OglShaderStorageBuffer::SetSubData(GLintptr offset, GLsizeiptr size, const void* data) { namedBufferSubData(_ogl_obj.ID(), offset, size, data); }
 

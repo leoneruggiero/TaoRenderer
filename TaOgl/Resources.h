@@ -392,6 +392,7 @@ namespace tao_ogl_resources
 
 	public:
 		void Bind(GLuint index);
+		void BindRange(GLuint index, GLintptr offset, GLsizeiptr size);
 		void SetData(GLsizeiptr size, const void* data, ogl_buffer_usage usage);
 		void SetSubData(GLintptr offset, GLsizeiptr size, const void* data);
 

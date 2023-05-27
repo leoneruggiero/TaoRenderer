@@ -3,9 +3,9 @@
 #ifdef GIZMOS_POINTS
     layout (std140) uniform blk_PerObjectData
     {
-        uniform uint    o_size;         // 4  byte
-        uniform bool    o_snap;         // 4  byte
-        uniform bool    o_hasTexture;   // 4 bytes
+        uniform uint    o_size;         // 4 byte
+        uniform bool    o_snap;         // 4 byte
+        uniform bool    o_hasTexture;   // 4 byte
                                         // TOTAL => 12 byte
     };
 #endif
@@ -13,8 +13,21 @@
 #ifdef GIZMOS_LINES
     layout (std140) uniform blk_PerObjectData
     {
-        uniform uint   o_size;          // 4   byte
-                                        // TOTAL => 4 byte
+        uniform uint   o_size;          // 4 byte
+        uniform bool   o_hasTexture;    // 4 byte
+        uniform uint   o_patternSize;   // 4 byte
+                                        // TOTAL => 12 byte
+    };
+#endif
+
+#ifdef GIZMOS_LINE_STRIP
+    layout (std140) uniform blk_PerObjectData
+    {
+        uniform uint   o_size;          // 4 byte
+        uniform bool   o_hasTexture;    // 4 byte
+        uniform uint   o_patternSize;   // 4 byte
+        uniform uint   o_vertCount;     // 4 byte
+                                        // TOTAL => 16 byte
     };
 #endif
 

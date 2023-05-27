@@ -7,6 +7,7 @@
 #include <chrono>
 #include "RenderContext.h"
 #include "GizmosRenderer.h"
+#include "GizmosHelper.h"
 #include "../../TestApp_OpenGL/TestApp_OpenGL/stb_image.h"
 
 using namespace std;
@@ -59,6 +60,112 @@ void MouseInputUpdate(mouse_input_data& data, float newX, float newY, float& del
 	deltaY = data.currMouseY - data.prevMouseY;
 }
 
+vector<vec3> Circle(float radius, unsigned int subdv)
+{
+	float da = pi<float>()*2.0f/subdv;
+
+	vector<vec3> pts(subdv + 1);
+
+	for (unsigned int i = 0; i <= subdv; i++)
+	pts[i] = vec3
+	{
+		cos(i * da),
+		sin(i * da),
+		1.0f
+	} * radius;
+
+	return pts;
+}
+
+void InitGrid(GizmosRenderer& gr)
+{
+	constexpr float width			= 10.0f;
+	constexpr float height			= 10.0f;
+	constexpr unsigned int subdvX	= 11;
+	constexpr unsigned int subdvY	= 11;
+	constexpr vec4 gridColor		= vec4{ 0.8, 0.8, 0.8, 0.5 };
+
+	gr.CreateLineGizmo(1, line_gizmo_descriptor{ 2, nullptr });
+
+	vector<line_gizmo_instance> instances{ subdvX + subdvY };
+
+	for (unsigned int i = 0; i < subdvX; i++)
+	{
+		instances[i] = line_gizmo_instance
+		{
+			.start	= vec3{(-width / 2.0f) + (width / (subdvX-1)) * i , -height / 2.0f , -0.001f},
+			.end	= vec3{(-width / 2.0f) + (width / (subdvX-1)) * i ,  height / 2.0f , -0.001f},
+			.color  = gridColor
+		};
+	}
+
+	for (unsigned int j = 0; j < subdvY; j++)
+	{
+		instances[j + subdvX] = line_gizmo_instance
+		{
+			.start = vec3{-width / 2.0f, (-height / 2.0f) + (height / (subdvY-1)) * j , -0.001f},
+			.end   = vec3{ width / 2.0f, (-height / 2.0f) + (height / (subdvY-1)) * j , -0.001f},
+			.color = gridColor
+		};
+	}
+
+	gr.InstanceLineGizmo(1, instances);
+}
+void InitWorldAxis(GizmosRenderer& gr)
+{
+	/// Create 3 dashed axis in X,Y and Z
+	//////////////////////////////////////////
+
+	constexpr unsigned int lineWidth  = 4;
+	constexpr unsigned int patternLen = 20;
+
+	// dashed pattern
+	tao_gizmos_procedural::TextureDataRgbaUnsignedByte patternTex
+	{
+		patternLen,
+		lineWidth,
+		tao_gizmos_procedural::TexelData<4,unsigned char>({0,0,0,0})
+	};
+
+	patternTex.FillWithFunction([](unsigned x, unsigned y)
+	{
+		float h = lineWidth / 2;
+		float v = tao_gizmos_sdf::SdfSegment(vec2(x,y), vec2(4, h), vec2(16, h));
+			  v = tao_gizmos_sdf::SdfInflate(v, 3.0f);
+
+		float a = glm::clamp(0.5f - v, 0.0f, 1.0f);
+		return vec<4, unsigned char>{255, 255, 255, static_cast<unsigned char>(a * 255)};
+	});
+
+	pattern_texture_descriptor patternDesc
+	{
+		.data			= patternTex.DataPtr(),
+		.data_format	= tex_for_rgba,
+		.data_type		= tex_typ_unsigned_byte,
+		.width			= patternLen,
+		.height			= lineWidth,
+		.pattern_length = patternLen
+	};
+
+	gr.CreateLineGizmo(0, line_gizmo_descriptor
+	{
+		.line_size = lineWidth,
+		.pattern_texture_descriptor = &patternDesc
+	});
+
+	gr.InstanceLineGizmo(0,
+{
+		line_gizmo_instance{{0,0,0}, {5,0,0}, {1, 0, 0, 1}}, // X axis (red)
+		line_gizmo_instance{{0,0,0}, {0,5,0}, {0, 1, 0, 1}}, // Y axis (green)
+		line_gizmo_instance{{0,0,0}, {0,0,5}, {0, 0, 1, 1}}, // Z axis (blue)
+	});
+}
+void InitGizmos(GizmosRenderer& gr)
+{
+	InitWorldAxis(gr);
+	InitGrid	 (gr);
+}
+
 int main()
 {
 	try
@@ -92,7 +199,7 @@ int main()
 			[]()
 			{
 			},
-			120.0f
+			60.0f
 		};
 		MouseInputListener mouseZoom
 		{
@@ -110,17 +217,18 @@ int main()
 			[]()
 			{
 			},
-			120.0f
+			60.0f
 		};
 
 		rc.Mouse().AddListener(mouseRotate);
 		rc.Mouse().AddListener(mouseZoom);
 
-		vec3 eyePos		= vec3(0.f, -5.f, 5.f);
+		vec2 nearFar	= vec2(0.001f, 20.f);
+		vec3 eyePos		= vec3(-2.5f, -2.5f, 2.f);
 		vec3 eyeTrg		= vec3(0.f);
 		vec3 up			= vec3(0.f, 0.f, 1.f);
 		mat4 viewMatrix = glm::lookAt(eyePos, eyeTrg, up);
-		mat4 projMatrix = glm::perspective(radians<float>(60), static_cast<float>(fboWidth) / fboHeight, 0.01f, 20.f);
+		mat4 projMatrix = glm::perspective(radians<float>(60), static_cast<float>(fboWidth) / fboHeight, nearFar.x, nearFar.y);
 
 		float zoomDeltaX	= 0.0f;
 		float zoomDeltaY	= 0.0f;
@@ -129,78 +237,66 @@ int main()
 
 		time_point startTime = high_resolution_clock::now();
 
-		constexpr int xSub		= 40;
-		constexpr int ySub		= 40;
-		constexpr float scale	= 6.0f;
-		constexpr float speed	= 0.004f;
-		constexpr float sinFreq = 3.0f;
-		constexpr float sinAmpl = 0.25f;
+		InitGizmos(gizRdr);
 
-		gizRdr.CreateLineGizmo(0, line_gizmo_descriptor
+		// Add some line strips
+		vector<vec3> strip = Circle(1.0f, 4);
+
+		// dashed pattern
+		unsigned int lineWidth  = 16;
+		unsigned int patternLen = 32;
+		tao_gizmos_procedural::TextureDataRgbaUnsignedByte patternTex
 		{
-				.line_size = 4
-		});
-
-		gizRdr.InstanceLineGizmo(0,
-		{
-			line_gizmo_instance
-			{
-				.start	= vec3(0.0f),
-				.end	= vec3(3.0f, 0.0f, 0.0f),
-				.color  = vec4(0.9f, 0.0f, 0.1f, 1.0f)
-			},
-			line_gizmo_instance
-			{
-				.start	= vec3(0.0f),
-				.end	= vec3(0.0f, 3.0f, 0.0f),
-				.color	= vec4(0.0f, 0.9f, 0.1f, 1.0f)
-			},
-			line_gizmo_instance
-			{
-				.start	= vec3(0.0f),
-				.end	= vec3(0.0f, 0.0f, 3.0f),
-				.color	= vec4(0.0f, 0.0f, 0.9f, 1.0f)
-			}
-		});
-
-		vector<point_gizmo_instance> ptsInstances{ xSub * ySub };
-
-		int textAtlasW;
-		int texAtlasH;
-		int texAtlasChannels;
-		stbi_set_flip_vertically_on_load(true);
-		const void* texAtlasData = stbi_load("c:\\Users\\Admin\\Pictures\\pointSprite32.png", &textAtlasW, &texAtlasH, &texAtlasChannels, STBI_rgb_alpha);
-
-		vector<symbol_mapping> texAtlasMapping{ 64 };
-		float sx = 1.0f / 8;
-		float sy = 1.0f / 4;
-		for (int i = 0; i < 8; i++)
-		for (int j = 0; j < 4; j++)
-		{
-			texAtlasMapping[i+j*8] = symbol_mapping
-			{
-				.uv_min = vec2(sx   *i,    sy *  j),
-				.uv_max = vec2(sx * (i+1), sy * (j+1))
-			};
-		}
-
-		symbol_atlas_descriptor desc =
-		{
-			.symbol_atlas_data			= texAtlasData,
-			.symbol_atlas_data_format	= tex_for_rgba,
-			.symbol_atlas_data_type		= tex_typ_unsigned_byte,
-			.symbol_atlas_width			= textAtlasW,
-			.symbol_atlas_height		= texAtlasH,
-			.symbol_atlas_mapping		= {symbol_mapping{.uv_min = vec2(0), .uv_max = vec2(1)}},
-			.symbol_filter_smooth		= true
+			patternLen,
+			lineWidth,
+			tao_gizmos_procedural::TexelData<4,unsigned char>({0,0,0,0})
 		};
 
-		gizRdr.CreatePointGizmo(1, point_gizmo_descriptor
+		patternTex.FillWithFunction([lineWidth, patternLen](unsigned x, unsigned y)
 			{
-				.point_half_size = 8,
-				.snap_to_pixel = false,
-				.symbol_atlas_descriptor =  &desc
+				float h = lineWidth / 2;
+				float k = patternLen / 10;
+
+			    // dash
+				float v0 = tao_gizmos_sdf::SdfSegment(vec2(x, y), vec2(6 * k, h), vec2(9 * k, h));
+				v0 = tao_gizmos_sdf::SdfInflate(v0, h / 2.0f);
+
+			    // dot
+				float v1 = tao_gizmos_sdf::SdfCircle(vec2(x, y), h/2.0f).Translate(vec2(2.5 * k, h));
+
+				float v = tao_gizmos_sdf::SdfAdd(v0, v1);
+				float a = glm::clamp(0.5f - v, 0.0f, 1.0f); // `anti aliasing`
+				return vec<4, unsigned char>{255, 255, 255, static_cast<unsigned char>(a * 255)};
 			});
+
+		pattern_texture_descriptor patternDesc
+		{
+			.data = patternTex.DataPtr(),
+			.data_format = tex_for_rgba,
+			.data_type = tex_typ_unsigned_byte,
+			.width = patternLen,
+			.height = lineWidth,
+			.pattern_length = patternLen
+		};
+
+		gizRdr.CreateLineStripGizmo(0, line_strip_gizmo_descriptor
+		{
+			.vertices = &strip,
+			.isLoop = true,
+			.line_size = lineWidth,
+			.pattern_texture_descriptor = &patternDesc
+		});
+
+		gizRdr.InstanceLineStripGizmo(0,
+			{
+				line_strip_gizmo_instance{translate(mat4(1.0f), {0.0, 0.0, 0.0}), vec4(1.0, 0.0, 0.25, 1.0)},
+				line_strip_gizmo_instance{translate(mat4(1.0f), {0.5, 0.0, 0.2}), vec4(1.0, 0.0, 0.25, 1.0)},
+				line_strip_gizmo_instance{translate(mat4(1.0f), {1.0, 0.0, 0.4}), vec4(1.0, 0.0, 0.25, 1.0)},
+				line_strip_gizmo_instance{translate(mat4(1.0f), {1.5, 0.0, 0.6}), vec4(1.0, 0.0, 0.25, 1.0)},
+				line_strip_gizmo_instance{translate(mat4(1.0f), {2.0, 0.0, 0.8}), vec4(1.0, 0.0, 0.25, 1.0)},
+				line_strip_gizmo_instance{translate(mat4(1.0f), {2.5, 0.0, 1.0}), vec4(1.0, 0.0, 0.25, 1.0)},
+			});
+
 
 		while (!rc.ShouldClose())
 		{
@@ -220,8 +316,10 @@ int main()
 			{
 				mat4 rotZ = glm::rotate(mat4(1.0f), -2.f * pi<float>() * rotateDeltaX, up);
 				eyePos = rotZ * vec4(eyePos, 1.0);
+
 				vec3 right = cross(up, eyeTrg - eyePos);
-				right = normalize(right);
+					 right = normalize(right);
+
 				mat4 rotX = glm::rotate(mat4(1.0f), -pi<float>() * rotateDeltaY, right);
 				vec3 newEyePos = rotX * vec4(eyePos, 1.0);
 
@@ -234,76 +332,15 @@ int main()
 			if (enableZoom)
 			{
 				float eyeDst = length(eyePos - eyeTrg) - zoomDeltaY * 20.0f;
-				eyeDst = glm::clamp(eyeDst, 1.0f, 20.0f);
-				eyePos = eyeTrg + eyeDst * normalize(eyePos - eyeTrg);
+					  eyeDst = glm::clamp(eyeDst, 1.0f, 20.0f);
+					  eyePos = eyeTrg + eyeDst * normalize(eyePos - eyeTrg);
 			}
 
 			viewMatrix = glm::lookAt(eyePos, eyeTrg, up);
 			// ----------------------------------------------------------------------
 
-			// update time in milliseconds
-			float offset =
-				duration<double, std::milli>(speed * (high_resolution_clock::now() - startTime)).count();
-
-			for (int i = 0; i < xSub; i++)
-			for (int j = 0; j < ySub; j++)
-			{
-				const float xPos = static_cast<float>(i) / xSub * scale - scale * 0.5f;
-				const float yPos = static_cast<float>(j) / ySub * scale - scale * 0.5f;
-
-				const float dst =  sqrt(pow(xPos, 2.f) + pow(yPos, 2.f));
-				const float func = sinAmpl * sin(sinFreq * dst - offset);
-				const vec4  color = Gradient(func / sinAmpl * 0.5f + 0.5f,
-					vec4(0.1f, 0.f, 0.3f, 1.f),
-					vec4(0.2f, 0.5f, 0.5f, 1.f),
-					vec4(1.f, 0.f, 0.6f, 1.0f)
-				);
-				ptsInstances[i * ySub + j] = point_gizmo_instance
-				{
-					.position		= vec3(xPos, yPos, func),
-					.color			= color,
-					.symbol_index	= 0 //static_cast<unsigned int>((func / sinAmpl * 0.5 + 0.5) * 8)
-				};
-			}
-
-			gizRdr.InstancePointGizmo(1, ptsInstances);
-			gizRdr.Render(viewMatrix, projMatrix).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
-
-#if DEBUG_MOUSE
-			float mmbX, mmbY, mmbXsmooth, mmbYsmooth;
-			float lmbX, lmbY, lmbXsmooth, lmbYsmooth;
-
-			mouseMMB.PositionNormalized(mmbX, mmbY);
-			mouseMMB.PositionNormalized(mmbXsmooth, mmbYsmooth, true);
-			mouseRMB.PositionNormalized(lmbX, lmbY);
-			mouseRMB.PositionNormalized(lmbXsmooth, lmbYsmooth, true);
-
-			gizRdr.InstancePointGizmo(1,
-				{
-				point_gizmo_instance
-				{
-					.position = vec3(mmbX, mmbY, 0.0f) * 2.f - 1.f,
-					.color = vec4(0.f, 0.f, 1.f, 1.f)
-				},
-				point_gizmo_instance
-				{
-					.position = vec3(mmbXsmooth, mmbYsmooth, 0.0f) * 2.f - 1.f,
-					.color = vec4(1.f, 0.f, 0.f, 1.f)
-				},
-				point_gizmo_instance
-				{
-					.position = vec3(lmbX, lmbY, 0.0f) * 2.f - 1.f,
-					.color = vec4(1.f, 0.f, 0.f, 1.f)
-				} ,
-				point_gizmo_instance
-				{
-					.position = vec3(lmbXsmooth, lmbYsmooth, 0.0f) * 2.f - 1.f,
-					.color = vec4(0.f, 1.f, 0.f, 1.f)
-				}
-				});
-
-			gizRdr.Render(mat4(1.0), mat4(1.0));
-#endif
+			
+			gizRdr.Render(viewMatrix, projMatrix, nearFar).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
 
 			rc.SwapBuffers();
 			rc.PollEvents();

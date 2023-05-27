@@ -30,6 +30,9 @@
     <ClInclude Include="GizmosUtils.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="GizmosHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GizmosShaderLib.cpp">
@@ -69,6 +72,15 @@
     </None>
     <None Include="Shaders\Lines.frag">
       <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\LineStrip.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\LineStrip.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\Include\Helper.glsl">
+      <Filter>Shaders\Include</Filter>
     </None>
   </ItemGroup>
 </Project>

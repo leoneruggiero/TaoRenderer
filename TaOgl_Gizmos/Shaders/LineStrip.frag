@@ -1,5 +1,5 @@
 #version 430 core
-#define GIZMOS_LINES    
+#define GIZMOS_LINE_STRIP    
 //! #include "./Include/UboDefs.glsl"
 
 in GS_OUT
@@ -24,5 +24,6 @@ void main()
         color *= texture(s2D_patternTexture, tc);
     }
 
+   
     FragColor = color;
 }

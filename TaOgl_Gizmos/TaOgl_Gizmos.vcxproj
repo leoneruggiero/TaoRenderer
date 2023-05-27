@@ -147,6 +147,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="GizmosHelper.h" />
     <ClInclude Include="GizmosRenderer.h" />
     <ClInclude Include="GizmosShaderLib.h" />
     <ClInclude Include="GizmosUtils.h" />
@@ -161,9 +162,12 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <None Include="Shaders\Include\Helper.glsl" />
     <None Include="Shaders\Include\UboDefs.glsl" />
     <None Include="Shaders\Lines.frag" />
     <None Include="Shaders\Lines.vert" />
+    <None Include="Shaders\LineStrip.frag" />
+    <None Include="Shaders\LineStrip.vert" />
     <None Include="Shaders\MeshUnlit.frag" />
     <None Include="Shaders\MeshUnlit.vert" />
     <None Include="Shaders\Points.frag" />

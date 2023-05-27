@@ -1,0 +1,8 @@
+
+[*]
+
+# ReSharper properties
+resharper_int_align_comments = true
+resharper_int_align_declaration_names = true
+resharper_int_align_enum_initializers = true
+resharper_int_align_eq = true

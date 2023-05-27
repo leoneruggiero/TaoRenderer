@@ -101,6 +101,11 @@ namespace tao_render_context
 		GL_CALL(glDrawArrays(mode, first, count));
 	}
 
+	void RenderContext::DrawArraysInstanced(ogl_primitive_type mode, GLint first, GLsizei count, GLsizei instanceCount)
+	{
+		GL_CALL(glDrawArraysInstanced(mode, first,  count, instanceCount));
+	}
+
 	OglVertexShader RenderContext::CreateVertexShader()	
 	{
 		return OglVertexShader{ OglResource<vertex_shader>{} };
@@ -217,9 +222,15 @@ namespace tao_render_context
 
 		return vao;
 	}
+
 	OglUniformBuffer RenderContext::CreateUniformBuffer()
 	{
 		return OglUniformBuffer{ OglResource<uniform_buffer>{} };
+	}
+
+	OglShaderStorageBuffer RenderContext::CreateShaderStorageBuffer()
+	{
+		return OglShaderStorageBuffer{ OglResource<shader_storage_buffer>{} };
 	}
 
 	OglTexture2D RenderContext::CreateTexture2D()
