@@ -46,15 +46,22 @@ namespace  tao_render_context
 
 namespace tao_ogl_resources
 {
+	enum ogl_indices_type
+	{
+		idx_typ_unsigned_byte	= GL_UNSIGNED_BYTE,
+		idx_typ_unsigned_int	= GL_UNSIGNED_INT,
+		idx_typ_unsigned_short  = GL_UNSIGNED_SHORT
+	};
+
 	enum ogl_buffer_usage
 	{
-		buf_usg_stream_draw = GL_STREAM_READ,
+		buf_usg_stream_draw = GL_STREAM_DRAW,
 		buf_usg_stream_read = GL_STREAM_READ,
 		buf_usg_stream_copy = GL_STREAM_COPY,
-		buf_usg_static_draw = GL_STATIC_READ,
+		buf_usg_static_draw = GL_STATIC_DRAW,
 		buf_usg_static_read = GL_STATIC_READ,
 		buf_usg_static_copy = GL_STATIC_COPY,
-		buf_usg_dynamic_draw = GL_DYNAMIC_READ,
+		buf_usg_dynamic_draw = GL_DYNAMIC_DRAW,
 		buf_usg_dynamic_read = GL_DYNAMIC_READ,
 		buf_usg_dynamic_copy = GL_DYNAMIC_COPY
 	};

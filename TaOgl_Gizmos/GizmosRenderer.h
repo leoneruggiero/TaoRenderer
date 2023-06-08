@@ -10,22 +10,19 @@ namespace tao_gizmos
 	using namespace glm;
 	using namespace std;
 
-	class MeshGizmo
-	{
-		
-	};
-
 	struct point_gizmo_instance
 	{
 		vec3			position;
 		vec4			color;
 		unsigned int	symbol_index;
 	};
+
 	struct symbol_mapping
 	{
 		vec2 uv_min;
 		vec2 uv_max;
 	};
+
 	struct symbol_atlas_descriptor
 	{
 		const void*				data;
@@ -36,12 +33,14 @@ namespace tao_gizmos
 		vector<symbol_mapping>  mapping;
 		bool					filter_smooth;
 	};
+
 	struct point_gizmo_descriptor
 	{
 		unsigned int			 point_half_size		 = 1;
 		bool					 snap_to_pixel			 = false;
 		symbol_atlas_descriptor* symbol_atlas_descriptor = nullptr;
 	};
+
 	class PointGizmo
 	{
 		friend class GizmosRenderer;
@@ -132,6 +131,7 @@ namespace tao_gizmos
 		unsigned int				line_size = 1;
 		pattern_texture_descriptor* pattern_texture_descriptor = nullptr;
 	};
+
 	class LineStripGizmo
 	{
 		friend class GizmosRenderer;
@@ -161,6 +161,80 @@ namespace tao_gizmos
 		void SetInstanceData(const vector<mat4>& transforms, const vector<vec4>& colors);
 	};
 
+
+	class MeshGizmoVertex
+	{
+	public:
+		glm::vec3 Position;
+		glm::vec3 Normal	 = glm::vec3(0.0f);
+		glm::vec4 Color		 = glm::vec4(1.0f, 0.0f, 1.0f, 1.0f);
+		glm::vec2 TexCoord	 = glm::vec2(0.0f);
+
+		MeshGizmoVertex(glm::vec3 position): Position{position}
+		{
+		}
+
+		MeshGizmoVertex& AddNormal(glm::vec3 normal)
+		{
+			Normal = normal;
+			return *this;
+		}
+
+		MeshGizmoVertex& AddColor(glm::vec4 color)
+		{
+			Color = color;
+			return *this;
+		}
+
+		MeshGizmoVertex& AddTexCoord(glm::vec2 texCoord)
+		{
+			TexCoord = texCoord;
+			return *this;
+		}
+	};
+
+	struct mesh_gizmo_instance
+	{
+		mat4			transformation;
+		vec4			color;
+	};
+
+	struct mesh_gizmo_descriptor
+	{
+		vector<MeshGizmoVertex>*    vertices;
+		vector<unsigned int>*		triangles;
+	};
+
+	class MeshGizmo
+	{
+		friend class GizmosRenderer;
+	private:
+		unsigned int _instanceCount				= 0;
+		unsigned int _vertexCount				= 0;
+		unsigned int _trisCount					= 0;
+		unsigned int _vboVertCapacity			= 0;
+		unsigned int _eboCapacity				= 0;
+		unsigned int _ssboInstanceDataCapacity	= 0;
+
+		// graphics data
+		// --------------------------------------------------------
+		vector<vec3>		  _vertices;
+		vector<unsigned int>  _triangles;
+		// instance data ------------------------------------------
+		vector<mat4> _transformList;    // instance transformation
+		vector<vec4> _colorList;        // instance color
+
+		OglVertexBuffer			_vboVertices;
+		OglVertexAttribArray	_vao;
+		OglIndexBuffer			_ebo;
+		OglShaderStorageBuffer  _ssboInstanceData;
+
+		// this will be called by GizomsRenderer instances
+		MeshGizmo(RenderContext& rc, const mesh_gizmo_descriptor& desc);
+		void SetInstanceData(const vector<mat4>& transforms, const vector<vec4>& colors);
+	};
+
+
 	class GizmosRenderer
 	{
 	private:
@@ -172,13 +246,15 @@ namespace tao_gizmos
 		OglShaderProgram		_pointsShader;
 		OglShaderProgram		_linesShader;
 		OglShaderProgram		_lineStripShader;
+		OglShaderProgram		_meshShader;
 
 		OglUniformBuffer		_pointsObjDataUbo;
 		OglUniformBuffer		_linesObjDataUbo;
 		OglUniformBuffer		_lineStripObjDataUbo;
+		OglUniformBuffer		_meshObjDataUbo;
 		OglUniformBuffer		_frameDataUbo;
 
-		OglShaderStorageBuffer  _lenghSumSsbo;
+		OglShaderStorageBuffer  _lenghSumSsbo; 
 		unsigned int			_lengthSumSsboCapacity = 0; //todo....should't the capacity be a field of SSBO
 
 		OglSampler				_nearestSampler;
@@ -191,10 +267,11 @@ namespace tao_gizmos
 		map<unsigned int, PointGizmo>		_pointGizmos;
 		map<unsigned int, LineGizmo>		_lineGizmos;
 		map<unsigned int, LineStripGizmo>	_lineStripGizmos;
+		map<unsigned int, MeshGizmo>		_meshGizmos;
 
 		void RenderPointGizmos();
 		void RenderLineGizmos();
-		void RenderLineStripGizmos(mat4);
+		void RenderLineStripGizmos(const mat4& viewMatrix, const mat4& projMatrix);
 		void RenderMeshGizmos();
 
 	public:
@@ -220,5 +297,11 @@ namespace tao_gizmos
 		void CreateLineStripGizmo	(unsigned int lineStripGizmoIndex, const line_strip_gizmo_descriptor& desc);
 		void InstanceLineStripGizmo	(unsigned int lineStripGizmoIndex, const vector<line_strip_gizmo_instance>& instances);
 		void DestroyLineStripGizmo	(unsigned int lineStripGizmoIndex);
+
+		///////////////////////////////////////
+		// Mesh Gizmos
+		void CreateMeshGizmo	(unsigned int meshGizmoIndex, const mesh_gizmo_descriptor& desc);
+		void InstanceMeshGizmo	(unsigned int meshGizmoIndex, const vector<mesh_gizmo_instance>& instances);
+		void DestroyMeshGizmo	(unsigned int meshGizmoIndex);
 	};
 }

@@ -25,8 +25,7 @@ void main() {
 
     bool skip = false;
 
-    // Clip against near plane, to avoid 
-    // bad jittering and precision problems
+    // Clip against near plane, to avoid problems
     ClipLineOnNear(p0_clip, p1_clip, f_nearFar.x, skip);
 
     if(skip) return;

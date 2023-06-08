@@ -149,11 +149,14 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\TestApp_OpenGL\glad.c" />
+    <ClCompile Include="Instrumentation.cpp" />
     <ClCompile Include="RenderContext.cpp" />
     <ClCompile Include="Resources.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="GeometricPrimitives.h" />
     <ClInclude Include="Input.h" />
+    <ClInclude Include="Instrumentation.h" />
     <ClInclude Include="OglUtils.h" />
     <ClInclude Include="RenderContext.h" />
     <ClInclude Include="RenderContextUtils.h" />

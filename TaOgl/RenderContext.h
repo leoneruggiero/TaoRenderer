@@ -107,8 +107,9 @@ namespace tao_render_context
 
         void SetRasterizerState(ogl_rasterizer_state state);
 
-        void DrawArrays         (ogl_primitive_type mode, GLint first, GLsizei count);
-        void DrawArraysInstanced(ogl_primitive_type mode, GLint first, GLsizei count, GLsizei instanceCount);
+        void DrawArrays           (ogl_primitive_type mode, GLint first, GLsizei count);
+        void DrawArraysInstanced  (ogl_primitive_type mode, GLint first, GLsizei count, GLsizei instanceCount);
+        void DrawElementsInstanced(ogl_primitive_type mode, GLsizei count, ogl_indices_type type, const void* offset, GLsizei instanceCount);
 
         [[nodiscard]] OglVertexShader   CreateVertexShader();
         [[nodiscard]] OglVertexShader   CreateVertexShader(const char* source);
@@ -140,6 +141,8 @@ namespace tao_render_context
         [[nodiscard]] OglFramebuffer<Tex> CreateFramebuffer();
 
         [[nodiscard]] OglUniformBuffer CreateUniformBuffer();
+
+        [[nodiscard]] OglIndexBuffer CreateIndexBuffer();
 
         [[nodiscard]] OglShaderStorageBuffer CreateShaderStorageBuffer();
     };

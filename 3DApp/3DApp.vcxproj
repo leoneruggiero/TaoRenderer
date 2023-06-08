@@ -84,7 +84,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <LibraryPath>C:\Users\Admin\Documents\LearnOpenGL\Dependencies\lib;C:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\x64\Debug;$(LibraryPath)</LibraryPath>
+    <LibraryPath>C:\Users\Admin\Documents\LearnOpenGL\Dependencies\lib;C:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\x64\Release;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>

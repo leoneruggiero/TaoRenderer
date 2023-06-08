@@ -31,6 +31,15 @@
     };
 #endif
 
+#ifdef GIZMOS_MESH
+    layout (std140) uniform blk_PerObjectData
+    {
+        uniform vec4   o_color;         // 16 byte
+        uniform bool   o_hasTexture;    // 4  byte
+                                        // TOTAL => 20 byte
+    };
+#endif
+
 layout (std140) uniform blk_PerFrameData
 {
     uniform mat4    f_viewMat;          // 64  byte

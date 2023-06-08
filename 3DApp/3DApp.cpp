@@ -5,6 +5,9 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <chrono>
+#include <thread>
+
+#include "GeometricPrimitives.h"
 #include "RenderContext.h"
 #include "GizmosRenderer.h"
 #include "GizmosHelper.h"
@@ -71,7 +74,7 @@ vector<vec3> Circle(float radius, unsigned int subdv)
 	{
 		cos(i * da),
 		sin(i * da),
-		1.0f
+		0.0f
 	} * radius;
 
 	return pts;
@@ -150,14 +153,14 @@ void InitWorldAxis(GizmosRenderer& gr)
 	gr.CreateLineGizmo(0, line_gizmo_descriptor
 	{
 		.line_size = lineWidth,
-		.pattern_texture_descriptor = &patternDesc
+		.pattern_texture_descriptor = nullptr//&patternDesc
 	});
 
 	gr.InstanceLineGizmo(0,
 {
-		line_gizmo_instance{{0,0,0}, {5,0,0}, {1, 0, 0, 1}}, // X axis (red)
-		line_gizmo_instance{{0,0,0}, {0,5,0}, {0, 1, 0, 1}}, // Y axis (green)
-		line_gizmo_instance{{0,0,0}, {0,0,5}, {0, 0, 1, 1}}, // Z axis (blue)
+		line_gizmo_instance{{0, 0, 0}, {5,0,0}, {1, 0, 0, 1}}, // X axis (red)
+		line_gizmo_instance{{0, 0, 0}, {0,5,0}, {0, 1, 0, 1}}, // Y axis (green)
+		line_gizmo_instance{{0, 0, 0}, {0,0,5}, {0, 0, 1, 1}}, // Z axis (blue)
 	});
 }
 void InitGizmos(GizmosRenderer& gr)
@@ -170,19 +173,19 @@ int main()
 {
 	try
 	{
-		int windowWidth  = 1920;
+		int windowWidth = 1920;
 		int windowHeight = 1080;
-		int fboWidth	 = 0;
-		int fboHeight	 = 0;
+		int fboWidth = 0;
+		int fboHeight = 0;
 
 		RenderContext rc{ windowWidth, windowHeight };
 		rc.GetFramebufferSize(fboWidth, fboHeight);
-		GizmosRenderer gizRdr{rc, fboWidth, fboHeight};
+		GizmosRenderer gizRdr{ rc, fboWidth, fboHeight };
 
 		mouse_input_data mouseRotateData;
 		mouse_input_data mouseZoomData;
-		bool enableRotate	= false;
-		bool enableZoom		= false;
+		bool enableRotate = false;
+		bool enableZoom = false;
 		MouseInputListener mouseRotate
 		{
 			[&rc]()
@@ -209,7 +212,7 @@ int main()
 					rc.Mouse().IsPressed(left_mouse_button) &&
 					rc.Mouse().IsKeyPressed(left_shift_key);
 			},
-			[&mouseZoomData, &enableZoom ]()
+			[&mouseZoomData, &enableZoom]()
 			{
 				mouseZoomData.mouseDown = true;
 				enableZoom = true;
@@ -223,27 +226,27 @@ int main()
 		rc.Mouse().AddListener(mouseRotate);
 		rc.Mouse().AddListener(mouseZoom);
 
-		vec2 nearFar	= vec2(0.001f, 20.f);
-		vec3 eyePos		= vec3(-2.5f, -2.5f, 2.f);
-		vec3 eyeTrg		= vec3(0.f);
-		vec3 up			= vec3(0.f, 0.f, 1.f);
+		vec2 nearFar = vec2(0.1f, 20.f);
+		vec3 eyePos = vec3(-2.5f, -2.5f, 2.f);
+		vec3 eyeTrg = vec3(0.f);
+		vec3 up = vec3(0.f, 0.f, 1.f);
 		mat4 viewMatrix = glm::lookAt(eyePos, eyeTrg, up);
 		mat4 projMatrix = glm::perspective(radians<float>(60), static_cast<float>(fboWidth) / fboHeight, nearFar.x, nearFar.y);
 
-		float zoomDeltaX	= 0.0f;
-		float zoomDeltaY	= 0.0f;
-		float rotateDeltaX	= 0.0f;
-		float rotateDeltaY	= 0.0f;
+		float zoomDeltaX = 0.0f;
+		float zoomDeltaY = 0.0f;
+		float rotateDeltaX = 0.0f;
+		float rotateDeltaY = 0.0f;
 
 		time_point startTime = high_resolution_clock::now();
 
 		InitGizmos(gizRdr);
 
 		// Add some line strips
-		vector<vec3> strip = Circle(1.0f, 4);
+		vector<vec3> strip = Circle(1.0f, 64);
 
 		// dashed pattern
-		unsigned int lineWidth  = 16;
+		unsigned int lineWidth = 4;
 		unsigned int patternLen = 32;
 		tao_gizmos_procedural::TextureDataRgbaUnsignedByte patternTex
 		{
@@ -257,14 +260,14 @@ int main()
 				float h = lineWidth / 2;
 				float k = patternLen / 10;
 
-			    // dash
-				float v0 = tao_gizmos_sdf::SdfSegment(vec2(x, y), vec2(6 * k, h), vec2(9 * k, h));
-				v0 = tao_gizmos_sdf::SdfInflate(v0, h / 2.0f);
+				// dash
+				float v0 = tao_gizmos_sdf::SdfSegment(vec2(x, y), vec2(2 * k, h), vec2(8 * k, h));
+				v0 = tao_gizmos_sdf::SdfInflate(v0, h);
 
-			    // dot
-				float v1 = tao_gizmos_sdf::SdfCircle(vec2(x, y), h/2.0f).Translate(vec2(2.5 * k, h));
+				// dot
+				float v1 = tao_gizmos_sdf::SdfCircle(vec2(x, y), h).Translate(vec2(2.5 * k, h));
 
-				float v = tao_gizmos_sdf::SdfAdd(v0, v1);
+				float v = v0;// tao_gizmos_sdf::SdfAdd(v0, v1);
 				float a = glm::clamp(0.5f - v, 0.0f, 1.0f); // `anti aliasing`
 				return vec<4, unsigned char>{255, 255, 255, static_cast<unsigned char>(a * 255)};
 			});
@@ -280,22 +283,56 @@ int main()
 		};
 
 		gizRdr.CreateLineStripGizmo(0, line_strip_gizmo_descriptor
-		{
-			.vertices = &strip,
-			.isLoop = true,
-			.line_size = lineWidth,
-			.pattern_texture_descriptor = &patternDesc
-		});
+			{
+				.vertices = &strip,
+				.isLoop = true,
+				.line_size = lineWidth,
+				.pattern_texture_descriptor = &patternDesc
+			});
 
 		gizRdr.InstanceLineStripGizmo(0,
 			{
-				line_strip_gizmo_instance{translate(mat4(1.0f), {0.0, 0.0, 0.0}), vec4(1.0, 0.0, 0.25, 1.0)},
-				line_strip_gizmo_instance{translate(mat4(1.0f), {0.5, 0.0, 0.2}), vec4(1.0, 0.0, 0.25, 1.0)},
-				line_strip_gizmo_instance{translate(mat4(1.0f), {1.0, 0.0, 0.4}), vec4(1.0, 0.0, 0.25, 1.0)},
-				line_strip_gizmo_instance{translate(mat4(1.0f), {1.5, 0.0, 0.6}), vec4(1.0, 0.0, 0.25, 1.0)},
-				line_strip_gizmo_instance{translate(mat4(1.0f), {2.0, 0.0, 0.8}), vec4(1.0, 0.0, 0.25, 1.0)},
-				line_strip_gizmo_instance{translate(mat4(1.0f), {2.5, 0.0, 1.0}), vec4(1.0, 0.0, 0.25, 1.0)},
+				line_strip_gizmo_instance{rotate(translate(mat4{1}, vec3{2.0, 2.0, 2.0}),0.0f              , vec3(1, 0, 0)), vec4(0.95, 0.85, 0.9, 1.0)},
+				line_strip_gizmo_instance{rotate(translate(mat4{1}, vec3{2.0, 2.0, 2.0}),0.5f * pi<float>(), vec3(1, 0, 0)), vec4(0.95, 0.85, 0.9, 1.0)},
+				line_strip_gizmo_instance{rotate(translate(mat4{1}, vec3{2.0, 2.0, 2.0}),0.5f * pi<float>(), vec3(0, 1, 0)), vec4(0.95, 0.85, 0.9, 1.0)},
 			});
+
+
+
+		// DEBUG // TEST // SHITTY THINGS // DELETE ME!!!
+		/* 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> */
+		tao_geometry::Mesh cubeMesh = tao_geometry::Mesh::Arrow(0.15, 1.0, 0.3, 0.5, 32);
+		vector<MeshGizmoVertex> cubeMeshVertices(cubeMesh.NumVertices(), MeshGizmoVertex(glm::vec3{0.0f}));
+
+		vector<glm::vec3> cubeMeshPos	  = cubeMesh.GetPositions();
+		vector<glm::vec3> cubeMeshNrm	  = cubeMesh.GetNormals();
+		vector<glm::vec2> cubeMeshTex	  = cubeMesh.GetTextureCoordinates();
+		vector<unsigned int> cubeMeshTris = cubeMesh.GetIndices();
+
+		for(int i=0;i<cubeMesh.NumVertices();i++)
+		{
+			cubeMeshVertices[i] =
+				MeshGizmoVertex(cubeMeshPos[i])
+				.AddNormal(cubeMeshNrm[i])
+				.AddColor(vec4(1.0f));
+				//.AddTexCoord(cubeMeshTex[i]);
+		}
+
+		gizRdr.CreateMeshGizmo(0, mesh_gizmo_descriptor
+		{
+			.vertices  = &cubeMeshVertices,
+			.triangles = &cubeMeshTris
+		});
+
+		gizRdr.InstanceMeshGizmo(0, 
+		{
+			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{0.0, 0.0, 0.0}), vec4(1.0, 0.0, 0.0, 1.0)},
+			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{2.0, 0.0, 0.0}), vec4(1.0, 1.0, 0.0, 1.0)},
+			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{2.0, 2.0, 0.0}), vec4(0.0, 1.0, 0.0, 1.0)},
+			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{0.0, 2.0, 0.0}), vec4(0.0, 0.0, 1.0, 1.0)},
+		});
+
+		//---------------------------------------------------------------------------------------------
 
 
 		while (!rc.ShouldClose())

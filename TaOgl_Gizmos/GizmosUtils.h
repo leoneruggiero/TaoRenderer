@@ -9,10 +9,12 @@ namespace tao_gizmos
 	constexpr unsigned int POINTS_OBJ_DATA_BINDING	   = 1;
 	constexpr unsigned int LINES_OBJ_DATA_BINDING	   = 2;
 	constexpr unsigned int LINE_STRIP_OBJ_DATA_BINDING = 3;
+	constexpr unsigned int MESH_OBJ_DATA_BINDING       = 4;
 
 	constexpr const char* POINTS_OBJ_DATA_BLOCK_NAME  = "blk_PerObjectData";
 	constexpr const char* LINES_OBJ_BLOCK_NAME		  = "blk_PerObjectData";
 	constexpr const char* LINE_STRIP_OBJ_BLOCK_NAME   = "blk_PerObjectData";
+	constexpr const char* MESH_OBJ_BLOCK_NAME		  = "blk_PerObjectData";
 	constexpr const char* FRAME_DATA_BLOCK_NAME		  = "blk_PerFrameData";
 
 	constexpr const char* POINTS_TEX_ATLAS_NAME       = "s2D_colorTexture";
@@ -20,6 +22,7 @@ namespace tao_gizmos
 	constexpr const char* LINE_STRIP_PATTERN_TEX_NAME = "s2D_patternTexture";
 
 	constexpr unsigned int LINE_STRIP_SSBO_BINDING	  = 0;
+	constexpr unsigned int MESH_SSBO_BINDING		  = 0;
 	
 	// #pragma pack(4) TODO
 	struct points_obj_data_block
@@ -44,6 +47,13 @@ namespace tao_gizmos
 		int			 has_texture;
 		unsigned int pattern_size;
 		unsigned int vert_count;
+	};
+
+	// #pragma pack(4) TODO
+	struct mesh_obj_data_block
+	{
+		glm::vec2 color;
+		int		  has_texture;
 	};
 
 	// #pragma pack(4) TODO

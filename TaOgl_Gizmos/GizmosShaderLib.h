@@ -11,9 +11,10 @@ namespace tao_gizmos
 
     enum class gizmos_shader_type
     {
+        points,
 	    lines,
         lineStrip,
-        points
+        mesh
     };
     class GizmosShaderLib
     {
@@ -34,7 +35,8 @@ namespace tao_gizmos
         static constexpr const char* LINES_GEO_SRC       = "ThickLines.geom";
         static constexpr const char* LINES_FRAG_SRC      = "Lines.frag";
 
-        static constexpr const char* FRAG_SRC            = "MeshUnlit.frag";
+        static constexpr const char* MESH_VERT_SRC       = "MeshUnlit.vert";
+        static constexpr const char* MESH_FRAG_SRC       = "MeshUnlit.frag";
         static constexpr const char* EXC_PREAMBLE        = "GizmosShaderLibrary: ";
 
         static string FileNotFoundExceptionMsg(const char* filePath)

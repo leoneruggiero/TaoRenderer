@@ -51,20 +51,24 @@ namespace tao_gizmos
         case(gizmos_shader_type::points):   vertSrcFile = POINTS_VERT_SRC;       geomSrcFile = POINTS_GEO_SRC;       fragSrcFile = POINTS_FRAG_SRC;       break;
         case(gizmos_shader_type::lines):    vertSrcFile = LINES_VERT_SRC;        geomSrcFile = LINES_GEO_SRC;        fragSrcFile = LINES_FRAG_SRC;        break;
         case(gizmos_shader_type::lineStrip):vertSrcFile = LINE_STRIP_VERT_SRC;   geomSrcFile = LINE_STRIP_GEO_SRC;   fragSrcFile = LINE_STRIP_FRAG_SRC;   break;
+        case(gizmos_shader_type::mesh):     vertSrcFile = MESH_VERT_SRC;         geomSrcFile = nullptr;              fragSrcFile = MESH_FRAG_SRC;         break;
         default: throw exception(GenericExceptionMsg().c_str());
         }
 
-        *vertSrc = PreProcessShaderSource(string{}.append(shaderSrcDir).append("/").append(vertSrcFile).c_str());
-        *geomSrc = PreProcessShaderSource(string{}.append(shaderSrcDir).append("/").append(geomSrcFile).c_str());
-        *fragSrc = PreProcessShaderSource(string{}.append(shaderSrcDir).append("/").append(fragSrcFile).c_str());
+		/* Not optional */*vertSrc = PreProcessShaderSource(string{}.append(shaderSrcDir).append("/").append(vertSrcFile).c_str()); 
+        if(geomSrcFile)   *geomSrc = PreProcessShaderSource(string{}.append(shaderSrcDir).append("/").append(geomSrcFile).c_str()); 
+        /* Not optional */*fragSrc = PreProcessShaderSource(string{}.append(shaderSrcDir).append("/").append(fragSrcFile).c_str());
     }
 
     OglShaderProgram GizmosShaderLib::CreateShaderProgram(RenderContext& rc, gizmos_shader_type shaderType, const char* shaderSrcDir)
     {
-        string vertSrc, geomSrc, fragSrc;
+        string vertSrc;
+        string fragSrc;
+        string geomSrc;
+    	
         LoadShaderSource(shaderType, shaderSrcDir, &vertSrc, &geomSrc, &fragSrc);
 
         return
-            rc.CreateShaderProgram(vertSrc.c_str(), geomSrc.c_str(), fragSrc.c_str());
+            rc.CreateShaderProgram(vertSrc.c_str(), geomSrc.empty() ? nullptr : geomSrc.c_str(), fragSrc.c_str());
     }
 }
