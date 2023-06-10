@@ -5,33 +5,117 @@
 #include <optional>
 namespace tao_gizmos
 {
-	using namespace tao_render_context;
-	using namespace tao_ogl_resources;
-	using namespace glm;
-	using namespace std;
+	template
+		<typename Buff,
+		Buff CreateFunc(tao_render_context::RenderContext&, tao_ogl_resources::ogl_buffer_usage),
+		void ResizeFunc(Buff&, unsigned int, tao_ogl_resources::ogl_buffer_usage)>
+		requires tao_ogl_resources::ogl_buffer<typename Buff::ogl_resource_type>
+	class ResizableOglBuffer
+	{
+		
+	private:
+		unsigned int                        _capacity = 0;
+		tao_ogl_resources::ogl_buffer_usage _usage;
+		Buff								_oglBuffer;
+		std::function<unsigned int(unsigned int, unsigned int)> _resizePolicy;
+	public:
+		// Const getters
+		unsigned int Capacity()						const { return _capacity; }
+		tao_ogl_resources::ogl_buffer_usage Usage() const { return _usage; }
+
+		// Vbo getter (non const)
+		Buff& OglBuffer() { return _oglBuffer; }
+
+		ResizableOglBuffer(
+			tao_render_context::RenderContext& rc,
+			unsigned int capacity, 
+			tao_ogl_resources::ogl_buffer_usage usage,
+			const std::function<unsigned int(unsigned int, unsigned int)>& resizePolicy):
+
+			_capacity{ capacity },
+			_usage{ usage },
+			_oglBuffer{ CreateFunc(rc, _usage) },
+			_resizePolicy{resizePolicy}
+		{
+		}
+
+		void Resize(unsigned int capacity)
+		{
+			const auto newCapacity = _resizePolicy(_capacity, capacity);
+
+			if(_capacity!=newCapacity)
+			{
+				_capacity = newCapacity;
+				ResizeFunc(_oglBuffer, _capacity, _usage);
+			}
+		}
+	};
+
+	// Resizable VBO
+	/////////////////////////////////
+	inline tao_ogl_resources::OglVertexBuffer CreateEmptyVbo(tao_render_context::RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
+	{
+		return rc.CreateVertexBuffer(nullptr, 0, usg);
+	}
+	inline void ResizeVbo(tao_ogl_resources::OglVertexBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
+	{
+		buff.SetData(newCapacity, nullptr, usg);
+	}
+
+	typedef ResizableOglBuffer<tao_ogl_resources::OglVertexBuffer, CreateEmptyVbo, ResizeVbo> ResizableVbo;
+
+	// Resizable EBO
+	/////////////////////////////////
+	inline tao_ogl_resources::OglIndexBuffer  CreateEmptyEbo(tao_render_context::RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
+	{
+		auto ebo = rc.CreateIndexBuffer();
+		ebo.SetData(0, nullptr, usg);
+		return ebo;
+	}
+	inline void ResizeEbo(tao_ogl_resources::OglIndexBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
+	{
+		buff.SetData(newCapacity, nullptr, usg);
+	}
+
+	typedef ResizableOglBuffer<tao_ogl_resources::OglIndexBuffer, CreateEmptyEbo, ResizeEbo> ResizableEbo;
+
+	// Resizable SSBO
+	/////////////////////////////////
+	inline tao_ogl_resources::OglShaderStorageBuffer  CreateEmptySsbo(tao_render_context::RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
+	{
+		auto ssbo = rc.CreateShaderStorageBuffer();
+		ssbo.SetData(0, nullptr, usg);
+		return ssbo;
+	}
+	inline void	ResizeSsbo(tao_ogl_resources::OglShaderStorageBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
+	{
+		buff.SetData(newCapacity, nullptr, usg);
+	}
+
+	typedef ResizableOglBuffer<tao_ogl_resources::OglShaderStorageBuffer, CreateEmptySsbo, ResizeSsbo> ResizableSsbo;
 
 	struct point_gizmo_instance
 	{
-		vec3			position;
-		vec4			color;
-		unsigned int	symbol_index;
+		glm::vec3    position;
+		glm::vec4    color;
+		unsigned int symbol_index;
 	};
 
 	struct symbol_mapping
 	{
-		vec2 uv_min;
-		vec2 uv_max;
+		glm::vec2 uv_min;
+		glm::vec2 uv_max;
 	};
 
 	struct symbol_atlas_descriptor
 	{
-		const void*				data;
-		ogl_texture_format		data_format;
-		ogl_texture_data_type	data_type;
-		unsigned int			width;
-		unsigned int			height;
-		vector<symbol_mapping>  mapping;
-		bool					filter_smooth;
+		const void*                              data;
+		tao_ogl_resources::ogl_texture_format    data_format;
+		tao_ogl_resources::ogl_texture_data_type data_type;
+		unsigned int                             width;
+		unsigned int                             height;
+		std::vector<symbol_mapping>              mapping;
+		bool                                     filter_smooth;
 	};
 
 	struct point_gizmo_descriptor
@@ -46,17 +130,16 @@ namespace tao_gizmos
 		friend class GizmosRenderer;
 	private:
 		unsigned int _instanceCount	= 0;
-		unsigned int _vboCapacity	= 0;
-
+		
 		// graphics data
 		// -----------------------------
-		vector<vec3> _positionList;
-		vector<vec4> _colorList;
+		std::vector<glm::vec3>						   _positionList;
+		std::vector<glm::vec4>						   _colorList;
 
-		OglVertexBuffer			_vbo;
-		OglVertexAttribArray	_vao;
-		optional<OglTexture2D>  _symbolAtlas;
-		optional<vector<vec4>>  _symbolAtlasTexCoordLUT;
+		ResizableVbo								   _vbo;
+		tao_ogl_resources::OglVertexAttribArray        _vao;
+		std::optional<tao_ogl_resources::OglTexture2D> _symbolAtlas;
+		std::optional<std::vector<glm::vec4>>          _symbolAtlasTexCoordLUT;
 
 		// settings
 		// ------------------------------
@@ -65,48 +148,74 @@ namespace tao_gizmos
 		bool		 _symbolAtlasLinearFilter;
 
 		// this will be called by GizomsRenderer instances
-		PointGizmo(RenderContext& rc, const point_gizmo_descriptor& desc);
-		void SetInstanceData(const vector<vec3>& positions, const vector<vec4>& colors, const optional<vector<unsigned int>>& symbolIndices);
+		PointGizmo(tao_render_context::RenderContext& rc, const point_gizmo_descriptor& desc);
+		void SetInstanceData(const std::vector<glm::vec3>& positions, const std::vector<glm::vec4>& colors, const std::optional<std::vector<unsigned int>>& symbolIndices);
 	};
 
-	struct line_gizmo_instance
+	class LineGizmoVertex
 	{
-		vec3			start;
-		vec3			end;
-		vec4			color;
+	public:
+		glm::vec3 Position;
+		glm::vec4 Color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+
+		LineGizmoVertex() :
+		Position{ 0.0f },
+		Color{1.0f}
+		{
+		}
+
+		LineGizmoVertex& AddPosition(glm::vec3 position)
+		{
+			Position = position;
+			return *this;
+		}
+		LineGizmoVertex& AddColor(glm::vec4 color)
+		{
+			Color = color;
+			return *this;
+		}
+	};
+
+	struct line_list_gizmo_instance
+	{
+		glm::mat4 transformation;
+		glm::vec4 color;
 	};
 
 	struct pattern_texture_descriptor
 	{
-		const void*				data;
-		ogl_texture_format		data_format;
-		ogl_texture_data_type	data_type;
-		unsigned int			width;
-		unsigned int			height;
-		unsigned int			pattern_length;
+		const void*                              data;
+		tao_ogl_resources::ogl_texture_format    data_format;
+		tao_ogl_resources::ogl_texture_data_type data_type;
+		unsigned int                             width;
+		unsigned int                             height;
+		unsigned int                             pattern_length;
 	};
 
-	struct line_gizmo_descriptor
+	struct line_list_gizmo_descriptor
 	{
-		unsigned int				line_size					= 1;
-		pattern_texture_descriptor* pattern_texture_descriptor  = nullptr;
+		std::vector<LineGizmoVertex>* vertices					  = nullptr;
+		unsigned int				  line_size					  = 1;
+		pattern_texture_descriptor*   pattern_texture_descriptor  = nullptr;
 	};
 
-	class LineGizmo
+	class LineListGizmo
 	{
 		friend class GizmosRenderer;
 	private:
+		unsigned int _vertexCount;
 		unsigned int _instanceCount = 0;
-		unsigned int _vboCapacity   = 0;
-
+		
 		// graphics data
 		// -----------------------------
-		vector<vec3> _positionList;
-		vector<vec4> _colorList;
+		std::vector<glm::vec3> _vertices;
+		std::vector<glm::mat4> _transformList;
+		std::vector<glm::vec4> _colorList;
 
-		OglVertexBuffer			_vbo;
-		OglVertexAttribArray	_vao;
-		optional<OglTexture2D>  _patternTexture;
+		ResizableVbo								   _vbo;
+		ResizableSsbo								   _ssbo;
+		tao_ogl_resources::OglVertexAttribArray        _vao;
+		std::optional<tao_ogl_resources::OglTexture2D> _patternTexture;
 
 		// settings
 		// ------------------------------
@@ -114,19 +223,19 @@ namespace tao_gizmos
 		unsigned int _patternSize;
 
 		// this will be called by GizomsRenderer instances
-		LineGizmo(RenderContext& rc, const line_gizmo_descriptor& desc);
-		void SetInstanceData(const vector<vec3>& positions, const vector<vec4>& colors);
+		LineListGizmo(tao_render_context::RenderContext& rc, const line_list_gizmo_descriptor& desc);
+		void SetInstanceData(const std::vector<glm::mat4>& transformations, const std::vector<glm::vec4>& colors);
 	};
 
 	struct line_strip_gizmo_instance
 	{
-		mat4			transformation;
-		vec4			color;
+		glm::mat4			transformation;
+		glm::vec4			color;
 	};
 
 	struct line_strip_gizmo_descriptor
 	{
-		vector<vec3>*				vertices;
+		std::vector<glm::vec3>*		vertices;
 		bool						isLoop;
 		unsigned int				line_size = 1;
 		pattern_texture_descriptor* pattern_texture_descriptor = nullptr;
@@ -137,19 +246,17 @@ namespace tao_gizmos
 		friend class GizmosRenderer;
 	private:
 		unsigned int _instanceCount				= 0;
-		unsigned int _vboVertCapacity			= 0;
-		unsigned int _vboInstanceDataCapacity	= 0;
-
+		
 		// graphics data
 		// -----------------------------
-		vector<vec4> _vertices;        
-		vector<mat4> _transformList;    // one transformation per instance.
-		vector<vec4> _colorList;        // one color per instance. todo: color per vertex?
+		std::vector<glm::vec3> _vertices;        
+		std::vector<glm::mat4> _transformList;    // one transformation per instance.
+		std::vector<glm::vec4> _colorList;        // one color per instance. todo: color per vertex?
 
-		OglVertexBuffer			_vboVertices;     
-		OglVertexBuffer			_vboInstanceData; // draw instanced
-		OglVertexAttribArray	_vao;
-		optional<OglTexture2D>  _patternTexture;
+		ResizableVbo									_vboVertices;     
+		ResizableSsbo									_ssboInstanceData; 
+		tao_ogl_resources::OglVertexAttribArray			_vao;
+		std::optional<tao_ogl_resources::OglTexture2D>  _patternTexture;
 
 		// settings
 		// ------------------------------
@@ -157,8 +264,8 @@ namespace tao_gizmos
 		unsigned int _patternSize;
 
 		// this will be called by GizomsRenderer instances
-		LineStripGizmo(RenderContext& rc, const line_strip_gizmo_descriptor& desc);
-		void SetInstanceData(const vector<mat4>& transforms, const vector<vec4>& colors);
+		LineStripGizmo(tao_render_context::RenderContext& rc, const line_strip_gizmo_descriptor& desc);
+		void SetInstanceData(const std::vector<glm::mat4>& transforms, const std::vector<glm::vec4>& colors);
 	};
 
 
@@ -195,14 +302,16 @@ namespace tao_gizmos
 
 	struct mesh_gizmo_instance
 	{
-		mat4			transformation;
-		vec4			color;
+		glm::mat4	transformation;
+		glm::vec4	color;
 	};
 
 	struct mesh_gizmo_descriptor
 	{
-		vector<MeshGizmoVertex>*    vertices;
-		vector<unsigned int>*		triangles;
+		std::vector<MeshGizmoVertex>*    vertices;
+		std::vector<unsigned int>*		 triangles;
+		bool							 zoom_invariant       = false;
+		float							 zoom_invariant_scale = 0.0f;
 	};
 
 	class MeshGizmo
@@ -212,96 +321,99 @@ namespace tao_gizmos
 		unsigned int _instanceCount				= 0;
 		unsigned int _vertexCount				= 0;
 		unsigned int _trisCount					= 0;
-		unsigned int _vboVertCapacity			= 0;
-		unsigned int _eboCapacity				= 0;
-		unsigned int _ssboInstanceDataCapacity	= 0;
 
 		// graphics data
 		// --------------------------------------------------------
-		vector<vec3>		  _vertices;
-		vector<unsigned int>  _triangles;
+		std::vector<glm::vec3>	   _vertices;
+		std::vector<unsigned int>  _triangles;
 		// instance data ------------------------------------------
-		vector<mat4> _transformList;    // instance transformation
-		vector<vec4> _colorList;        // instance color
+		std::vector<glm::mat4> _transformList;    // instance transformation
+		std::vector<glm::vec4> _colorList;        // instance color
 
-		OglVertexBuffer			_vboVertices;
-		OglVertexAttribArray	_vao;
-		OglIndexBuffer			_ebo;
-		OglShaderStorageBuffer  _ssboInstanceData;
+		ResizableVbo							    _vboVertices;
+		tao_ogl_resources::OglVertexAttribArray		_vao;
+		ResizableEbo								_ebo;
+		ResizableSsbo								_ssboInstanceData;
+
+		// zoom invariance ----------------------------------------
+		bool	  _isZoomInvariant = false;
+		float	  _zoomInvariantScale;
+		glm::vec3 _bSphereCenter = glm::vec3(0.0f);
+		float     _bSphereRadius;
 
 		// this will be called by GizomsRenderer instances
-		MeshGizmo(RenderContext& rc, const mesh_gizmo_descriptor& desc);
-		void SetInstanceData(const vector<mat4>& transforms, const vector<vec4>& colors);
+		MeshGizmo(tao_render_context::RenderContext& rc, const mesh_gizmo_descriptor& desc);
+		void SetInstanceData(const std::vector<glm::mat4>& transforms, const std::vector<glm::vec4>& colors);
 	};
 
 
 	class GizmosRenderer
 	{
 	private:
-		static constexpr const char* SHADER_SRC_DIR = "C:/Users/Admin/Documents/LearnOpenGL/TestApp_OpenGL/TaOgl_Gizmos/Shaders"; //todo: this is obviously a joke
-		static constexpr const char* EXC_PREAMBLE = "GizmosRenderer: ";
-		int _windowWidth, _windowHeight;
-		RenderContext* _renderContext;
+		static constexpr const char*       SHADER_SRC_DIR = "C:/Users/Admin/Documents/LearnOpenGL/TestApp_OpenGL/TaOgl_Gizmos/Shaders"; //todo: this is obviously a joke
+		static constexpr const char*       EXC_PREAMBLE   = "GizmosRenderer: ";
+		int                                _windowWidth, _windowHeight;
+		tao_render_context::RenderContext* _renderContext;
 
-		OglShaderProgram		_pointsShader;
-		OglShaderProgram		_linesShader;
-		OglShaderProgram		_lineStripShader;
-		OglShaderProgram		_meshShader;
+		tao_ogl_resources::OglShaderProgram _pointsShader;
+		tao_ogl_resources::OglShaderProgram _linesShader;
+		tao_ogl_resources::OglShaderProgram _lineStripShader;
+		tao_ogl_resources::OglShaderProgram _meshShader;
 
-		OglUniformBuffer		_pointsObjDataUbo;
-		OglUniformBuffer		_linesObjDataUbo;
-		OglUniformBuffer		_lineStripObjDataUbo;
-		OglUniformBuffer		_meshObjDataUbo;
-		OglUniformBuffer		_frameDataUbo;
+		tao_ogl_resources::OglUniformBuffer _pointsObjDataUbo;
+		tao_ogl_resources::OglUniformBuffer _linesObjDataUbo;
+		tao_ogl_resources::OglUniformBuffer _lineStripObjDataUbo;
+		tao_ogl_resources::OglUniformBuffer _meshObjDataUbo;
+		tao_ogl_resources::OglUniformBuffer _frameDataUbo;
 
-		OglShaderStorageBuffer  _lenghSumSsbo; 
-		unsigned int			_lengthSumSsboCapacity = 0; //todo....should't the capacity be a field of SSBO
+		ResizableSsbo _lenghSumSsbo; 
 
-		OglSampler				_nearestSampler;
-		OglSampler				_linearSampler;
+		tao_ogl_resources::OglSampler _nearestSampler;
+		tao_ogl_resources::OglSampler _linearSampler;
 
-		OglTexture2DMultisample					_colorTex;
-		OglTexture2DMultisample					_depthTex;
-		OglFramebuffer<OglTexture2DMultisample> _mainFramebuffer;
+		tao_ogl_resources::OglTexture2DMultisample _colorTex;
+		tao_ogl_resources::OglTexture2DMultisample _depthTex;
 
-		map<unsigned int, PointGizmo>		_pointGizmos;
-		map<unsigned int, LineGizmo>		_lineGizmos;
-		map<unsigned int, LineStripGizmo>	_lineStripGizmos;
-		map<unsigned int, MeshGizmo>		_meshGizmos;
+		tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2DMultisample> _mainFramebuffer;
+
+		std::map<unsigned int, PointGizmo>		_pointGizmos;
+		std::map<unsigned int, LineListGizmo>		_lineGizmos;
+		std::map<unsigned int, LineStripGizmo>  _lineStripGizmos;
+		std::map<unsigned int, MeshGizmo>       _meshGizmos;
 
 		void RenderPointGizmos();
 		void RenderLineGizmos();
-		void RenderLineStripGizmos(const mat4& viewMatrix, const mat4& projMatrix);
-		void RenderMeshGizmos();
+		void RenderLineStripGizmos(const glm::mat4& viewMatrix, const glm::mat4& projMatrix);
+		void RenderMeshGizmos(glm::mat4 viewMatrix, glm::mat4 projectionMatrix);
 
 	public:
-		GizmosRenderer(RenderContext& rc, int windowWidth, int windowHeight);
+		GizmosRenderer(tao_render_context::RenderContext& rc, int windowWidth, int windowHeight);
 
 		// todo: projection matrix is not a parameter (near and far should be modified)
-		[[nodiscard]] const OglFramebuffer<OglTexture2DMultisample>& Render(glm::mat4 viewMatrix, glm::mat4 projectionMatrix, glm::vec2 nearFar);
+		[[nodiscard]] const tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2DMultisample>& Render(glm::mat4 viewMatrix, glm::mat4 projectionMatrix, glm::vec2 nearFar);
 
 		///////////////////////////////////////
  		// Point Gizmos
 		void CreatePointGizmo	(unsigned int pointGizmoIndex, const point_gizmo_descriptor& desc);
-		void InstancePointGizmo	(unsigned int pointGizmoIndex, const vector<point_gizmo_instance>& instances);
+		void InstancePointGizmo	(unsigned int pointGizmoIndex, const std::vector<point_gizmo_instance>& instances);
 		void DestroyPointGizmo	(unsigned int pointGizmoIndex);
 
 		///////////////////////////////////////
 		// Line Gizmos
-		void CreateLineGizmo	(unsigned int lineGizmoIndex, const line_gizmo_descriptor& desc);
-		void InstanceLineGizmo	(unsigned int lineGizmoIndex, const vector<line_gizmo_instance>& instances);
+		void CreateLineGizmo	(unsigned int lineGizmoIndex, const line_list_gizmo_descriptor& desc);
+		void InstanceLineGizmo	(unsigned int lineGizmoIndex, const std::vector<line_list_gizmo_instance>& instances);
 		void DestroyLineGizmo	(unsigned int lineGizmoIndex);
 
 		///////////////////////////////////////
 		// LineStrip Gizmos
 		void CreateLineStripGizmo	(unsigned int lineStripGizmoIndex, const line_strip_gizmo_descriptor& desc);
-		void InstanceLineStripGizmo	(unsigned int lineStripGizmoIndex, const vector<line_strip_gizmo_instance>& instances);
+		void InstanceLineStripGizmo	(unsigned int lineStripGizmoIndex, const std::vector<line_strip_gizmo_instance>& instances);
 		void DestroyLineStripGizmo	(unsigned int lineStripGizmoIndex);
 
 		///////////////////////////////////////
 		// Mesh Gizmos
 		void CreateMeshGizmo	(unsigned int meshGizmoIndex, const mesh_gizmo_descriptor& desc);
-		void InstanceMeshGizmo	(unsigned int meshGizmoIndex, const vector<mesh_gizmo_instance>& instances);
+		void InstanceMeshGizmo	(unsigned int meshGizmoIndex, const std::vector<mesh_gizmo_instance>& instances);
 		void DestroyMeshGizmo	(unsigned int meshGizmoIndex);
 	};
 }

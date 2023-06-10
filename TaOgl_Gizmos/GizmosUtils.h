@@ -21,8 +21,8 @@ namespace tao_gizmos
 	constexpr const char* LINE_PATTERN_TEX_NAME		  = "s2D_patternTexture";
 	constexpr const char* LINE_STRIP_PATTERN_TEX_NAME = "s2D_patternTexture";
 
-	constexpr unsigned int LINE_STRIP_SSBO_BINDING	  = 0;
-	constexpr unsigned int MESH_SSBO_BINDING		  = 0;
+	constexpr unsigned int INSTANCE_DATA_SSBO_BINDING			 = 0;
+	constexpr unsigned int LINE_STRIP_SSBO_BINDING_SCREEN_LENGTH = 1;
 	
 	// #pragma pack(4) TODO
 	struct points_obj_data_block
@@ -61,6 +61,8 @@ namespace tao_gizmos
 	{
 		glm::mat4 view_matrix;
 		glm::mat4 projection_matrix;
+		glm::vec4 view_position;
+		glm::vec4 view_direction;
 		glm::vec2 viewport_size;
 		glm::vec2 viewport_size_inv;
 		glm::vec2 near_far;

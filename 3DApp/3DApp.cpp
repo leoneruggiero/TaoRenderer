@@ -14,6 +14,7 @@
 #include "../../TestApp_OpenGL/TestApp_OpenGL/stb_image.h"
 
 using namespace std;
+using namespace glm;
 using namespace std::chrono;
 using namespace tao_ogl_resources;
 using namespace tao_render_context;
@@ -88,30 +89,57 @@ void InitGrid(GizmosRenderer& gr)
 	constexpr unsigned int subdvY	= 11;
 	constexpr vec4 gridColor		= vec4{ 0.8, 0.8, 0.8, 0.5 };
 
-	gr.CreateLineGizmo(1, line_gizmo_descriptor{ 2, nullptr });
-
-	vector<line_gizmo_instance> instances{ subdvX + subdvY };
+	
+	vector<LineGizmoVertex> vertices{ (subdvX + subdvY) *2 };
 
 	for (unsigned int i = 0; i < subdvX; i++)
 	{
-		instances[i] = line_gizmo_instance
-		{
-			.start	= vec3{(-width / 2.0f) + (width / (subdvX-1)) * i , -height / 2.0f , -0.001f},
-			.end	= vec3{(-width / 2.0f) + (width / (subdvX-1)) * i ,  height / 2.0f , -0.001f},
-			.color  = gridColor
-		};
+		const vec4 color = i == subdvX / 2
+			? vec4(0.0, 1.0, 0.0, 1.0)
+			: gridColor;
+
+		vertices[i * 2 + 0] = 
+			LineGizmoVertex{}
+		.AddPosition({ (-width / 2.0f) + (width / (subdvX - 1)) * i , -height / 2.0f , -0.001f })
+			.AddColor(color);
+
+		vertices[i * 2 + 1] =
+			LineGizmoVertex{}
+			.AddPosition({ (-width / 2.0f) + (width / (subdvX - 1)) * i ,  height / 2.0f , -0.001f })
+			.AddColor(color);
 	}
 
 	for (unsigned int j = 0; j < subdvY; j++)
 	{
-		instances[j + subdvX] = line_gizmo_instance
-		{
-			.start = vec3{-width / 2.0f, (-height / 2.0f) + (height / (subdvY-1)) * j , -0.001f},
-			.end   = vec3{ width / 2.0f, (-height / 2.0f) + (height / (subdvY-1)) * j , -0.001f},
-			.color = gridColor
-		};
-	}
+		const vec4 color = j == subdvY / 2
+			? vec4(1.0, 0.0, 0.0, 1.0)
+			: gridColor;
 
+		vertices[(subdvX + j) * 2 + 0] =
+			LineGizmoVertex{}
+			.AddPosition({ -width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j, -0.001f })
+			.AddColor(color);
+
+		vertices[(subdvX + j) * 2 + 1] =
+			LineGizmoVertex{}
+			.AddPosition({ width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j , -0.001f })
+			.AddColor(color);
+	}
+	gr.CreateLineGizmo(1, line_list_gizmo_descriptor{
+		.vertices = &vertices,
+		.line_size = 2,
+		.pattern_texture_descriptor = nullptr
+	});
+
+	// a single instance
+	vector<line_list_gizmo_instance> instances
+	{
+	line_list_gizmo_instance
+		{
+		.transformation = glm::mat4{1.0f},
+		.color = vec4{1.0f}
+		}
+	};
 	gr.InstanceLineGizmo(1, instances);
 }
 void InitWorldAxis(GizmosRenderer& gr)
@@ -150,23 +178,86 @@ void InitWorldAxis(GizmosRenderer& gr)
 		.pattern_length = patternLen
 	};
 
-	gr.CreateLineGizmo(0, line_gizmo_descriptor
-	{
-		.line_size = lineWidth,
-		.pattern_texture_descriptor = nullptr//&patternDesc
-	});
-
-	gr.InstanceLineGizmo(0,
-{
-		line_gizmo_instance{{0, 0, 0}, {5,0,0}, {1, 0, 0, 1}}, // X axis (red)
-		line_gizmo_instance{{0, 0, 0}, {0,5,0}, {0, 1, 0, 1}}, // Y axis (green)
-		line_gizmo_instance{{0, 0, 0}, {0,0,5}, {0, 0, 1, 1}}, // Z axis (blue)
-	});
+	//gr.CreateLineGizmo(0, line_list_gizmo_descriptor
+	//{
+	//	.vertices = 
+	//	.line_size = lineWidth,
+	//	.pattern_texture_descriptor = nullptr//&patternDesc
+	//});
+	//
+	//gr.InstanceLineGizmo(0,
+//{
+	//	line_list_gizmo_instance{mat4{1.0f},vec4{1, 0, 0, 1}}, // X axis (red)
+	//	line_list_gizmo_instance{mat4{1.0f},vec4{0, 1, 0, 1}}, // Y axis (green)
+	//	line_list_gizmo_instance{mat4{1.0f},vec4{0, 0, 1, 1}}, // Z axis (blue)
+	//});
 }
 void InitGizmos(GizmosRenderer& gr)
 {
 	InitWorldAxis(gr);
 	InitGrid	 (gr);
+}
+
+
+void CreateArrowTriad(
+	vector   <glm::vec3>& positions, 
+	vector   <glm::vec3>& normals, 
+	vector   <glm::vec4>& colors, 
+	vector<unsigned int>& triangles)
+{
+	tao_geometry::Mesh x = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
+	tao_geometry::Mesh y = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
+	tao_geometry::Mesh z = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
+
+	glm::mat3 trX = glm::rotate(glm::mat4(1.0f), glm::pi<float>() * 0.5f, glm::vec3( 0.0f, 1.0f, 0.0f));
+	glm::mat3 trY = glm::rotate(glm::mat4(1.0f), glm::pi<float>() * 0.5f, glm::vec3(-1.0f, 0.0f, 0.0f));
+	glm::mat3 trZ = glm::rotate(glm::mat4(1.0f),					0.0f, glm::vec3( 0.0f, 1.0f, 0.0f));
+
+	positions = vector   <glm::vec3>(x.NumVertices() + y.NumVertices() + z.NumVertices());
+	normals   = vector   <glm::vec3>(x.NumVertices() + y.NumVertices() + z.NumVertices());
+	colors    = vector   <glm::vec4>(x.NumVertices() + y.NumVertices() + z.NumVertices());
+	triangles = vector<unsigned int>(x.NumIndices()  + y.NumIndices()  + z.NumIndices());
+
+	// Positions
+	// ------------------------------------
+	auto xPos = x.GetPositions(); std::for_each(xPos.begin(), xPos.end(), [&trX](glm::vec3& pos) {pos = trX * pos; });
+	auto yPos = y.GetPositions(); std::for_each(yPos.begin(), yPos.end(), [&trY](glm::vec3& pos) {pos = trY * pos; });
+	auto zPos = z.GetPositions(); std::for_each(zPos.begin(), zPos.end(), [&trZ](glm::vec3& pos) {pos = trZ * pos; });
+
+	std::copy(xPos.begin(), xPos.end(), positions.begin());
+	std::copy(yPos.begin(), yPos.end(), positions.begin() + xPos.size());
+	std::copy(zPos.begin(), zPos.end(), positions.begin() + xPos.size() + yPos.size());
+
+	// Normals
+	// ------------------------------------
+	auto xNrm = x.GetNormals(); std::for_each(xNrm.begin(), xNrm.end(), [&trX](glm::vec3& nrm) {nrm = trX * nrm; }); // rotation only,
+	auto yNrm = y.GetNormals(); std::for_each(yNrm.begin(), yNrm.end(), [&trY](glm::vec3& nrm) {nrm = trY * nrm; }); // should be safe to 
+	auto zNrm = z.GetNormals(); std::for_each(zNrm.begin(), zNrm.end(), [&trZ](glm::vec3& nrm) {nrm = trZ * nrm; }); // transform the normal
+
+	std::copy(xNrm.begin(), xNrm.end(), normals.begin());
+	std::copy(yNrm.begin(), yNrm.end(), normals.begin() + xNrm.size());
+	std::copy(zNrm.begin(), zNrm.end(), normals.begin() + xNrm.size() + yNrm.size());
+
+	// Triangles
+	// ------------------------------------
+	unsigned int xVertCount = xPos.size();
+	unsigned int yVertCount = yPos.size();
+
+	// offset triangles (merge meshes)
+	auto xTri = x.GetIndices();
+	auto yTri = y.GetIndices(); std::for_each(yTri.begin(), yTri.end(), [xVertCount]			(unsigned int& i) {i += xVertCount; });
+	auto zTri = z.GetIndices(); std::for_each(zTri.begin(), zTri.end(), [xVertCount, yVertCount](unsigned int& i) {i += xVertCount + yVertCount; });
+
+	std::copy(xTri.begin(), xTri.end(), triangles.begin());
+	std::copy(yTri.begin(), yTri.end(), triangles.begin() + xTri.size());
+	std::copy(zTri.begin(), zTri.end(), triangles.begin() + xTri.size() + yTri.size());
+
+	// Color
+	// ------------------------------------
+	std::generate(colors.begin()						  , colors.begin() + xVertCount				, []() { return glm::vec4(1.0, 0.0, 0.0, 1.0); });
+	std::generate(colors.begin() + xVertCount			  , colors.begin() + xVertCount + yVertCount, []() { return glm::vec4(0.0, 1.0, 0.0, 1.0); });
+	std::generate(colors.begin() + xVertCount + yVertCount, colors.end()							, []() { return glm::vec4(0.0, 0.0, 1.0, 1.0); });
+
 }
 
 int main()
@@ -226,7 +317,7 @@ int main()
 		rc.Mouse().AddListener(mouseRotate);
 		rc.Mouse().AddListener(mouseZoom);
 
-		vec2 nearFar = vec2(0.1f, 20.f);
+		vec2 nearFar = vec2(0.5f, 50.f);
 		vec3 eyePos = vec3(-2.5f, -2.5f, 2.f);
 		vec3 eyeTrg = vec3(0.f);
 		vec3 up = vec3(0.f, 0.f, 1.f);
@@ -246,7 +337,7 @@ int main()
 		vector<vec3> strip = Circle(1.0f, 64);
 
 		// dashed pattern
-		unsigned int lineWidth = 4;
+		unsigned int lineWidth  = 6;
 		unsigned int patternLen = 32;
 		tao_gizmos_procedural::TextureDataRgbaUnsignedByte patternTex
 		{
@@ -256,21 +347,17 @@ int main()
 		};
 
 		patternTex.FillWithFunction([lineWidth, patternLen](unsigned x, unsigned y)
-			{
-				float h = lineWidth / 2;
-				float k = patternLen / 10;
+		{
+			float h = lineWidth  / 2.0f;
+			float k = patternLen / 10.0f;
 
-				// dash
-				float v0 = tao_gizmos_sdf::SdfSegment(vec2(x, y), vec2(2 * k, h), vec2(8 * k, h));
-				v0 = tao_gizmos_sdf::SdfInflate(v0, h);
-
-				// dot
-				float v1 = tao_gizmos_sdf::SdfCircle(vec2(x, y), h).Translate(vec2(2.5 * k, h));
-
-				float v = v0;// tao_gizmos_sdf::SdfAdd(v0, v1);
-				float a = glm::clamp(0.5f - v, 0.0f, 1.0f); // `anti aliasing`
-				return vec<4, unsigned char>{255, 255, 255, static_cast<unsigned char>(a * 255)};
-			});
+			// dash
+			float v0 = tao_gizmos_sdf::SdfSegment(vec2(x, y), vec2(3 * k, h), vec2(7 * k, h));
+			v0 = tao_gizmos_sdf::SdfInflate(v0, h);
+			
+			float a = glm::clamp(0.5f - v0, 0.0f, 1.0f); // `anti aliasing`
+			return vec<4, unsigned char>{255, 255, 255, static_cast<unsigned char>(a * 255)};
+		});
 
 		pattern_texture_descriptor patternDesc
 		{
@@ -301,35 +388,38 @@ int main()
 
 		// DEBUG // TEST // SHITTY THINGS // DELETE ME!!!
 		/* 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> */
-		tao_geometry::Mesh cubeMesh = tao_geometry::Mesh::Arrow(0.15, 1.0, 0.3, 0.5, 32);
-		vector<MeshGizmoVertex> cubeMeshVertices(cubeMesh.NumVertices(), MeshGizmoVertex(glm::vec3{0.0f}));
+		vector<glm::vec3> cubeMeshPos	  ;
+		vector<glm::vec3> cubeMeshNrm	  ;
+		vector<glm::vec2> cubeMeshTex	  ;
+		vector<glm::vec4> cubeMeshCol     ;
+		vector<unsigned int> cubeMeshTris ;
 
-		vector<glm::vec3> cubeMeshPos	  = cubeMesh.GetPositions();
-		vector<glm::vec3> cubeMeshNrm	  = cubeMesh.GetNormals();
-		vector<glm::vec2> cubeMeshTex	  = cubeMesh.GetTextureCoordinates();
-		vector<unsigned int> cubeMeshTris = cubeMesh.GetIndices();
+		CreateArrowTriad(cubeMeshPos, cubeMeshNrm, cubeMeshCol, cubeMeshTris);
 
-		for(int i=0;i<cubeMesh.NumVertices();i++)
+		vector<MeshGizmoVertex> cubeMeshVertices{ cubeMeshPos.size(), MeshGizmoVertex{glm::vec3{0.0f}}};
+
+		for(int i=0;i< cubeMeshVertices.size();i++)
 		{
 			cubeMeshVertices[i] =
-				MeshGizmoVertex(cubeMeshPos[i])
-				.AddNormal(cubeMeshNrm[i])
-				.AddColor(vec4(1.0f));
-				//.AddTexCoord(cubeMeshTex[i]);
+				MeshGizmoVertex (cubeMeshPos[i])
+				.AddNormal		(cubeMeshNrm[i])
+				.AddColor		(cubeMeshCol[i]);
 		}
 
 		gizRdr.CreateMeshGizmo(0, mesh_gizmo_descriptor
 		{
 			.vertices  = &cubeMeshVertices,
-			.triangles = &cubeMeshTris
+			.triangles = &cubeMeshTris,
+			.zoom_invariant = true,
+			.zoom_invariant_scale = 0.1f
 		});
 
 		gizRdr.InstanceMeshGizmo(0, 
 		{
-			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{0.0, 0.0, 0.0}), vec4(1.0, 0.0, 0.0, 1.0)},
-			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{2.0, 0.0, 0.0}), vec4(1.0, 1.0, 0.0, 1.0)},
-			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{2.0, 2.0, 0.0}), vec4(0.0, 1.0, 0.0, 1.0)},
-			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{0.0, 2.0, 0.0}), vec4(0.0, 0.0, 1.0, 1.0)},
+			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{-2.0,-2.0, 0.0}), vec4(1.0f)},
+			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{-2.0, 2.0, 0.0}), vec4(1.0f)},
+			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{ 2.0,-2.0, 0.0}), vec4(1.0f)},
+			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{ 2.0, 2.0, 0.0}), vec4(1.0f)},
 		});
 
 		//---------------------------------------------------------------------------------------------

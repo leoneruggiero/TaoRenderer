@@ -8,20 +8,15 @@ layout(location = 1) in vec3 v_normal;
 layout(location = 2) in vec4 v_color;
 layout(location = 3) in vec2 v_texCoord;
 
-
-struct INST_DATA
+layout(std430, binding = 0) buffer instanceBuff
 {
-    mat4 i_transform;
-    vec4 i_color;
-};
-
-layout(std430, binding = 0) buffer buff
-{
-    INST_DATA[] buff_instance_data;
+    INST_DATA buff_inst_data[];
 };
 
 out VS_OUT
 {
+    vec3 v_position;
+    vec3 v_normal;
     vec4 v_color;
     vec2 v_texCoord;
 }
@@ -29,8 +24,12 @@ vs_out;
 
 void main()
 {
-    gl_Position = f_projMat * f_viewMat * buff_instance_data[gl_InstanceID].i_transform * vec4(v_position, 1.0);
-
-    vs_out.v_color      = v_color*buff_instance_data[gl_InstanceID].i_color;
+    vec4 worldPosition   = buff_inst_data[gl_InstanceID].i_transform * vec4(v_position, 1.0);
+    mat3 normalMat       = mat3(buff_inst_data[gl_InstanceID].i_normal_transform);
+    
+    gl_Position         = f_projMat * f_viewMat * worldPosition;
+    vs_out.v_position   = worldPosition.xyz;
+    vs_out.v_normal     = normalMat * v_normal;
+    vs_out.v_color      = v_color*buff_inst_data[gl_InstanceID].i_color;
     vs_out.v_texCoord   = v_texCoord;
 }

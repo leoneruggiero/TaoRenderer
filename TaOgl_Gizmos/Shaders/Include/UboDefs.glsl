@@ -40,12 +40,28 @@
     };
 #endif
 
+#if defined GIZMOS_MESH || defined GIZMOS_LINE_STRIP || defined GIZMOS_LINES
+
+struct INST_DATA
+{
+    mat4 i_transform;
+#ifdef GIZMOS_MESH
+    mat4 i_normal_transform;
+#endif
+    vec4 i_color;
+};
+
+#endif
+
+
 layout (std140) uniform blk_PerFrameData
 {
     uniform mat4    f_viewMat;          // 64  byte
     uniform mat4    f_projMat;          // 64  byte
+    uniform vec4    f_viewPos;          // 16  byte
+    uniform vec4    f_viewDir;          // 16  byte
     uniform vec2    f_viewportSize;     // 8   byte
     uniform vec2    f_invViewportSize;  // 8   byte
     uniform vec2    f_nearFar;          // 4   byte
-                                        // TOTAL => 148 byte
+                                        // TOTAL => 180 byte
 };
