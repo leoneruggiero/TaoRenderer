@@ -22,11 +22,6 @@ void main()
     {
         vec2 tc = vec2(mod(fs_in.v_texCoord.x, 1.0), fs_in.v_texCoord.y);
         color *= texture(s2D_patternTexture, tc);
-
-        //DEBUG
-        //color = vec4(tc, 0.0, 1.0);
-        //color = vec4(1.0, 0.0, 0.0, 1.0);
-
     }
 
    

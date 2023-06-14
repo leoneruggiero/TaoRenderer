@@ -180,36 +180,46 @@ namespace tao_gizmos
 		 _instanceCount = posLen;
 		 _colorList = colors;
 
-		 vector<float> data(posLen * 11 , 0.0f);
-		 for(int i=0, j=0;i<posLen;i++)
+		// Retrieve texture coordinates from symbol indices.
+		// It's a vec4 to define a rect (vertices are expanded into quads). 
+		 vector<glm::vec4> uvCoord(_instanceCount);
+		 if (symbolIndices && _symbolAtlasTexCoordLUT)
 		 {
-			 data[j++] = positions[i].x; data[j++] = positions[i].y; data[j++] = positions[i].z;
-			 data[j++] =    colors[i].x; data[j++] =    colors[i].y; data[j++] =    colors[i].z; data[j++] = colors[i].w;
-
-			 if (symbolIndices&&_symbolAtlasTexCoordLUT)
+			 for (int i = 0; i < _instanceCount; i++)
 			 {
-				 if (_symbolAtlasTexCoordLUT->size() <= (*symbolIndices)[i]) throw exception("Invalid symbol index.");
+				 if (_symbolAtlasTexCoordLUT->size() <= (*symbolIndices)[i]) 
+					 throw exception("Invalid symbol index.");
 
-				 const vec4 uv = _symbolAtlasTexCoordLUT->at((*symbolIndices)[i]);
-				 data[j++] = uv.x; data[j++] = uv.y; data[j++] = uv.z; data[j++] = uv.w;
+				 uvCoord[i] = _symbolAtlasTexCoordLUT->at((*symbolIndices)[i]);
 			 }
-			 else j += 4;
 		 }
 
-		 _vbo.Resize(_instanceCount * vertexSize);
-		 _vbo.OglBuffer().SetSubData(0, _instanceCount * vertexSize, data.data());
+		 BufferDataPacker pack{};
+		 const auto data = pack
+			 .AddDataArray(positions)
+			 .AddDataArray(colors)
+			 .AddDataArray(uvCoord)
+			 .InterleavedBuffer();
+
+		 _vbo.Resize(data.size());
+		 _vbo.OglBuffer().SetSubData(0, data.size(), data.data());
 	 }
 
 	 LineListGizmo::LineListGizmo(RenderContext& rc, const line_list_gizmo_descriptor& desc) :
-	     _vertices   (desc.vertices->size()),
-		 _vbo { rc, 0, ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
-		 _ssbo{ rc, 0, ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
-		 _vao { rc.CreateVertexAttribArray() },
-		 _lineSize		{ desc.line_size    },
-		 _patternSize	{ 0 }
+	     _vertices				(desc.vertices.size()),
+		 _vbo					{ rc, 0, ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+		 _ssboInstanceColor		{ rc, 0, ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+		 _ssboInstanceTransform	{ rc, 0, 
+		 						desc.zoom_invariant ? ogl_buffer_usage::buf_usg_dynamic_draw
+		 											: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+		 _vao					{ rc.CreateVertexAttribArray() },
+		 _lineSize				{ desc.line_size    },
+		 _patternSize			{ 0 },
+		 _isZoomInvariant		{ desc.zoom_invariant },
+		 _zoomInvariantScale	{ desc.zoom_invariant_scale }
 	 {
-		 _vertexCount = desc.vertices->size();
-		 for (int i = 0; i < _vertexCount; i++) _vertices[i] = (*desc.vertices)[i].Position;
+		 _vertexCount = desc.vertices.size();
+		 for (int i = 0; i < _vertexCount; i++) _vertices[i] = desc.vertices[i].GetPosition();
 
 		 // vbo layout for points:
 		 // pos(vec3)-color(vec4)
@@ -221,16 +231,8 @@ namespace tao_gizmos
 		 _vao.EnableVertexAttrib(0);
 		 _vao.EnableVertexAttrib(1);
 
-		 const unsigned int vertexCount = desc.vertices->size();
-		 vector<float> vertexData(vertexCount* vertexComponents);
-		 for(int i=0; i<vertexCount;i++)
-		 {
-			 for (int j = 0; j < 3; j++) vertexData[i * vertexComponents +	   j] = (*desc.vertices)[i].Position[j];
-			 for (int j = 0; j < 4; j++) vertexData[i * vertexComponents + 3 + j] = (*desc.vertices)[i].Color   [j];
-		 }
-
-		_vbo.Resize(vertexSize* vertexCount);
-		_vbo.OglBuffer().SetSubData(0, vertexData.size()*sizeof(float), vertexData.data());
+		 _vbo.Resize(vertexSize*_vertexCount);
+		 _vbo.OglBuffer().SetSubData(0, vertexSize* _vertexCount, desc.vertices.data());
 
 		 // pattern texture
 		 // --------------------------------------------
@@ -257,53 +259,81 @@ namespace tao_gizmos
 			 throw exception{ "Instance data must match in count." };
 
 		 _instanceCount = transformations.size();
-		 _colorList = colors;
+		 _transformList = transformations;
 
-		 
-		 BufferDataPacker pack{};
-		 auto data = pack
-			 .AddDataArray(transformations)
-			 .AddDataArray(colors)
-			 .InterleavedBuffer();
+		 // Set instance transformation data
+		 unsigned int dataSize = _transformList.size() * sizeof(float) * 16;
+		 _ssboInstanceTransform.Resize(dataSize);
+		 _ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transformations.data());
 
-		 _ssbo.Resize(data.size());
-		 _ssbo.OglBuffer().SetSubData(0, data.size(), data.data());
+		 // Set instance color data
+		 dataSize = colors.size() * sizeof(float) * 4;
+		 _ssboInstanceColor.Resize(dataSize);
+		 _ssboInstanceColor.OglBuffer().SetSubData(0, dataSize, colors.data());
 	 }
 
 	 LineStripGizmo::LineStripGizmo(RenderContext& rc, const line_strip_gizmo_descriptor& desc) :
-		 _vertices		 { *desc.vertices }, 
-		 _vboVertices	 { rc, 0, buf_usg_static_draw, ResizeBuffer },
-		 _ssboInstanceData{ rc, 0, buf_usg_static_draw, ResizeBuffer },
-		 _vao			 { rc.CreateVertexAttribArray() },
-		 _lineSize		 { desc.line_size },
-		 _patternSize	 { 0 }
+		 _vertices				(desc.vertices.size()), 
+		 _vboVertices			{ rc, 0, buf_usg_static_draw, ResizeBuffer },
+		 _ssboInstanceTransform	{ rc, 0,
+								desc.zoom_invariant ? ogl_buffer_usage::buf_usg_dynamic_draw
+													: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+		 _ssboInstanceColor		{ rc, 0, ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+		 _vao					{ rc.CreateVertexAttribArray() },
+		 _lineSize				{ desc.line_size },
+		 _patternSize			{ 0 },
+		 _isZoomInvariant		{ desc.zoom_invariant },
+		 _zoomInvariantScale	{ desc.zoom_invariant_scale }
 	 {
 		 // vbo layout for linestrip:
-		 // vbo 0: pos(vec3)
+		 // vbo 0: pos(vec3)-color(vec4)
 		 //--------------------------------------------
-		 constexpr int vertexSize   = 3 * sizeof(float);
-		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 0, 4, vao_typ_float, false, vertexSize  , reinterpret_cast<void*>(0 * sizeof(float)));
+		 constexpr int vertexSize   = 7 * sizeof(float);
+		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 0, 3, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(0 * sizeof(float)));
+		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 1, 4, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(3 * sizeof(float)));
 		 _vao.EnableVertexAttrib(0);
+		 _vao.EnableVertexAttrib(1);
 
 		 // allocate memory and fill vbo
 		 // --------------------------------------------
-		 vec3 adjStart, adjEnd;
+
+		 // adjacency data for start and end point
+		 LineGizmoVertex adjStart, adjEnd;
 		 if(desc.isLoop)
 		 {
-			 adjStart	= *(_vertices.  end() -2);
-			 adjEnd		= *(_vertices.begin() +1);
+			 adjStart	= *(desc.vertices.  end() -2);
+			 adjEnd		= *(desc.vertices.begin() +1);
 		 }
 		 else
 		 {
-			 adjStart	= 2.0f * (* _vertices.begin())  - *(_vertices.begin() + 1);
-			 adjEnd		= 2.0f * (*(_vertices.end()-1)) - *(_vertices  .end() - 2);
-		 }
-		 // adjacency data
-		 _vertices.insert(_vertices.begin(), adjStart);
-		 _vertices.push_back(adjEnd);
+			 vec3 start	= 2.0f * (desc.vertices.begin())->GetPosition() - (desc.vertices.begin() + 1)->GetPosition();
+			 vec3 end	= 2.0f * (desc.vertices.end()-1)->GetPosition() - (desc.vertices  .end() - 2)->GetPosition();
 
-		 _vboVertices.Resize(_vertices.size()* vertexSize);
-		 _vboVertices.OglBuffer().SetSubData(0, _vertices.size()* vertexSize, _vertices.data());
+			 adjStart = LineGizmoVertex{}
+		 	.Position(start)
+		 	.Color(desc.vertices.begin()->GetColor());
+
+			 adjEnd  = LineGizmoVertex{}
+		 	.Position(end)
+		 	.Color((desc.vertices.end()-1)->GetColor());
+		 }
+
+		// copy and store position data
+		// needed to compute per-vertex screen length
+		 for (int i = 0; i < _vertices.size(); i++) 
+			 _vertices[i] = desc.vertices[i].GetPosition();
+
+		 _vertices.insert(_vertices.begin(), adjStart.GetPosition());
+		 _vertices.push_back(adjEnd.GetPosition());
+
+		 vector<LineGizmoVertex> myVertsAdj = desc.vertices;
+		 myVertsAdj.insert(myVertsAdj.begin(), adjStart);
+		 myVertsAdj.push_back(adjEnd);
+
+		 _vboVertices.Resize(myVertsAdj.size()* vertexSize);
+		 _vboVertices.OglBuffer().SetSubData(0, myVertsAdj.size()* vertexSize, myVertsAdj.data());
+
+		 int s = sizeof(LineGizmoVertex);
 
 		 // pattern texture
 		 // --------------------------------------------
@@ -329,52 +359,40 @@ namespace tao_gizmos
 
 		 _instanceCount = transforms.size();
 		 _transformList = transforms;
-		 _colorList     = colors;
-
-		 BufferDataPacker pack{};
-		 auto data = pack
-			 .AddDataArray(transforms)
-			 .AddDataArray(colors)
-			 .InterleavedBuffer();
-		 _ssboInstanceData.Resize(data.size());
-		 _ssboInstanceData.OglBuffer().SetSubData(0, data.size(), data.data());
-	 }
-
-	 // Always centered at the origin in model space!!!
-	 void ComputeBoundingSphere(const vector<glm::vec3>& points, glm::vec3& sphereCenter, float& sphereRadius)
-	 {
-		 sphereCenter = glm::vec3(0.0f); // wow...
-
-		// find the most distant vertex 
-		// from the center (origin).
-		sphereRadius = 0.0f;
-		for(const auto& p:points ) sphereRadius = glm::max(glm::length(p), sphereRadius);
+		
+		 // Set instance transformation data
+		 unsigned int dataSize = _transformList.size() * sizeof(float) * 16;
+		 _ssboInstanceTransform.Resize(dataSize);
+		 _ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transforms.data());
+		 
+		 // Set instance color data
+		 dataSize = _transformList.size() * sizeof(float) * 4;
+		 _ssboInstanceColor.Resize(dataSize);
+		 _ssboInstanceColor.OglBuffer().SetSubData(0, dataSize, colors.data());
 	 }
 
 	 MeshGizmo::MeshGizmo(RenderContext& rc, const mesh_gizmo_descriptor& desc) :
-		 _vertices			{ desc.vertices->size() },
-		 _triangles			{ *desc.triangles },
-		 _vboVertices		{ rc, 0,  buf_usg_static_draw, ResizeBuffer},
-		 _vao				{ rc.CreateVertexAttribArray() },
-		 _ebo				{ rc, 0,  buf_usg_static_draw, ResizeBuffer },
-		 _ssboInstanceData	{ rc, 0,  desc.zoom_invariant ? buf_usg_dynamic_draw : buf_usg_static_draw, ResizeBuffer },
-	     _isZoomInvariant	{desc.zoom_invariant},
-		_zoomInvariantScale	{desc.zoom_invariant_scale}
+		 _vertices					{ desc.vertices.size() },
+		 _triangles					{ *desc.triangles },
+		 _vboVertices				{ rc, 0,  buf_usg_static_draw, ResizeBuffer},
+		 _vao						{ rc.CreateVertexAttribArray() },
+		 _ebo						{ rc, 0,  buf_usg_static_draw, ResizeBuffer },
+		 _ssboInstanceTransform		{ rc, 0,
+									desc.zoom_invariant ? ogl_buffer_usage::buf_usg_dynamic_draw
+														: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+		 _ssboInstanceColorAndNrmMat{ rc, 0, ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+	     _isZoomInvariant			{desc.zoom_invariant},
+		 _zoomInvariantScale        {desc.zoom_invariant_scale}
 	    
 	 {
 
 		 // store vertex positions
-		 for (int i=0;i<desc.vertices->size(); i++)
+		 for (int i=0;i<desc.vertices.size(); i++)
 		 {
-			 _vertices[i] = (*desc.vertices)[i].Position;
+			 _vertices[i] = desc.vertices[i].GetPosition();
 		 }
-		 _vertexCount = desc.vertices->size();
+		 _vertexCount = desc.vertices.size();
 		 _trisCount   = desc.triangles->size();
-
-		 // Compute a bounding sphere centered at the origin 
-		 // in model space to achieve zoom invariance.
-		 if (_isZoomInvariant)
-			 ComputeBoundingSphere(_vertices, _bSphereCenter, _bSphereRadius);
 
 		 // VAO layout for mesh:
 		 // vbo 0: Position (vec3) - Normal (vec3) - Color (vec4) - TexCoord (vec2)
@@ -392,32 +410,8 @@ namespace tao_gizmos
 
 		 // allocate memory and fill VBO
 		 // --------------------------------------------
-
-		 // from vector<MeshGizmoVertex> to vector<float)
-		 vector<float> vertexData(vertexComponents * desc.vertices->size());
-		 for(int i=0;i<desc.vertices->size(); i++)
-		 {
-			 // Position
-			 vertexData[i * vertexComponents + 0] = (*desc.vertices)[i].Position.x;
-			 vertexData[i * vertexComponents + 1] = (*desc.vertices)[i].Position.y;
-			 vertexData[i * vertexComponents + 2] = (*desc.vertices)[i].Position.z;
-			 // Normal		
-			 vertexData[i * vertexComponents + 3] = (*desc.vertices)[i].Normal.x;
-			 vertexData[i * vertexComponents + 4] = (*desc.vertices)[i].Normal.y;
-			 vertexData[i * vertexComponents + 5] = (*desc.vertices)[i].Normal.z;
-			 // Color		
-			 vertexData[i * vertexComponents + 6] = (*desc.vertices)[i].Color.x;
-			 vertexData[i * vertexComponents + 7] = (*desc.vertices)[i].Color.y;
-			 vertexData[i * vertexComponents + 8] = (*desc.vertices)[i].Color.z;
-			 vertexData[i * vertexComponents + 9] = (*desc.vertices)[i].Color.w;
-			 // TexCoord	
-			 vertexData[i * vertexComponents +10] = (*desc.vertices)[i].TexCoord.x;
-			 vertexData[i * vertexComponents +11] = (*desc.vertices)[i].TexCoord.y;
-
-		 }
-
 		 _vboVertices.Resize(_vertices.size()* vertexSize);
-		 _vboVertices.OglBuffer().SetSubData(0, _vertices.size()* vertexSize, vertexData.data());
+		 _vboVertices.OglBuffer().SetSubData(0, _vertices.size()* vertexSize, desc.vertices.data());
 
 
 		// allocate memory and fill EBO
@@ -425,8 +419,6 @@ namespace tao_gizmos
 		 _ebo.Resize(_triangles.size() * sizeof(int));
 		 _ebo.OglBuffer().SetSubData(0, _triangles.size() * sizeof(int) , _triangles.data());
 
-		// Bind SSBO
-		 _ssboInstanceData.OglBuffer().Bind(INSTANCE_DATA_SSBO_BINDING);
 	 }
 
 
@@ -438,24 +430,28 @@ namespace tao_gizmos
 		 _transformList = transforms;
 		 _colorList     = colors;
 
-		 // Instance data:
-		 // mat4 transform - mat4 normal matrix - vec4 color
-		 const unsigned int dataCmpCnt = (16 + 16 + 4);
-		 const unsigned int instanceDataSize = dataCmpCnt * sizeof(float);
-		 
-		 // fill SSBO for instance data (transformation + color)
-		 vector<glm::mat4> normalMatrices{ _instanceCount };
-		for( int i=0;i>_transformList.size();i++) normalMatrices[i] = inverse(transpose(_transformList[i]));
+		// Instance data:
+		// mat4 transform - mat4 normal matrix - vec4 color
+		// [ ----------- ]  [ --------------------------- ]
+		//   per-frame					constant
+		// (zoom invariance)
+		//
 
+		// Transform
+		unsigned int dataSize = _transformList.size() * sizeof(float) * 16;
+		_ssboInstanceTransform.Resize(dataSize);
+		_ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transforms.data());
+
+		// Normal matrix and Color
+		vector<glm::mat4> normalMatrices{ _instanceCount };
+		for (int i = 0; i < _transformList.size(); i++) normalMatrices[i] = inverse(transpose(_transformList[i]));
 		BufferDataPacker pack{};
-		auto data = pack
-			.AddDataArray(transforms)
+		const auto data = pack
 			.AddDataArray(normalMatrices)
 			.AddDataArray(colors)
 			.InterleavedBuffer();
-
-		 _ssboInstanceData.Resize(data.size());
-		 _ssboInstanceData.OglBuffer().SetSubData(0, data.size(), data.data());
+		_ssboInstanceColorAndNrmMat.Resize(data.size());
+		_ssboInstanceColorAndNrmMat.OglBuffer().SetSubData(0, data.size(), data.data());
 	 }
 
 
@@ -745,7 +741,59 @@ namespace tao_gizmos
 		}
 	 }
 
-	void GizmosRenderer::RenderLineGizmos()
+	float ComputeZoomInvarianceScale(
+		const glm::vec3& boundingSphereCenter,
+		float boundingSphereRadius,
+		float screenRadius,
+		const glm::mat4& viewMatrix,
+		const glm::mat4& projectionMatrix)
+	{
+		const glm::mat4 proj = projectionMatrix;
+		const glm::mat4 projInv = inverse(proj);
+
+		float w = -(viewMatrix * glm::vec4(boundingSphereCenter, 1.0f)).z;
+		glm::vec4 pt{ screenRadius, 0.0f, -1.0f, w };
+		pt.x *= w;
+		pt.y *= w;
+		pt.z *= w;
+		pt = projInv * pt;
+
+		return pt.x / boundingSphereRadius;
+	}
+
+	vector<glm::mat4> ComputeZoomInvarianceTransformations(
+		const float zoomInvariantScale,
+		const glm::mat4& viewMatrix,
+		const glm::mat4& projectionMatrix,
+		const vector<glm::mat4>& transformations)
+	{
+		vector<glm::mat4> newTransformations{ transformations.size() };
+		float r = 1.0f;
+		for (int i = 0; i < transformations.size(); i++)
+		{
+			glm::mat4 tr = transformations[i];
+
+			glm::vec4 o{0.0f, 0.0f, 0.0f, 1.0f };
+			glm::vec4 rx = o + glm::vec4{ r, 0.0f, 0.0f, 0.0f };
+			glm::vec4 ry = o + glm::vec4{ 0.0f, r, 0.0f, 0.0f };
+			glm::vec4 rz = o + glm::vec4{ 0.0f, 0.0f, r, 0.0f };
+
+			o = tr * o;
+			rx = tr * rx;
+			ry = tr * ry;
+			rz = tr * rz;
+
+			float maxR = glm::max(length(o - rx), glm::max(length(o - ry), length(o - rz)));
+
+			float newScale = ComputeZoomInvarianceScale(glm::vec3(o), maxR, zoomInvariantScale, viewMatrix, projectionMatrix);
+
+			newTransformations[i] = tr * glm::scale(glm::mat4(1.0f), glm::vec3(newScale));
+		}
+
+		return newTransformations;
+	}
+
+	void GizmosRenderer::RenderLineGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix)
 	 {
 		_renderContext->SetDepthState(ogl_depth_state
 		{
@@ -780,8 +828,22 @@ namespace tao_gizmos
 				.pattern_size	= lGzm.second._patternSize
 			};
 
+			if (lGzm.second._isZoomInvariant)
+			{
+				vector<glm::mat4> newTransf =
+					ComputeZoomInvarianceTransformations(
+						lGzm.second._zoomInvariantScale,
+						viewMatrix, projectionMatrix, lGzm.second._transformList
+					);
+				lGzm.second._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 * sizeof(float), newTransf.data());
+			}
+
 			_linesObjDataUbo.SetSubData(0, sizeof(lines_obj_data_block), &objData);
-			lGzm.second._ssbo.OglBuffer().Bind(INSTANCE_DATA_SSBO_BINDING);
+			// bind static instance data SSBO (draw instanced)
+			lGzm.second._ssboInstanceColor		.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			// bind dynamic instance data SSBO (draw instanced)
+			lGzm.second._ssboInstanceTransform	.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+
 			lGzm.second._vao.Bind();
 
 			_renderContext->DrawArraysInstanced(pmt_type_lines, 0, lGzm.second._vertexCount, lGzm.second._instanceCount);
@@ -951,10 +1013,26 @@ namespace tao_gizmos
 
 		for (unsigned int i = 0; i < _lineStripGizmos.size(); i++)
 		{
+			LineStripGizmo& lGzm = _lineStripGizmos.at(i);
+			vector<glm::mat4>& realTransformList = lGzm._transformList;
+
+			if (lGzm._isZoomInvariant)
+			{
+				vector<glm::mat4> newTransf =
+					ComputeZoomInvarianceTransformations(
+						lGzm._zoomInvariantScale,
+						viewMatrix, projMatrix, lGzm._transformList
+					);
+
+				realTransformList = newTransf;
+
+				lGzm._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 * sizeof(float), newTransf.data());
+			}
+
 			// compute screen length sum for the line strip gizmo
 			auto part = PefixSumLineStrip(
 				_lineStripGizmos.at(i)._vertices,
-				_lineStripGizmos.at(i)._transformList,
+				realTransformList,
 				viewMatrix, projMatrix,
 				_windowWidth, _windowHeight);
 
@@ -992,8 +1070,10 @@ namespace tao_gizmos
 			_lineStripObjDataUbo.SetSubData(0, sizeof(line_strip_obj_data_block), &objData);
 			// Bind SSBO for screen length sum
 			_lenghSumSsbo.OglBuffer().BindRange(LINE_STRIP_SSBO_BINDING_SCREEN_LENGTH, vertDrawn * sizeof(float), vertCount * instanceCount * sizeof(float));
-			// Bind SSBO for Instance data (transform + color)
-			lGzm.second._ssboInstanceData.OglBuffer().Bind(INSTANCE_DATA_SSBO_BINDING);
+			// bind static instance data SSBO (draw instanced)
+			lGzm.second._ssboInstanceColor.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			// bind dynamic instance data SSBO (draw instanced)
+			lGzm.second._ssboInstanceTransform.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
 			// Bind VAO
 			lGzm.second._vao.Bind();
 
@@ -1003,61 +1083,7 @@ namespace tao_gizmos
 		}
 	}
 
-	float ComputeZoomInvarianceScale(
-		const glm::vec3& boundingSphereCenter, 
-		float boundingSphereRadius, 
-		float screenRadius, 
-		const glm::mat4& viewMatrix, 
-		const glm::mat4& projectionMatrix)
-	{
-		const glm::mat4 proj	= projectionMatrix;
-		const glm::mat4 projInv = inverse(proj);
-
-		float w=  -(viewMatrix * glm::vec4(boundingSphereCenter, 1.0f)).z;
-		glm::vec4 pt{ screenRadius, 0.0f, -1.0f, w};
-		pt.x *= w;
-		pt.y *= w;
-		pt.z *= w;
-		pt = projInv * pt;
-
-		return pt.x / boundingSphereRadius;
-	}
-
-	vector<glm::mat4> ComputeZoomInvarianceTransformations(
-		const glm::vec3& boundingSphereCenter,
-		float boundingSphereRadius,
-		float screenRadius,
-		const glm::mat4& viewMatrix,
-		const glm::mat4& projectionMatrix,
-		const vector<glm::mat4>& transformations)
-	{
-		vector<glm::mat4> newTransformations{ transformations.size() };
-		float r = boundingSphereRadius;
-		for(int i=0;i<transformations.size();i++)
-		{
-			glm::mat4 tr = transformations[i];
-
-			glm::vec4 o { boundingSphereCenter, 1.0f };
-			glm::vec4 rx = o + glm::vec4{ r, 0.0f, 0.0f, 0.0f };
-			glm::vec4 ry = o + glm::vec4{ 0.0f, r, 0.0f, 0.0f };
-			glm::vec4 rz = o + glm::vec4{ 0.0f, 0.0f, r, 0.0f };
-
-			o  = tr * o;
-			rx = tr * rx;
-			ry = tr * ry;
-			rz = tr * rz;
-
-			float maxR =glm::max(length(o - rx), glm::max(length(o - ry), length(o - rz)));
-
-			float newScale = ComputeZoomInvarianceScale(glm::vec3(o), maxR, screenRadius, viewMatrix, projectionMatrix);
-
-			newTransformations[i] = tr * glm::scale(glm::mat4(1.0f), glm::vec3(newScale));
-		}
-
-		return newTransformations;
-	}
-
-	void GizmosRenderer::RenderMeshGizmos(glm::mat4 viewMatrix, glm::mat4 projectionMatrix)
+	void GizmosRenderer::RenderMeshGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix)
 	{
 		_renderContext->SetDepthState(ogl_depth_state
 			{
@@ -1089,35 +1115,18 @@ namespace tao_gizmos
 			{
 				vector<glm::mat4> newTransf =
 					ComputeZoomInvarianceTransformations(
-						mGzm.second._bSphereCenter,
-						mGzm.second._bSphereRadius,
 						mGzm.second._zoomInvariantScale,
 						viewMatrix, projectionMatrix, mGzm.second._transformList
 					); 
-
-				// fill SSBO for instance data (transformation + color)
-				// TODO: since with _zoomInvariant we need to transfer transform data
-				// TODO: to the GPU each frame, we should separate instance color data (static)
-				// TODO: from instance transform data (dynamic).
-				vector<float> data(36 * mGzm.second._instanceCount);
-				for (int i = 0; i < mGzm.second._instanceCount; i++)
-				{
-					glm::mat3x3 nrmMat = newTransf[i];
-					nrmMat = inverse(transpose(nrmMat));
-					glm::mat4 nrmMatPad{ nrmMat };
-
-					for (int j = 0; j < 16; j++) data[i * 36 +		j]	= *(value_ptr(newTransf[i]) + j);					//todo
-					for (int j = 0; j < 16; j++) data[i * 36 + 16 + j]	= *(value_ptr(nrmMatPad) + j);						//todo
-					for (int j = 0; j < 4 ; j++) data[i * 36 + 32 + j]	= *(value_ptr(mGzm.second._colorList[i]) + j);		//todo
-				}
-
-				mGzm.second._ssboInstanceData.OglBuffer().SetSubData(0, data.size() * sizeof(float), data.data());
+				mGzm.second._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 * sizeof(float), newTransf.data());
 			}
 
 			// bind VAO
 			mGzm.second._vao.Bind();
-			// bind SSBO (draw instanced)
-			mGzm.second._ssboInstanceData.OglBuffer().Bind(INSTANCE_DATA_SSBO_BINDING);
+			// bind static instance data SSBO (draw instanced)
+			mGzm.second._ssboInstanceColorAndNrmMat	.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			// bind dynamic instance data SSBO (draw instanced)
+			mGzm.second._ssboInstanceTransform		.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
 			// bind EBO
 			mGzm.second._ebo.OglBuffer().Bind();
 
@@ -1149,13 +1158,10 @@ namespace tao_gizmos
 
 		_frameDataUbo.SetSubData(0, sizeof(frame_data_block), &frameData);
 
-		RenderMeshGizmos(viewMatrix, projectionMatrix);
-
-		RenderPointGizmos();
-
-		RenderLineGizmos();
-
-		RenderLineStripGizmos(viewMatrix, projectionMatrix);
+		RenderMeshGizmos		(viewMatrix, projectionMatrix);
+		RenderLineGizmos		(viewMatrix, projectionMatrix);
+		RenderLineStripGizmos	(viewMatrix, projectionMatrix);
+		RenderPointGizmos		();
 
 		OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
 

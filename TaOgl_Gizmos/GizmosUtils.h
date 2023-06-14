@@ -21,8 +21,9 @@ namespace tao_gizmos
 	constexpr const char* LINE_PATTERN_TEX_NAME		  = "s2D_patternTexture";
 	constexpr const char* LINE_STRIP_PATTERN_TEX_NAME = "s2D_patternTexture";
 
-	constexpr unsigned int INSTANCE_DATA_SSBO_BINDING			 = 0;
-	constexpr unsigned int LINE_STRIP_SSBO_BINDING_SCREEN_LENGTH = 1;
+	constexpr unsigned int INSTANCE_DATA_STATIC_SSBO_BINDING	 = 0;
+	constexpr unsigned int INSTANCE_DATA_DYNAMIC_SSBO_BINDING	 = 1;
+	constexpr unsigned int LINE_STRIP_SSBO_BINDING_SCREEN_LENGTH = 2;
 	
 	// #pragma pack(4) TODO
 	struct points_obj_data_block

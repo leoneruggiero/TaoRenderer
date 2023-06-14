@@ -40,20 +40,6 @@
     };
 #endif
 
-#if defined GIZMOS_MESH || defined GIZMOS_LINE_STRIP || defined GIZMOS_LINES
-
-struct INST_DATA
-{
-    mat4 i_transform;
-#ifdef GIZMOS_MESH
-    mat4 i_normal_transform;
-#endif
-    vec4 i_color;
-};
-
-#endif
-
-
 layout (std140) uniform blk_PerFrameData
 {
     uniform mat4    f_viewMat;          // 64  byte

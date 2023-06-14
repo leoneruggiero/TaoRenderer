@@ -3,6 +3,8 @@
 #include <glm/glm.hpp>
 #include <map>
 #include <optional>
+#include <glm/gtc/type_ptr.hpp>
+
 namespace tao_gizmos
 {
 	template
@@ -152,27 +154,41 @@ namespace tao_gizmos
 		void SetInstanceData(const std::vector<glm::vec3>& positions, const std::vector<glm::vec4>& colors, const std::optional<std::vector<unsigned int>>& symbolIndices);
 	};
 
-	class LineGizmoVertex
+	struct LineGizmoVertex
 	{
+	private:
+		/* Position */ float pX, pY, pZ;
+		/* Color    */ float cX, cY, cZ, cW;
 	public:
-		glm::vec3 Position;
-		glm::vec4 Color = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
-
-		LineGizmoVertex() :
-		Position{ 0.0f },
-		Color{1.0f}
+		LineGizmoVertex()
 		{
+			pX = pY = pZ = 0.0f;
+			cX = cY = cZ = cW = 0.0f;
 		}
 
-		LineGizmoVertex& AddPosition(glm::vec3 position)
+		LineGizmoVertex& Position(glm::vec3 p)
 		{
-			Position = position;
+			pX = p.x;
+			pY = p.y;
+			pZ = p.z;
 			return *this;
 		}
-		LineGizmoVertex& AddColor(glm::vec4 color)
+		glm::vec3 GetPosition() const
 		{
-			Color = color;
+			return glm::vec3{ pX, pY, pZ };
+		}
+
+		LineGizmoVertex& Color(glm::vec4 c)
+		{
+			cX = c.x;
+			cY = c.y;
+			cZ = c.z;
+			cW = c.w;
 			return *this;
+		}
+		glm::vec4 GetColor() const
+		{
+			return glm::vec4{ cX, cY, cZ, cW };
 		}
 	};
 
@@ -194,8 +210,10 @@ namespace tao_gizmos
 
 	struct line_list_gizmo_descriptor
 	{
-		std::vector<LineGizmoVertex>* vertices					  = nullptr;
+		std::vector<LineGizmoVertex>& vertices;
 		unsigned int				  line_size					  = 1;
+		bool						  zoom_invariant			  = false;
+		float						  zoom_invariant_scale		  = 0.0f;
 		pattern_texture_descriptor*   pattern_texture_descriptor  = nullptr;
 	};
 
@@ -210,17 +228,21 @@ namespace tao_gizmos
 		// -----------------------------
 		std::vector<glm::vec3> _vertices;
 		std::vector<glm::mat4> _transformList;
-		std::vector<glm::vec4> _colorList;
 
 		ResizableVbo								   _vbo;
-		ResizableSsbo								   _ssbo;
+		ResizableSsbo								   _ssboInstanceColor;
+		ResizableSsbo								   _ssboInstanceTransform;
 		tao_ogl_resources::OglVertexAttribArray        _vao;
 		std::optional<tao_ogl_resources::OglTexture2D> _patternTexture;
 
 		// settings
-		// ------------------------------
+		// -------------------------------
 		unsigned int _lineSize;
 		unsigned int _patternSize;
+
+		// zoom invariance ---------------
+		bool  _isZoomInvariant = false;
+		float _zoomInvariantScale;
 
 		// this will be called by GizomsRenderer instances
 		LineListGizmo(tao_render_context::RenderContext& rc, const line_list_gizmo_descriptor& desc);
@@ -235,10 +257,12 @@ namespace tao_gizmos
 
 	struct line_strip_gizmo_descriptor
 	{
-		std::vector<glm::vec3>*		vertices;
-		bool						isLoop;
-		unsigned int				line_size = 1;
-		pattern_texture_descriptor* pattern_texture_descriptor = nullptr;
+		std::vector<LineGizmoVertex>&	vertices;
+		bool							isLoop						= false;
+		unsigned int					line_size					= 1;
+		bool							zoom_invariant				= false;
+		float							zoom_invariant_scale		= 0.0f;
+		pattern_texture_descriptor*		pattern_texture_descriptor	= nullptr;
 	};
 
 	class LineStripGizmo
@@ -251,17 +275,21 @@ namespace tao_gizmos
 		// -----------------------------
 		std::vector<glm::vec3> _vertices;        
 		std::vector<glm::mat4> _transformList;    // one transformation per instance.
-		std::vector<glm::vec4> _colorList;        // one color per instance. todo: color per vertex?
 
 		ResizableVbo									_vboVertices;     
-		ResizableSsbo									_ssboInstanceData; 
+		ResizableSsbo									_ssboInstanceTransform;
+		ResizableSsbo									_ssboInstanceColor;
 		tao_ogl_resources::OglVertexAttribArray			_vao;
 		std::optional<tao_ogl_resources::OglTexture2D>  _patternTexture;
 
 		// settings
-		// ------------------------------
+		// -------------------------------
 		unsigned int _lineSize;
 		unsigned int _patternSize;
+
+		// zoom invariance ---------------
+		bool  _isZoomInvariant = false;
+		float _zoomInvariantScale;
 
 		// this will be called by GizomsRenderer instances
 		LineStripGizmo(tao_render_context::RenderContext& rc, const line_strip_gizmo_descriptor& desc);
@@ -269,34 +297,68 @@ namespace tao_gizmos
 	};
 
 
-	class MeshGizmoVertex
+	struct MeshGizmoVertex
 	{
+	private:
+		/* Position */ float pX, pY, pZ;
+		/* Normal   */ float nX, nY, nZ;
+		/* Color    */ float cX, cY, cZ, cW;
+		/* TexCoord */ float tX, tY;
 	public:
-		glm::vec3 Position;
-		glm::vec3 Normal	 = glm::vec3(0.0f);
-		glm::vec4 Color		 = glm::vec4(1.0f, 0.0f, 1.0f, 1.0f);
-		glm::vec2 TexCoord	 = glm::vec2(0.0f);
-
-		MeshGizmoVertex(glm::vec3 position): Position{position}
+		MeshGizmoVertex()
 		{
+			pX = pY = pZ		= 0.0f;
+			nX = nY = nZ		= 0.0f;
+			cX = cY = cZ = cW	= 0.0f;
+			tX = tY				= 0.0f;
 		}
 
-		MeshGizmoVertex& AddNormal(glm::vec3 normal)
+		MeshGizmoVertex& Position(glm::vec3 p)
 		{
-			Normal = normal;
+			pX = p.x;
+			pY = p.y;
+			pZ = p.z;
 			return *this;
 		}
-
-		MeshGizmoVertex& AddColor(glm::vec4 color)
+		glm::vec3 GetPosition() const
 		{
-			Color = color;
-			return *this;
+			return glm::vec3{ pX, pY, pZ };
 		}
 
-		MeshGizmoVertex& AddTexCoord(glm::vec2 texCoord)
+		MeshGizmoVertex& Normal(glm::vec3 n)
 		{
-			TexCoord = texCoord;
+			nX = n.x;
+			nY = n.y;
+			nZ = n.z;
 			return *this;
+		}
+		glm::vec3 GetNormal() const
+		{
+			return glm::vec3{ nX, nY, nZ };
+		}
+
+		MeshGizmoVertex& Color(glm::vec4 c)
+		{
+			cX = c.x;
+			cY = c.y;
+			cZ = c.z;
+			cW = c.w;
+			return *this;
+		}
+		glm::vec4 GetColor() const
+		{
+			return glm::vec4{ cX, cY, cZ, cW};
+		}
+
+		MeshGizmoVertex& TexCoord(glm::vec2 t)
+		{
+			tX = t.x;
+			tY = t.y;
+			return *this;
+		}
+		glm::vec2 GetTexCoord() const
+		{
+			return glm::vec2{ tX, tY };
 		}
 	};
 
@@ -308,8 +370,8 @@ namespace tao_gizmos
 
 	struct mesh_gizmo_descriptor
 	{
-		std::vector<MeshGizmoVertex>*    vertices;
-		std::vector<unsigned int>*		 triangles;
+		std::vector<MeshGizmoVertex>&    vertices;
+		std::vector<unsigned int>*		 triangles = nullptr;
 		bool							 zoom_invariant       = false;
 		float							 zoom_invariant_scale = 0.0f;
 	};
@@ -333,13 +395,12 @@ namespace tao_gizmos
 		ResizableVbo							    _vboVertices;
 		tao_ogl_resources::OglVertexAttribArray		_vao;
 		ResizableEbo								_ebo;
-		ResizableSsbo								_ssboInstanceData;
+		ResizableSsbo								_ssboInstanceTransform;
+		ResizableSsbo								_ssboInstanceColorAndNrmMat;
 
-		// zoom invariance ----------------------------------------
-		bool	  _isZoomInvariant = false;
-		float	  _zoomInvariantScale;
-		glm::vec3 _bSphereCenter = glm::vec3(0.0f);
-		float     _bSphereRadius;
+		// zoom invariance ---------------
+		bool  _isZoomInvariant = false;
+		float _zoomInvariantScale;
 
 		// this will be called by GizomsRenderer instances
 		MeshGizmo(tao_render_context::RenderContext& rc, const mesh_gizmo_descriptor& desc);
@@ -382,9 +443,9 @@ namespace tao_gizmos
 		std::map<unsigned int, MeshGizmo>       _meshGizmos;
 
 		void RenderPointGizmos();
-		void RenderLineGizmos();
-		void RenderLineStripGizmos(const glm::mat4& viewMatrix, const glm::mat4& projMatrix);
-		void RenderMeshGizmos(glm::mat4 viewMatrix, glm::mat4 projectionMatrix);
+		void RenderLineGizmos		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
+		void RenderLineStripGizmos	(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
+		void RenderMeshGizmos		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
 
 	public:
 		GizmosRenderer(tao_render_context::RenderContext& rc, int windowWidth, int windowHeight);

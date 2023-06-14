@@ -12,6 +12,7 @@
 #include "GizmosRenderer.h"
 #include "GizmosHelper.h"
 #include "../../TestApp_OpenGL/TestApp_OpenGL/stb_image.h"
+#include "3DApp.h"
 
 using namespace std;
 using namespace glm;
@@ -64,19 +65,20 @@ void MouseInputUpdate(mouse_input_data& data, float newX, float newY, float& del
 	deltaY = data.currMouseY - data.prevMouseY;
 }
 
-vector<vec3> Circle(float radius, unsigned int subdv)
+vector<LineGizmoVertex> Circle(float radius, unsigned int subdv)
 {
 	float da = pi<float>()*2.0f/subdv;
 
-	vector<vec3> pts(subdv + 1);
+	vector<LineGizmoVertex> pts(subdv + 1);
 
 	for (unsigned int i = 0; i <= subdv; i++)
-	pts[i] = vec3
-	{
-		cos(i * da),
-		sin(i * da),
-		0.0f
-	} * radius;
+	pts[i].Position(vec3
+		{
+			cos(i * da),
+			sin(i * da),
+			0.0f
+		} *radius)
+	.Color(glm::vec4{ 1.0f });
 
 	return pts;
 }
@@ -85,9 +87,10 @@ void InitGrid(GizmosRenderer& gr)
 {
 	constexpr float width			= 10.0f;
 	constexpr float height			= 10.0f;
-	constexpr unsigned int subdvX	= 11;
-	constexpr unsigned int subdvY	= 11;
-	constexpr vec4 gridColor		= vec4{ 0.8, 0.8, 0.8, 0.5 };
+	constexpr unsigned int subdvX	= 51;
+	constexpr unsigned int subdvY	= 51;
+	constexpr vec4 colDark			= vec4{ 0.7, 0.7, 0.7, 1.0 };
+	constexpr vec4 colLight			= vec4{ 0.4, 0.4, 0.4, 1.0 };
 
 	
 	vector<LineGizmoVertex> vertices{ (subdvX + subdvY) *2 };
@@ -96,38 +99,38 @@ void InitGrid(GizmosRenderer& gr)
 	{
 		const vec4 color = i == subdvX / 2
 			? vec4(0.0, 1.0, 0.0, 1.0)
-			: gridColor;
+			: i % 5 == 0 ? colDark : colLight;
 
 		vertices[i * 2 + 0] = 
 			LineGizmoVertex{}
-		.AddPosition({ (-width / 2.0f) + (width / (subdvX - 1)) * i , -height / 2.0f , -0.001f })
-			.AddColor(color);
+		.Position({ (-width / 2.0f) + (width / (subdvX - 1)) * i , -height / 2.0f , -0.001f })
+			.Color(color);
 
 		vertices[i * 2 + 1] =
 			LineGizmoVertex{}
-			.AddPosition({ (-width / 2.0f) + (width / (subdvX - 1)) * i ,  height / 2.0f , -0.001f })
-			.AddColor(color);
+			.Position({ (-width / 2.0f) + (width / (subdvX - 1)) * i ,  height / 2.0f , -0.001f })
+			.Color(color);
 	}
 
 	for (unsigned int j = 0; j < subdvY; j++)
 	{
 		const vec4 color = j == subdvY / 2
 			? vec4(1.0, 0.0, 0.0, 1.0)
-			: gridColor;
+			: j % 5 == 0 ? colDark : colLight;
 
 		vertices[(subdvX + j) * 2 + 0] =
 			LineGizmoVertex{}
-			.AddPosition({ -width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j, -0.001f })
-			.AddColor(color);
+			.Position({ -width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j, -0.001f })
+			.Color(color);
 
 		vertices[(subdvX + j) * 2 + 1] =
 			LineGizmoVertex{}
-			.AddPosition({ width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j , -0.001f })
-			.AddColor(color);
+			.Position({ width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j , -0.001f })
+			.Color(color);
 	}
 	gr.CreateLineGizmo(1, line_list_gizmo_descriptor{
-		.vertices = &vertices,
-		.line_size = 2,
+		.vertices = vertices,
+		.line_size = 1,
 		.pattern_texture_descriptor = nullptr
 	});
 
@@ -192,31 +195,90 @@ void InitWorldAxis(GizmosRenderer& gr)
 	//	line_list_gizmo_instance{mat4{1.0f},vec4{0, 0, 1, 1}}, // Z axis (blue)
 	//});
 }
-void InitGizmos(GizmosRenderer& gr)
+
+
+void InitArrowTriad2D(tao_gizmos::GizmosRenderer& gizRdr)
 {
-	InitWorldAxis(gr);
-	InitGrid	 (gr);
+	constexpr float axisLen = 0.8f;
+	constexpr float arrowWidth = 0.2f;
+	constexpr float arrowDepth = 0.4f;
+	constexpr glm::vec4 whi{ 0.8f , 0.8f, 0.8f, 1.0f };
+	constexpr glm::vec4 red{ 0.7f , 0.2f, 0.2f, 1.0f };
+	constexpr glm::vec4 gre{ 0.2f , 0.6f, 0.0f, 1.0f };
+	constexpr glm::vec4 blu{ 0.2f , 0.0f, 0.6f, 1.0f };
+	vector<LineGizmoVertex> verts{};
+	vector<LineGizmoVertex> axisVertsX{};
+	vector<LineGizmoVertex> axisVertsY{};
+	vector<LineGizmoVertex> axisVertsZ{};
+
+	// X Axis
+	///////////////////////////////////
+	axisVertsX.push_back(LineGizmoVertex{}.Position({ 0.0f	 , 0.0f, 0.0f }).Color(whi));
+	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen, 0.0f, 0.0f }).Color(red));
+
+
+	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen, 0.0f,  arrowWidth * 0.5f }).Color(red));
+	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen, 0.0f, -arrowWidth * 0.5f }).Color(red));
+
+	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen			 ,0.0f, arrowWidth * 0.5f }).Color(red));
+	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen + arrowDepth,0.0f			  , 0.0f }).Color(red));
+
+	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen			 , 0.0f, -arrowWidth * 0.5f }).Color({ red }));
+	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen + arrowDepth, 0.0f, 0.0f }).Color({ red }));
+
+	// Y Axis
+	///////////////////////////////////
+	glm::mat4 rot = glm::rotate(glm::mat4{ 1.0f }, glm::pi<float>() * 0.5f, glm::vec3{ 0.0f, 0.0f, 1.0f });
+	for (int i = 0; i < axisVertsX.size(); i++)
+		axisVertsY.push_back(LineGizmoVertex{}.Position(rot * glm::vec4{ axisVertsX[i].GetPosition(), 1.0f }).Color(i > 0 ? gre : whi));
+
+	// Z Axis
+	///////////////////////////////////
+	rot = glm::rotate(glm::mat4{ 1.0f }, -glm::pi<float>() * 0.5f, glm::vec3{ 0.0f, 1.0f, 0.0f });
+	for (int i = 0; i < axisVertsX.size(); i++)
+		axisVertsZ.push_back(LineGizmoVertex{}.Position(rot * glm::vec4{ axisVertsX[i].GetPosition(), 1.0f }).Color(i > 0 ? blu : whi));
+
+	// batch
+	for (const auto& v : axisVertsX) verts.push_back(v);
+	for (const auto& v : axisVertsY) verts.push_back(v);
+	for (const auto& v : axisVertsZ) verts.push_back(v);
+
+	gizRdr.CreateLineGizmo(2, line_list_gizmo_descriptor
+	{
+		.vertices					= verts,
+		.line_size					= 3,
+		.zoom_invariant				= true,
+		.zoom_invariant_scale		= 0.1f,
+		.pattern_texture_descriptor = nullptr
+	});
+
+	gizRdr.InstanceLineGizmo(2,
+{
+		line_list_gizmo_instance{ translate(mat4{ 1.0f }, vec3{ 1.0,-1.0, 0.25 }), vec4(1.0f) },
+		line_list_gizmo_instance{ translate(mat4{ 1.0f }, vec3{-1.0, 1.0, 0.25 }), vec4(1.0f) }
+		});
 }
 
 
+
 void CreateArrowTriad(
-	vector   <glm::vec3>& positions, 
-	vector   <glm::vec3>& normals, 
-	vector   <glm::vec4>& colors, 
+	vector   <glm::vec3>& positions,
+	vector   <glm::vec3>& normals,
+	vector   <glm::vec4>& colors,
 	vector<unsigned int>& triangles)
 {
 	tao_geometry::Mesh x = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
 	tao_geometry::Mesh y = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
 	tao_geometry::Mesh z = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
 
-	glm::mat3 trX = glm::rotate(glm::mat4(1.0f), glm::pi<float>() * 0.5f, glm::vec3( 0.0f, 1.0f, 0.0f));
+	glm::mat3 trX = glm::rotate(glm::mat4(1.0f), glm::pi<float>() * 0.5f, glm::vec3(0.0f, 1.0f, 0.0f));
 	glm::mat3 trY = glm::rotate(glm::mat4(1.0f), glm::pi<float>() * 0.5f, glm::vec3(-1.0f, 0.0f, 0.0f));
-	glm::mat3 trZ = glm::rotate(glm::mat4(1.0f),					0.0f, glm::vec3( 0.0f, 1.0f, 0.0f));
+	glm::mat3 trZ = glm::rotate(glm::mat4(1.0f), 0.0f, glm::vec3(0.0f, 1.0f, 0.0f));
 
 	positions = vector   <glm::vec3>(x.NumVertices() + y.NumVertices() + z.NumVertices());
-	normals   = vector   <glm::vec3>(x.NumVertices() + y.NumVertices() + z.NumVertices());
-	colors    = vector   <glm::vec4>(x.NumVertices() + y.NumVertices() + z.NumVertices());
-	triangles = vector<unsigned int>(x.NumIndices()  + y.NumIndices()  + z.NumIndices());
+	normals = vector   <glm::vec3>(x.NumVertices() + y.NumVertices() + z.NumVertices());
+	colors = vector   <glm::vec4>(x.NumVertices() + y.NumVertices() + z.NumVertices());
+	triangles = vector<unsigned int>(x.NumIndices() + y.NumIndices() + z.NumIndices());
 
 	// Positions
 	// ------------------------------------
@@ -245,7 +307,7 @@ void CreateArrowTriad(
 
 	// offset triangles (merge meshes)
 	auto xTri = x.GetIndices();
-	auto yTri = y.GetIndices(); std::for_each(yTri.begin(), yTri.end(), [xVertCount]			(unsigned int& i) {i += xVertCount; });
+	auto yTri = y.GetIndices(); std::for_each(yTri.begin(), yTri.end(), [xVertCount](unsigned int& i) {i += xVertCount; });
 	auto zTri = z.GetIndices(); std::for_each(zTri.begin(), zTri.end(), [xVertCount, yVertCount](unsigned int& i) {i += xVertCount + yVertCount; });
 
 	std::copy(xTri.begin(), xTri.end(), triangles.begin());
@@ -254,10 +316,54 @@ void CreateArrowTriad(
 
 	// Color
 	// ------------------------------------
-	std::generate(colors.begin()						  , colors.begin() + xVertCount				, []() { return glm::vec4(1.0, 0.0, 0.0, 1.0); });
-	std::generate(colors.begin() + xVertCount			  , colors.begin() + xVertCount + yVertCount, []() { return glm::vec4(0.0, 1.0, 0.0, 1.0); });
-	std::generate(colors.begin() + xVertCount + yVertCount, colors.end()							, []() { return glm::vec4(0.0, 0.0, 1.0, 1.0); });
+	std::generate(colors.begin(), colors.begin() + xVertCount, []() { return glm::vec4(1.0, 0.0, 0.0, 1.0); });
+	std::generate(colors.begin() + xVertCount, colors.begin() + xVertCount + yVertCount, []() { return glm::vec4(0.0, 1.0, 0.0, 1.0); });
+	std::generate(colors.begin() + xVertCount + yVertCount, colors.end(), []() { return glm::vec4(0.0, 0.0, 1.0, 1.0); });
 
+}
+
+void InitArrowTriad3D(tao_gizmos::GizmosRenderer& gizRdr)
+{
+	vector<glm::vec3> cubeMeshPos;
+	vector<glm::vec3> cubeMeshNrm;
+	vector<glm::vec2> cubeMeshTex;
+	vector<glm::vec4> cubeMeshCol;
+	vector<unsigned int> cubeMeshTris;
+
+	CreateArrowTriad(cubeMeshPos, cubeMeshNrm, cubeMeshCol, cubeMeshTris);
+
+	vector<MeshGizmoVertex> cubeMeshVertices{ cubeMeshPos.size() };
+
+	for (int i = 0; i < cubeMeshVertices.size(); i++)
+	{
+		cubeMeshVertices[i] =
+			MeshGizmoVertex{}
+			.Position(cubeMeshPos[i])
+			.Normal(cubeMeshNrm[i])
+			.Color(cubeMeshCol[i]);
+	}
+
+	gizRdr.CreateMeshGizmo(0, mesh_gizmo_descriptor
+		{
+			.vertices = cubeMeshVertices,
+			.triangles = &cubeMeshTris,
+			.zoom_invariant = true,
+			.zoom_invariant_scale = 0.1f
+		});
+
+	gizRdr.InstanceMeshGizmo(0,
+		{
+			mesh_gizmo_instance{ translate(mat4{ 1.0f }, vec3{-1.0,-1.0, 0.25 }), vec4(1.0f) },
+			mesh_gizmo_instance{ translate(mat4{ 1.0f }, vec3{ 1.0, 1.0, 0.25 }), vec4(1.0f) },
+		});
+}
+
+void InitGizmos(GizmosRenderer& gr)
+{
+	InitWorldAxis		(gr);
+	InitGrid			(gr);
+	InitArrowTriad3D	(gr);
+	InitArrowTriad2D	(gr);
 }
 
 int main()
@@ -334,7 +440,12 @@ int main()
 		InitGizmos(gizRdr);
 
 		// Add some line strips
-		vector<vec3> strip = Circle(1.0f, 64);
+		vector<LineGizmoVertex> strip = Circle(1.0f, 64);
+		for (int i = 0; i < strip.size(); i++)
+		{
+			strip[i].Color(vec4{ static_cast<float>(i) / strip.size(), 0.0f, 0.7f, 1.0f });
+		}
+
 
 		// dashed pattern
 		unsigned int lineWidth  = 6;
@@ -371,7 +482,7 @@ int main()
 
 		gizRdr.CreateLineStripGizmo(0, line_strip_gizmo_descriptor
 			{
-				.vertices = &strip,
+				.vertices = strip,
 				.isLoop = true,
 				.line_size = lineWidth,
 				.pattern_texture_descriptor = &patternDesc
@@ -384,45 +495,6 @@ int main()
 				line_strip_gizmo_instance{rotate(translate(mat4{1}, vec3{2.0, 2.0, 2.0}),0.5f * pi<float>(), vec3(0, 1, 0)), vec4(0.95, 0.85, 0.9, 1.0)},
 			});
 
-
-
-		// DEBUG // TEST // SHITTY THINGS // DELETE ME!!!
-		/* 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> * 8==> */
-		vector<glm::vec3> cubeMeshPos	  ;
-		vector<glm::vec3> cubeMeshNrm	  ;
-		vector<glm::vec2> cubeMeshTex	  ;
-		vector<glm::vec4> cubeMeshCol     ;
-		vector<unsigned int> cubeMeshTris ;
-
-		CreateArrowTriad(cubeMeshPos, cubeMeshNrm, cubeMeshCol, cubeMeshTris);
-
-		vector<MeshGizmoVertex> cubeMeshVertices{ cubeMeshPos.size(), MeshGizmoVertex{glm::vec3{0.0f}}};
-
-		for(int i=0;i< cubeMeshVertices.size();i++)
-		{
-			cubeMeshVertices[i] =
-				MeshGizmoVertex (cubeMeshPos[i])
-				.AddNormal		(cubeMeshNrm[i])
-				.AddColor		(cubeMeshCol[i]);
-		}
-
-		gizRdr.CreateMeshGizmo(0, mesh_gizmo_descriptor
-		{
-			.vertices  = &cubeMeshVertices,
-			.triangles = &cubeMeshTris,
-			.zoom_invariant = true,
-			.zoom_invariant_scale = 0.1f
-		});
-
-		gizRdr.InstanceMeshGizmo(0, 
-		{
-			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{-2.0,-2.0, 0.0}), vec4(1.0f)},
-			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{-2.0, 2.0, 0.0}), vec4(1.0f)},
-			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{ 2.0,-2.0, 0.0}), vec4(1.0f)},
-			mesh_gizmo_instance{translate(mat4{1.0f}, vec3{ 2.0, 2.0, 0.0}), vec4(1.0f)},
-		});
-
-		//---------------------------------------------------------------------------------------------
 
 
 		while (!rc.ShouldClose())
@@ -479,6 +551,7 @@ int main()
 		cout << e.what() << endl;
 	}
 }
+
 
 // Run program: Ctrl + F5 or Debug > Start Without Debugging menu
 // Debug program: F5 or Debug > Start Debugging menu
