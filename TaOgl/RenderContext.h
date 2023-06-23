@@ -107,6 +107,8 @@ namespace tao_render_context
 
         void SetRasterizerState(ogl_rasterizer_state state);
 
+        void SetViewport(GLint x, GLint y, GLsizei width, GLsizei height);
+
         void DrawArrays           (ogl_primitive_type mode, GLint first, GLsizei count);
         void DrawArraysInstanced  (ogl_primitive_type mode, GLint first, GLsizei count, GLsizei instanceCount);
         void DrawElementsInstanced(ogl_primitive_type mode, GLsizei count, ogl_indices_type type, const void* offset, GLsizei instanceCount);

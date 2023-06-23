@@ -26,8 +26,5 @@
     <ClInclude Include="..\TestApp_OpenGL\stb_image.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="3DApp.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
   </ItemGroup>
 </Project>

@@ -38,6 +38,7 @@ namespace tao_render_context
 			else						 glDisable(GL_DEPTH_TEST);
 		);
 
+		GL_CALL(glDepthMask(state.depth_write_enable));
 		GL_CALL(glDepthFunc(state.depth_func);								);
 		GL_CALL(glDepthRange(state.depth_range_near, state.depth_range_far););
 	}
@@ -74,6 +75,14 @@ namespace tao_render_context
 				state.blend_const_color_a
 			);
 		);
+		GL_CALL(
+			glColorMask(
+				state.color_mask.mask_red,
+				state.color_mask.mask_green,
+				state.color_mask.mask_blue,
+				state.color_mask.mask_alpha
+			);
+		)
 	}
 
 	void RenderContext::SetRasterizerState(ogl_rasterizer_state state)
@@ -93,6 +102,11 @@ namespace tao_render_context
 		GL_CALL(glFrontFace(state.front_face););
 		GL_CALL(glCullFace(state.cull_mode););
 		GL_CALL(glPolygonMode(GL_FRONT_AND_BACK, state.polygon_mode););
+	}
+
+	void RenderContext::SetViewport(GLint x, GLint y, GLsizei width, GLsizei height)
+	{
+		GL_CALL(glViewport(x, y, width, height));
 	}
 
 

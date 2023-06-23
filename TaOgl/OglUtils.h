@@ -437,6 +437,7 @@ namespace tao_ogl_resources
 	struct ogl_depth_state
 	{
 		bool depth_test_enable		= false;
+		bool depth_write_enable		= true;
 		ogl_depth_func depth_func	= depth_func_always;
 		double depth_range_near		= 0.0;
 		double depth_range_far		= 1.0;
@@ -483,6 +484,36 @@ namespace tao_ogl_resources
 		ogl_blend_factor blend_factor_dst	= blend_fac_one;
 	};
 
+	struct ogl_color_mask
+	{
+		bool mask_red = true;
+		bool mask_green = true;
+		bool mask_blue = true;
+		bool mask_alpha = true;
+	};
+
+	constexpr ogl_color_mask mask_none
+	{
+		.mask_red = false,
+		.mask_green = false,
+		.mask_blue = false,
+		.mask_alpha = false
+	};
+	constexpr ogl_color_mask mask_rgb
+	{
+		.mask_red = true,
+		.mask_green = true,
+		.mask_blue = true,
+		.mask_alpha = false
+	};
+	constexpr ogl_color_mask mask_all
+	{
+		.mask_red = true,
+		.mask_green = true,
+		.mask_blue = true,
+		.mask_alpha = true
+	};
+
 	struct ogl_blend_state
 	{
 		bool blend_enable = false;
@@ -492,11 +523,13 @@ namespace tao_ogl_resources
 		float blend_const_color_g = 0.0f;
 		float blend_const_color_b = 0.0f;
 		float blend_const_color_a = 0.0f;
+		ogl_color_mask color_mask = mask_all;
 	};
 
 	constexpr ogl_blend_state no_blend
 	{
-		.blend_enable = false
+		.blend_enable = false,
+		.color_mask = mask_all
 	};
 
 	constexpr ogl_blend_state alpha_interpolate
@@ -514,6 +547,7 @@ namespace tao_ogl_resources
 			.blend_factor_src = blend_fac_one,
 			.blend_factor_dst = blend_fac_src_alpha
 		},
+		.color_mask = mask_all
 	};
 
 	enum ogl_front_face

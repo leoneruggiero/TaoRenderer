@@ -1,4 +1,7 @@
 #include "GizmosRenderer.h"
+
+#include <ranges>
+
 #include "GizmosShaderLib.h"
 #include "GizmosUtils.h"
 #include "Instrumentation.h"
@@ -127,11 +130,21 @@ namespace tao_gizmos
 	}
 
 	 PointGizmo::PointGizmo(RenderContext& rc, const point_gizmo_descriptor& desc):
-			_vbo{rc, 0, buf_usg_static_draw, ResizeBuffer },
-			_vao{rc.CreateVertexAttribArray()},
-			_pointSize(desc.point_half_size),
-			_snap(desc.snap_to_pixel)
+		_vbo{rc, 0, buf_usg_static_draw, ResizeBuffer },
+		_ssboInstanceColor{rc, 0, buf_usg_static_draw, ResizeBuffer},
+		_ssboInstanceTransform{ rc, 0, desc.zoom_invariant
+														? buf_usg_dynamic_draw
+														: buf_usg_static_draw, ResizeBuffer },
+		_vao{rc.CreateVertexAttribArray()},
+		_pointSize(desc.point_half_size),
+		_snap(desc.snap_to_pixel),
+		_isZoomInvariant{ desc.zoom_invariant },
+		_zoomInvariantScale{ desc.zoom_invariant_scale }
 	 {
+
+		 _positionList = vector<vec3>{ desc.vertices.size() };
+		 for (int i = 0; i < _positionList.size(); i++)_positionList[i] = desc.vertices[i].GetPosition();
+
 		 // vbo layout for points:
 		 // pos(vec3)-color(vec4)-tex(vec4) interleaved
 		 //--------------------------------------------
@@ -142,6 +155,10 @@ namespace tao_gizmos
 		 _vao.EnableVertexAttrib(0);
 		 _vao.EnableVertexAttrib(1);
 		 _vao.EnableVertexAttrib(2);
+
+		 _vbo.Resize(vertexSize*desc.vertices.size());
+		 _vbo.OglBuffer().SetSubData(0, vertexSize* desc.vertices.size(), desc.vertices.data());
+
 
 		// texture atlas
 		// --------------------------------------------
@@ -158,51 +175,31 @@ namespace tao_gizmos
 				desc.symbol_atlas_descriptor->data_type,
 				desc.symbol_atlas_descriptor->data
 			);
-
-			int const symbolCount = desc.symbol_atlas_descriptor->mapping.size();
-			_symbolAtlasTexCoordLUT.emplace(vector<vec4>(symbolCount));
-			
-			for (int i = 0; i < symbolCount; i++)
-				(*_symbolAtlasTexCoordLUT)[i] = vec4(
-					desc.symbol_atlas_descriptor->mapping[i].uv_min,
-					desc.symbol_atlas_descriptor->mapping[i].uv_max);
 		}
 	 }
 
-	 void PointGizmo::SetInstanceData(const vector<vec3>& positions, const vector<vec4>& colors, const optional<vector<unsigned int>>& symbolIndices)
+	 void PointGizmo::SetInstanceData(const vector<vec3>& positions, const vector<vec4>& colors)
 	 {
 		 constexpr int vertexSize = sizeof(float) * 11; // position(3) + color(4) + texCoord(4)
 		 const unsigned int posLen = positions.size();
 
-		 if (posLen != colors.size() || (symbolIndices && symbolIndices->size()!= colors.size()))
+		 if (posLen != colors.size())
 			 throw exception{ "Instance data must match in count." };
 		 
 		 _instanceCount = posLen;
-		 _colorList = colors;
 
-		// Retrieve texture coordinates from symbol indices.
-		// It's a vec4 to define a rect (vertices are expanded into quads). 
-		 vector<glm::vec4> uvCoord(_instanceCount);
-		 if (symbolIndices && _symbolAtlasTexCoordLUT)
-		 {
-			 for (int i = 0; i < _instanceCount; i++)
-			 {
-				 if (_symbolAtlasTexCoordLUT->size() <= (*symbolIndices)[i]) 
-					 throw exception("Invalid symbol index.");
+		 _transformList = vector<mat4>{ positions.size() };
+		 for (int i = 0; i < _positionList.size(); i++)_positionList[i] = positions[i];
 
-				 uvCoord[i] = _symbolAtlasTexCoordLUT->at((*symbolIndices)[i]);
-			 }
-		 }
+		 // Set instance transformation data
+		 unsigned int dataSize = _transformList.size() * sizeof(float) * 16;
+		 _ssboInstanceTransform.Resize(dataSize);
+		 _ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, _transformList.data());
 
-		 BufferDataPacker pack{};
-		 const auto data = pack
-			 .AddDataArray(positions)
-			 .AddDataArray(colors)
-			 .AddDataArray(uvCoord)
-			 .InterleavedBuffer();
-
-		 _vbo.Resize(data.size());
-		 _vbo.OglBuffer().SetSubData(0, data.size(), data.data());
+		 // Set instance color data
+		 dataSize = colors.size() * sizeof(float) * 4;
+		 _ssboInstanceColor.Resize(dataSize);
+		 _ssboInstanceColor.OglBuffer().SetSubData(0, dataSize, colors.data());
 	 }
 
 	 LineListGizmo::LineListGizmo(RenderContext& rc, const line_list_gizmo_descriptor& desc) :
@@ -421,7 +418,6 @@ namespace tao_gizmos
 
 	 }
 
-
 	 void MeshGizmo::SetInstanceData(const vector<mat4>& transforms, const vector<vec4>& colors)
 	 {
 		 if (transforms.size() != colors.size())throw exception{ "Instance data must match in count." };
@@ -454,6 +450,15 @@ namespace tao_gizmos
 		_ssboInstanceColorAndNrmMat.OglBuffer().SetSubData(0, data.size(), data.data());
 	 }
 
+	 RenderLayer GizmosRenderer::DefaultLayer()
+	 {
+		 RenderLayer r{ 1 };
+		 r.depth_state		= DEFAULT_DEPTH_STATE;
+		 r.blend_state		= DEFAULT_BLEND_STATE;
+		 r.rasterizer_state = DEFAULT_RASTERIZER_STATE;
+
+		 return r;
+	 }
 
 	 GizmosRenderer::GizmosRenderer(RenderContext& rc, int windowWidth, int windowHeight) :
 		 _windowWidth  (windowWidth),
@@ -475,10 +480,23 @@ namespace tao_gizmos
 		 _depthTex			 (rc.CreateTexture2DMultisample()),
 		 _mainFramebuffer	 (rc.CreateFramebuffer<OglTexture2DMultisample>()),
 		 _pointGizmos		 {},
-		 _lineGizmos		 {}
+		 _lineGizmos		 {},
+		 _lineStripGizmos	 {},
+		 _meshGizmos		 {},
+		 _renderPasses		 {},
+		 _renderLayers		 {}
 	 {
+		 // Init default render pass and layer
+		 // -----------------------------------------
+		 RenderLayer defaultLayer = DefaultLayer();
+		 _renderLayers.insert(std::make_pair(defaultLayer._guid, defaultLayer));
+
+		 RenderPass defaultPass{ 0 };
+		 defaultPass._layersMask |= defaultLayer._guid;
+		 _renderPasses.push_back(defaultPass);
+
 		 // main fbo
-		 // ----------------------------
+		 // -----------------------------------------
 		 _colorTex.TexImage(8, tex_int_for_rgba , _windowWidth, _windowHeight, false);
 		 _depthTex.TexImage(8, tex_int_for_depth, _windowWidth, _windowHeight, false);
 
@@ -486,7 +504,7 @@ namespace tao_gizmos
 		 _mainFramebuffer.AttachTexture(fbo_attachment_depth,  _depthTex, 0);
 
 		 // shaders ubo bindings
-		 // ----------------------------
+		 // -----------------------------------------
 		 // per-object data
 		 _pointsShader	 .SetUniformBlockBinding(POINTS_OBJ_DATA_BLOCK_NAME, POINTS_OBJ_DATA_BINDING);
 		 _linesShader	 .SetUniformBlockBinding(LINES_OBJ_BLOCK_NAME	   , LINES_OBJ_DATA_BINDING);
@@ -506,21 +524,15 @@ namespace tao_gizmos
 		 // todo: RESET
 
 		 // uniform buffers
-		 // ----------------------------
+		 // -----------------------------------------
 		 _pointsObjDataUbo	  .SetData(sizeof(points_obj_data_block)	 , nullptr, buf_usg_static_draw);
 		 _linesObjDataUbo	  .SetData(sizeof(lines_obj_data_block)		 , nullptr, buf_usg_static_draw);
 		 _lineStripObjDataUbo .SetData(sizeof(line_strip_obj_data_block), nullptr, buf_usg_static_draw);
 		 _meshObjDataUbo      .SetData(sizeof(mesh_obj_data_block)      , nullptr, buf_usg_static_draw);
 		 _frameDataUbo		  .SetData(sizeof(frame_data_block)			 , nullptr, buf_usg_static_draw);
 
-		 _pointsObjDataUbo	  .Bind(POINTS_OBJ_DATA_BINDING);
-		 _linesObjDataUbo	  .Bind(LINES_OBJ_DATA_BINDING);
-		 _lineStripObjDataUbo .Bind(LINE_STRIP_OBJ_DATA_BINDING);
-		 _meshObjDataUbo      .Bind(MESH_OBJ_DATA_BINDING);
-		 _frameDataUbo		  .Bind(FRAME_DATA_BINDING);
-
 		// samplers
-		// ----------------------------
+		// -----------------------------------------
 		 _nearestSampler.SetParams(ogl_sampler_params{
 			.filter_params{
 				 .min_filter = sampler_min_filter_nearest,
@@ -569,57 +581,209 @@ namespace tao_gizmos
 				 .append(" doesn't exist.").c_str());
 	 }
 
-	void GizmosRenderer::CreatePointGizmo(unsigned int pointGizmoIndex, const point_gizmo_descriptor& desc)
-	 {
-		CheckKeyUniqueness(_pointGizmos, pointGizmoIndex, EXC_PREAMBLE);
-
-		_pointGizmos.insert(make_pair(pointGizmoIndex, PointGizmo{ *_renderContext, desc }));
-	 }
-
-	void GizmosRenderer::DestroyPointGizmo(unsigned int pointGizmoIndex)
+	 void CheckKeyValid(unsigned short key, const char* exceptionPreamble)
 	{
-		CheckKeyPresent(_pointGizmos, pointGizmoIndex, EXC_PREAMBLE);
-
-		_pointGizmos.erase(pointGizmoIndex);
+		if(!key)
+			throw exception(
+				string{}.append(exceptionPreamble)
+				.append("invalid key.")
+				.c_str());
 	}
 
-	void GizmosRenderer::InstancePointGizmo(unsigned pointGizmoIndex, const vector<point_gizmo_instance>& instances)
+	unsigned long long  GizmosRenderer::EncodeGizmoKey(unsigned short key, unsigned long long mask)
 	{
-		CheckKeyPresent(_pointGizmos, pointGizmoIndex, EXC_PREAMBLE);
+		unsigned long long longKey = 0;
+		unsigned long long k	   = key;
+		longKey |= (k << 48);
+		longKey |= (k << 32);
+		longKey |= (k << 16);
+		longKey |= (k << 00);
+
+		return longKey & mask;
+	}
+
+	unsigned short GizmosRenderer::DecodeGizmoKey(unsigned long long key, unsigned long long mask)
+	{
+		unsigned long long longKey = 0;
+		unsigned long long k = key & mask;
+		longKey =
+			(k << 48) | (k >> 16) |
+			(k << 32) | (k >> 32) |
+			(k << 16) | (k >> 48) ;
+
+		return static_cast<unsigned short>(longKey);
+	}
+
+	std::vector<gizmo_instance_id> GizmosRenderer::CreateInstanceKeys(const gizmo_id gizmoKey, unsigned instanceCount)
+	{
+		// Instance ID:
+		// - gizmo key
+		// - a progressive id for the instance
+
+		vector<gizmo_instance_id> keys(instanceCount);
+		for (int i = 0; i < instanceCount; i++)
+		{
+			keys[i] = gizmo_instance_id{};
+			keys[i]._gizmoKey = gizmoKey;
+			keys[i]._instanceKey = i;
+		}
+
+		return keys;
+	}
+
+	RenderLayer GizmosRenderer::CreateRenderLayer(
+		const tao_ogl_resources::ogl_depth_state& depthState,
+		const tao_ogl_resources::ogl_blend_state& blendState,
+		const tao_ogl_resources::ogl_rasterizer_state& rasterizerState
+	)
+	{
+		RenderLayer l{ _latestRenderLayerGuid++ };
+		l.blend_state = blendState;
+		l.rasterizer_state = rasterizerState;
+		l.depth_state = depthState;
+
+		_renderLayers.insert(make_pair(l._guid, l));
+
+		return l;
+	}
+
+	unsigned int GizmosRenderer::MakeLayerMask(std::initializer_list<RenderLayer> layers)
+	{
+		unsigned int mask = 0;
+		for (const RenderLayer& l : layers)
+		{
+			if (!_renderLayers.contains(l._guid))
+				throw std::exception{ "Referencing non-existing render layer" };
+
+			mask |= l._guid;
+		}
+
+		return mask;
+	}
+
+	RenderPass GizmosRenderer::CreateRenderPass(std::initializer_list<RenderLayer> layers)
+	{
+		RenderPass r{ MakeLayerMask(layers) };
+
+		return r;
+	}
+
+	void GizmosRenderer::SetRenderPasses(std::initializer_list<RenderPass> passes)
+	{
+		_renderPasses = passes;
+	}
+
+
+	void GizmosRenderer::AssignGizmoToLayers(gizmo_id key, std::initializer_list<RenderLayer> layers)
+	{
+		// TODO: this thing is really ugly
+
+		const unsigned int layerMask = MakeLayerMask(layers);
+
+		// Try with points...
+		auto k = DecodeGizmoKey(key._key, KEY_MASK_POINT);
+		if (_pointGizmos.contains(k))
+		{
+			_pointGizmos.at(k)._layerMask = layerMask;
+			return;
+		}
+		// Try with lines...
+		k = DecodeGizmoKey(key._key, KEY_MASK_LINE);
+		if (_lineGizmos.contains(k))
+		{
+			_lineGizmos.at(k)._layerMask = layerMask;
+			return;
+		}
+		// Try with line strips...
+		k = DecodeGizmoKey(key._key, KEY_MASK_LINE_STRIP);
+		if (_lineStripGizmos.contains(k))
+		{
+			_lineStripGizmos.at(k)._layerMask = layerMask;
+			return;
+		}
+		// Try with meshes...
+		k = DecodeGizmoKey(key._key, KEY_MASK_MESH);
+		if (_meshGizmos.contains(k))
+		{
+			_meshGizmos.at(k)._layerMask = layerMask;
+			return;
+		}
+		// Ok it doesn't exist...throw
+		throw std::exception{ "Invalid key" };
+	}
+
+	gizmo_id GizmosRenderer::CreatePointGizmo(const point_gizmo_descriptor& desc)
+	 {
+		const auto longKey = EncodeGizmoKey(++_latestPointKey, KEY_MASK_POINT);
+		const auto key	 = DecodeGizmoKey(longKey, KEY_MASK_POINT);
+
+		CheckKeyUniqueness(_pointGizmos, key, EXC_PREAMBLE);
+
+		_pointGizmos.insert(make_pair(key, PointGizmo{ *_renderContext, desc }));
+
+		gizmo_id r{};
+		r._key = longKey;
+
+		return r;
+	 }
+
+	void GizmosRenderer::DestroyPointGizmo(gizmo_id key)
+	{
+		auto k = DecodeGizmoKey(key._key, KEY_MASK_POINT);
+		CheckKeyPresent(_pointGizmos, k, EXC_PREAMBLE);
+
+		_pointGizmos.erase(k);
+	}
+
+	std::vector<gizmo_instance_id> GizmosRenderer::InstancePointGizmo(gizmo_id key, const vector<point_gizmo_instance>& instances)
+	{
+		auto k = DecodeGizmoKey(key._key, KEY_MASK_POINT);
+		CheckKeyPresent(_pointGizmos, k, EXC_PREAMBLE);
 
 		vector<vec3>			positions	( instances.size() );
 		vector<vec4>			colors		( instances.size() );
-		vector<unsigned int>	indices		( instances.size() );
-
+		
 		auto iter = instances.begin();
 		for(int i = 0; i < instances.size(); i++)
 		{
 			positions[i]	= iter->position;
 			colors[i]		= iter->color;
-			indices[i]		= iter->symbol_index;
 			++iter;
 		}
 
-		_pointGizmos.at(pointGizmoIndex).SetInstanceData(positions, colors, indices);
+		_pointGizmos.at(k).SetInstanceData(positions, colors);
+
+		// give back keys to the caller so that the individual
+		// instances can be identified for future operations
+		return CreateInstanceKeys(key, instances.size());
 	}
 
-	void GizmosRenderer::CreateLineGizmo(unsigned int lineGizmoIndex, const line_list_gizmo_descriptor& desc)
+	gizmo_id GizmosRenderer::CreateLineGizmo(const line_list_gizmo_descriptor& desc)
 	{
-		CheckKeyUniqueness(_lineGizmos, lineGizmoIndex, EXC_PREAMBLE);
+		const auto longKey = EncodeGizmoKey(++_latestLineKey, KEY_MASK_LINE);
+		const auto key = DecodeGizmoKey(longKey, KEY_MASK_LINE);
 
-		_lineGizmos.insert(make_pair(lineGizmoIndex, LineListGizmo{ *_renderContext, desc }));
+		CheckKeyUniqueness(_lineGizmos, key, EXC_PREAMBLE);
+
+		_lineGizmos.insert(make_pair(key, LineListGizmo{ *_renderContext, desc }));
+
+		gizmo_id r{};
+		r._key = longKey;
+		return r;
 	}
 
-	void GizmosRenderer::DestroyLineGizmo(unsigned int lineGizmoIndex)
+	void GizmosRenderer::DestroyLineGizmo(gizmo_id key)
 	{
-		CheckKeyPresent(_lineGizmos, lineGizmoIndex, EXC_PREAMBLE);
+		auto k = DecodeGizmoKey(key._key, KEY_MASK_LINE);
+		CheckKeyPresent(_lineGizmos, k, EXC_PREAMBLE);
 
-		_lineGizmos.erase(lineGizmoIndex);
+		_lineGizmos.erase(k);
 	}
 
-	void GizmosRenderer::InstanceLineGizmo(unsigned lineGizmoIndex, const vector<line_list_gizmo_instance>& instances)
+	std::vector<gizmo_instance_id> GizmosRenderer::InstanceLineGizmo(const gizmo_id key, const vector<line_list_gizmo_instance>& instances)
 	{
-		CheckKeyPresent(_lineGizmos, lineGizmoIndex, EXC_PREAMBLE);
+		auto k = DecodeGizmoKey(key._key, KEY_MASK_LINE);
+		CheckKeyPresent(_lineGizmos, k, EXC_PREAMBLE);
 
 		std::vector<mat4> transforms(instances.size());
 		std::vector<vec4> colors(instances.size());
@@ -629,26 +793,39 @@ namespace tao_gizmos
 			colors[i]		= instances[i].color;
 		}
 
-		_lineGizmos.at(lineGizmoIndex).SetInstanceData(transforms, colors);
+		_lineGizmos.at(k).SetInstanceData(transforms, colors);
+
+		// give back keys to the caller so that the individual
+		// instances can be identified for future operations
+		return CreateInstanceKeys(key, instances.size());
 	}
 
-	void GizmosRenderer::CreateLineStripGizmo(unsigned int lineStripGizmoIndex, const line_strip_gizmo_descriptor& desc)
+	gizmo_id GizmosRenderer::CreateLineStripGizmo(const line_strip_gizmo_descriptor& desc)
 	{
-		CheckKeyUniqueness(_lineStripGizmos, lineStripGizmoIndex, EXC_PREAMBLE);
+		const auto longKey = EncodeGizmoKey(++_latestLineStripKey, KEY_MASK_LINE_STRIP);
+		const auto key = DecodeGizmoKey(longKey, KEY_MASK_LINE_STRIP);
 
-		_lineStripGizmos.insert(make_pair(lineStripGizmoIndex, LineStripGizmo{ *_renderContext, desc }));
+		CheckKeyUniqueness(_lineStripGizmos, key, EXC_PREAMBLE);
+
+		_lineStripGizmos.insert(make_pair(key, LineStripGizmo{ *_renderContext, desc }));
+
+		gizmo_id r{};
+		r._key = longKey;
+		return r;
 	}
 
-	void GizmosRenderer::DestroyLineStripGizmo(unsigned int lineStripGizmoIndex)
+	void GizmosRenderer::DestroyLineStripGizmo(gizmo_id key)
 	{
-		CheckKeyPresent(_lineStripGizmos, lineStripGizmoIndex, EXC_PREAMBLE);
+		auto k = DecodeGizmoKey(key._key, KEY_MASK_LINE_STRIP);
+		CheckKeyPresent(_lineStripGizmos, k, EXC_PREAMBLE);
 
-		_lineStripGizmos.erase(lineStripGizmoIndex);
+		_lineStripGizmos.erase(k);
 	}
 
-	void GizmosRenderer::InstanceLineStripGizmo(unsigned lineStripGizmoIndex, const vector<line_strip_gizmo_instance>& instances)
+	std::vector<gizmo_instance_id> GizmosRenderer::InstanceLineStripGizmo(const gizmo_id key, const vector<line_strip_gizmo_instance>& instances)
 	{
-		CheckKeyPresent(_lineStripGizmos, lineStripGizmoIndex, EXC_PREAMBLE);
+		auto k = DecodeGizmoKey(key._key, KEY_MASK_LINE_STRIP);
+		CheckKeyPresent(_lineStripGizmos, k, EXC_PREAMBLE);
 
 		std::vector<mat4> transforms(instances.size());
 		std::vector<vec4> colors    (instances.size());
@@ -658,26 +835,39 @@ namespace tao_gizmos
 			colors    [i] = instances[i].color;
 		}
 
-		_lineStripGizmos.at(lineStripGizmoIndex).SetInstanceData(transforms, colors);
+		_lineStripGizmos.at(k).SetInstanceData(transforms, colors);
+
+		// give back keys to the caller so that the individual
+		// instances can be identified for future operations
+		return CreateInstanceKeys(key, instances.size());
 	}
 
-	void GizmosRenderer::CreateMeshGizmo(unsigned int meshGizmoIndex, const mesh_gizmo_descriptor& desc)
+	gizmo_id GizmosRenderer::CreateMeshGizmo(const mesh_gizmo_descriptor& desc)
 	{
-		CheckKeyUniqueness(_meshGizmos, meshGizmoIndex, EXC_PREAMBLE);
+		const auto longKey = EncodeGizmoKey(++_latestMeshKey, KEY_MASK_MESH);
+		const auto key = DecodeGizmoKey(longKey, KEY_MASK_MESH);
+		
+		CheckKeyUniqueness(_meshGizmos, key, EXC_PREAMBLE);
 
-		_meshGizmos.insert(make_pair(meshGizmoIndex, MeshGizmo{ *_renderContext, desc }));
+		_meshGizmos.insert(make_pair(key, MeshGizmo{ *_renderContext, desc }));
+
+		gizmo_id r{};
+		r._key = longKey;
+		return r;
 	}
 
-	void GizmosRenderer::DestroyMeshGizmo(unsigned int meshGizmoIndex)
+	void GizmosRenderer::DestroyMeshGizmo(gizmo_id key)
 	{
-		CheckKeyPresent(_meshGizmos, meshGizmoIndex, EXC_PREAMBLE);
+		auto k = DecodeGizmoKey(key._key, KEY_MASK_MESH);
+		CheckKeyPresent(_meshGizmos, k, EXC_PREAMBLE);
 
-		_meshGizmos.erase(meshGizmoIndex);
+		_meshGizmos.erase(k);
 	}
 
-	void GizmosRenderer::InstanceMeshGizmo(unsigned meshGizmoIndex, const vector<mesh_gizmo_instance>& instances)
+	std::vector<gizmo_instance_id> GizmosRenderer::InstanceMeshGizmo(const gizmo_id key, const vector<mesh_gizmo_instance>& instances)
 	{
-		CheckKeyPresent(_meshGizmos, meshGizmoIndex, EXC_PREAMBLE);
+		auto k = DecodeGizmoKey(key._key, KEY_MASK_MESH);
+		CheckKeyPresent(_meshGizmos, k, EXC_PREAMBLE);
 
 		std::vector<mat4> transforms(instances.size());
 		std::vector<vec4> colors(instances.size());
@@ -687,59 +877,12 @@ namespace tao_gizmos
 			colors	  [i] = instances[i].color;
 		}
 
-		_meshGizmos.at(meshGizmoIndex).SetInstanceData(transforms, colors);
+		_meshGizmos.at(k).SetInstanceData(transforms, colors);
+
+		// give back keys to the caller so that the individual
+		// instances can be identified for future operations
+		return CreateInstanceKeys(key, instances.size());
 	}
-
-	void GizmosRenderer::RenderPointGizmos()
-	 {
-		_renderContext->SetDepthState(ogl_depth_state
-		{
-			.depth_test_enable = true,
-			.depth_func = depth_func_less,
-			.depth_range_near = 0.0,
-			.depth_range_far = 1.0
-		});
-		_renderContext->SetRasterizerState(ogl_rasterizer_state
-		{
-			.multisample_enable = true,
-			.alpha_to_coverage_enable = true
-		});
-		_renderContext->SetBlendState(no_blend);
-
-		_pointsShader.UseProgram();
-
-		for (auto& pGzm : _pointGizmos)
-		{
-			const bool hasTexture = pGzm.second._symbolAtlas.has_value();
-			if (hasTexture)
-			{
-				pGzm.second._symbolAtlas->BindToTextureUnit(tex_unit_0);
-
-				(pGzm.second._symbolAtlasLinearFilter
-					? _linearSampler
-					: _nearestSampler)
-										 .BindToTextureUnit(tex_unit_0);
-			}
-			points_obj_data_block const objData
-			{
-				.size = pGzm.second._pointSize,
-				.snap = pGzm.second._snap,
-				.has_texture = hasTexture
-			};
-
-			_pointsObjDataUbo.SetSubData(0, sizeof(points_obj_data_block), &objData);
-
-			pGzm.second._vao.Bind();
-
-			_renderContext->DrawArrays(pmt_type_points, 0, pGzm.second._instanceCount);
-
-			if (hasTexture)
-			{
-				OglTexture2D::UnBindToTextureUnit(tex_unit_0);
-				OglSampler  ::UnBindToTextureUnit(tex_unit_0);
-			}
-		}
-	 }
 
 	float ComputeZoomInvarianceScale(
 		const glm::vec3& boundingSphereCenter,
@@ -793,24 +936,80 @@ namespace tao_gizmos
 		return newTransformations;
 	}
 
-	void GizmosRenderer::RenderLineGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix)
+	bool GizmosRenderer::ShouldRenderGizmo(const Gizmo& gzm, const RenderPass& currentPass, const RenderLayer& currentLayer)
+	{
+		return gzm._layerMask & currentLayer._guid & currentPass._layersMask;
+	}
+
+	void GizmosRenderer::RenderPointGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
+	{
+		_pointsShader.UseProgram();
+		_pointsObjDataUbo.Bind(POINTS_OBJ_DATA_BINDING);
+
+		for (auto& pGzm : _pointGizmos)
+		{
+			const bool hasTexture = pGzm.second._symbolAtlas.has_value();
+			if (hasTexture)
+			{
+				pGzm.second._symbolAtlas->BindToTextureUnit(tex_unit_0);
+
+				(pGzm.second._symbolAtlasLinearFilter
+					? _linearSampler
+					: _nearestSampler)
+					.BindToTextureUnit(tex_unit_0);
+			}
+			points_obj_data_block const objData
+			{
+				.size = pGzm.second._pointSize,
+				.snap = pGzm.second._snap,
+				.has_texture = hasTexture
+			};
+
+			// TODO: compute and set data outside this func!!! (multiple passes)
+			if (pGzm.second._isZoomInvariant)
+			{
+				vector<glm::mat4> newTransf =
+					ComputeZoomInvarianceTransformations(
+						pGzm.second._zoomInvariantScale,
+						viewMatrix, projectionMatrix, pGzm.second._transformList
+					);
+				pGzm.second._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 * sizeof(float), newTransf.data());
+			}
+
+			_pointsObjDataUbo.SetSubData(0, sizeof(points_obj_data_block), &objData);
+
+			// bind static instance data SSBO (draw instanced)
+			pGzm.second._ssboInstanceColor.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			// bind dynamic instance data SSBO (draw instanced)
+			pGzm.second._ssboInstanceTransform.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+
+			pGzm.second._vao.Bind();
+
+			// TODO: early exit if there's no layer to render for the current pass
+			for(const auto& val : _renderLayers | views::values)
+			{
+				if(ShouldRenderGizmo(pGzm.second, currentPass, val))
+				{
+					_renderContext->SetDepthState		(val.depth_state);
+					_renderContext->SetRasterizerState	(val.rasterizer_state);
+					_renderContext->SetBlendState		(val.blend_state);
+
+					_renderContext->DrawArrays(pmt_type_points, 0, pGzm.second._instanceCount);
+				}
+			}
+
+			if (hasTexture)
+			{
+				OglTexture2D::UnBindToTextureUnit(tex_unit_0);
+				OglSampler::UnBindToTextureUnit(tex_unit_0);
+			}
+		}
+	}
+
+	void GizmosRenderer::RenderLineGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
 	 {
-		_renderContext->SetDepthState(ogl_depth_state
-		{
-			.depth_test_enable	= true,
-			.depth_func			= depth_func_less,
-			.depth_range_near	= 0.0,
-			.depth_range_far	= 1.0
-		});
-		_renderContext->SetRasterizerState(ogl_rasterizer_state
-		{
-			.multisample_enable			= true,
-			.alpha_to_coverage_enable	= true
-		});
-
-		_renderContext->SetBlendState(no_blend);
-
 		_linesShader.UseProgram();
+		_linesObjDataUbo.Bind(LINES_OBJ_DATA_BINDING);
 
 		for (auto& lGzm : _lineGizmos)
 		{
@@ -828,6 +1027,7 @@ namespace tao_gizmos
 				.pattern_size	= lGzm.second._patternSize
 			};
 
+			// TODO - multiple passes waste computation
 			if (lGzm.second._isZoomInvariant)
 			{
 				vector<glm::mat4> newTransf =
@@ -839,6 +1039,7 @@ namespace tao_gizmos
 			}
 
 			_linesObjDataUbo.SetSubData(0, sizeof(lines_obj_data_block), &objData);
+			
 			// bind static instance data SSBO (draw instanced)
 			lGzm.second._ssboInstanceColor		.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)
@@ -846,7 +1047,18 @@ namespace tao_gizmos
 
 			lGzm.second._vao.Bind();
 
-			_renderContext->DrawArraysInstanced(pmt_type_lines, 0, lGzm.second._vertexCount, lGzm.second._instanceCount);
+			// TODO: early exit if there's no layer to render for the current pass
+			for (const auto& val : _renderLayers | views::values)
+			{
+				if (ShouldRenderGizmo(lGzm.second, currentPass, val))
+				{
+					_renderContext->SetDepthState		(val.depth_state);
+					_renderContext->SetRasterizerState	(val.rasterizer_state);
+					_renderContext->SetBlendState		(val.blend_state);
+
+					_renderContext->DrawArraysInstanced(pmt_type_lines, 0, lGzm.second._vertexCount, lGzm.second._instanceCount);
+				}
+			}
 		}
 	 }
 
@@ -976,25 +1188,10 @@ namespace tao_gizmos
 		return sum;
 	}
 	
-	void GizmosRenderer::RenderLineStripGizmos(const glm::mat4& viewMatrix, const glm::mat4& projMatrix)
+	void GizmosRenderer::RenderLineStripGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
 	{
-		_renderContext->SetDepthState(ogl_depth_state
-		{
-			.depth_test_enable = true,
-			.depth_func = depth_func_less,
-			.depth_range_near = 0.0,
-			.depth_range_far = 1.0
-		});
-
-		_renderContext->SetRasterizerState(ogl_rasterizer_state
-		{
-			.multisample_enable = true,
-			.alpha_to_coverage_enable = true
-		});
-
-		_renderContext->SetBlendState(no_blend);
-
 		_lineStripShader.UseProgram();
+		_linesObjDataUbo.Bind(LINE_STRIP_OBJ_DATA_BINDING);
 
 		/////////////////////////////////////////////////////
 		// Line Strip Preprocessing:					   //
@@ -1011,9 +1208,10 @@ namespace tao_gizmos
 		vector<float> ssboData(totalVerts);
 		unsigned int cnt = 0;
 
-		for (unsigned int i = 0; i < _lineStripGizmos.size(); i++)
+		// TODO: multiple passes waste computation 
+		for (auto& pair : _lineStripGizmos)
 		{
-			LineStripGizmo& lGzm = _lineStripGizmos.at(i);
+			LineStripGizmo& lGzm = pair.second;
 			vector<glm::mat4>& realTransformList = lGzm._transformList;
 
 			if (lGzm._isZoomInvariant)
@@ -1021,7 +1219,7 @@ namespace tao_gizmos
 				vector<glm::mat4> newTransf =
 					ComputeZoomInvarianceTransformations(
 						lGzm._zoomInvariantScale,
-						viewMatrix, projMatrix, lGzm._transformList
+						viewMatrix, projectionMatrix, lGzm._transformList
 					);
 
 				realTransformList = newTransf;
@@ -1031,9 +1229,9 @@ namespace tao_gizmos
 
 			// compute screen length sum for the line strip gizmo
 			auto part = PefixSumLineStrip(
-				_lineStripGizmos.at(i)._vertices,
+				lGzm._vertices,
 				realTransformList,
-				viewMatrix, projMatrix,
+				viewMatrix, projectionMatrix,
 				_windowWidth, _windowHeight);
 
 			std::copy(part.begin(), part.end(), ssboData.begin()+cnt);
@@ -1077,30 +1275,27 @@ namespace tao_gizmos
 			// Bind VAO
 			lGzm.second._vao.Bind();
 
-			_renderContext->DrawArraysInstanced(pmt_type_line_strip_adjacency, 0, vertCount, instanceCount);
+			// TODO: early exit if there's no layer to render for the current pass
+			for (const auto& val : _renderLayers | views::values)
+			{
+				if (ShouldRenderGizmo(lGzm.second, currentPass, val))
+				{
+					_renderContext->SetDepthState		(val.depth_state);
+					_renderContext->SetRasterizerState	(val.rasterizer_state);
+					_renderContext->SetBlendState		(val.blend_state);
+
+					_renderContext->DrawArraysInstanced(pmt_type_line_strip_adjacency, 0, vertCount, instanceCount);
+				}
+			}
 
 			vertDrawn += vertCount * instanceCount;
 		}
 	}
 
-	void GizmosRenderer::RenderMeshGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix)
+	void GizmosRenderer::RenderMeshGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
 	{
-		_renderContext->SetDepthState(ogl_depth_state
-			{
-				.depth_test_enable = true,
-				.depth_func = depth_func_less,
-				.depth_range_near = 0.0,
-				.depth_range_far = 1.0
-			});
-		_renderContext->SetRasterizerState(ogl_rasterizer_state
-			{
-				.multisample_enable = true,
-				.alpha_to_coverage_enable = false
-			});
-
-		_renderContext->SetBlendState(no_blend);
-
 		_meshShader.UseProgram();
+		_meshObjDataUbo.Bind(MESH_OBJ_DATA_BINDING);
 
 		for (auto& mGzm : _meshGizmos)
 		{
@@ -1110,7 +1305,8 @@ namespace tao_gizmos
 			};
 
 			_meshObjDataUbo.SetSubData(0, sizeof(mesh_obj_data_block), &objData);
-
+			
+			// TODO: multiple passes waste computation
 			if(mGzm.second._isZoomInvariant)
 			{
 				vector<glm::mat4> newTransf =
@@ -1130,14 +1326,36 @@ namespace tao_gizmos
 			// bind EBO
 			mGzm.second._ebo.OglBuffer().Bind();
 
-			_renderContext->DrawElementsInstanced(pmt_type_triangles, mGzm.second._trisCount, idx_typ_unsigned_int, nullptr, mGzm.second._instanceCount);
+			// TODO: early exit if there's no layer to render for the current pass
+			for (const auto& val : _renderLayers | views::values)
+			{
+				if (ShouldRenderGizmo(mGzm.second, currentPass, val))
+				{
+					_renderContext->SetDepthState		(val.depth_state);
+					_renderContext->SetRasterizerState	(val.rasterizer_state);
+					_renderContext->SetBlendState		(val.blend_state);
+
+					_renderContext->DrawElementsInstanced(pmt_type_triangles, mGzm.second._trisCount, idx_typ_unsigned_int, nullptr, mGzm.second._instanceCount);
+				}
+			}
 		}
 	}
 
-	const OglFramebuffer<OglTexture2DMultisample>& GizmosRenderer::Render(glm::mat4 viewMatrix, glm::mat4 projectionMatrix, glm::vec2 nearFar)
+	const OglFramebuffer<OglTexture2DMultisample>& GizmosRenderer::Render(
+		const glm::mat4& viewMatrix, 
+		const glm::mat4& projectionMatrix, 
+		const glm::vec2& nearFar)
 	{
 		// todo isCurrent()
 		// rc.MakeCurrent();
+
+		_renderContext->SetViewport(0, 0, _windowWidth, _windowHeight);
+
+		// Set the default states so that clear operations
+		// are not disabled by what happend previously
+		_renderContext->SetDepthState		(DEFAULT_DEPTH_STATE);
+		_renderContext->SetBlendState		(DEFAULT_BLEND_STATE);
+		_renderContext->SetRasterizerState	(DEFAULT_RASTERIZER_STATE);
 
 		// todo: how to show results? maybe return a texture or let the user access the drawn surface.
 		_mainFramebuffer.Bind(fbo_read_draw);
@@ -1157,11 +1375,15 @@ namespace tao_gizmos
 		};
 
 		_frameDataUbo.SetSubData(0, sizeof(frame_data_block), &frameData);
+		_frameDataUbo.Bind(FRAME_DATA_BINDING);
 
-		RenderMeshGizmos		(viewMatrix, projectionMatrix);
-		RenderLineGizmos		(viewMatrix, projectionMatrix);
-		RenderLineStripGizmos	(viewMatrix, projectionMatrix);
-		RenderPointGizmos		();
+		for (const RenderPass& pass : _renderPasses)
+		{
+			RenderMeshGizmos		(viewMatrix, projectionMatrix, pass);
+			RenderLineGizmos		(viewMatrix, projectionMatrix, pass);
+			RenderLineStripGizmos	(viewMatrix, projectionMatrix, pass);
+			RenderPointGizmos		(viewMatrix, projectionMatrix, pass);
+		}
 
 		OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
 

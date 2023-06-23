@@ -12,7 +12,6 @@
 #include "GizmosRenderer.h"
 #include "GizmosHelper.h"
 #include "../../TestApp_OpenGL/TestApp_OpenGL/stb_image.h"
-#include "3DApp.h"
 
 using namespace std;
 using namespace glm;
@@ -83,14 +82,28 @@ vector<LineGizmoVertex> Circle(float radius, unsigned int subdv)
 	return pts;
 }
 
-void InitGrid(GizmosRenderer& gr)
+struct MyGizmoLayers
+{
+	RenderLayer opaqueLayer;
+	RenderLayer transparentLayer;
+};
+
+struct MyGizmoLayersVC
+{
+	RenderLayer depthPrePassLayer;
+	RenderLayer opaqueLayer;
+	RenderLayer blendEqualLayer;
+	RenderLayer blendGreaterLayer;
+};
+
+void InitGrid(GizmosRenderer& gr, const MyGizmoLayers& layers)
 {
 	constexpr float width			= 10.0f;
 	constexpr float height			= 10.0f;
 	constexpr unsigned int subdvX	= 51;
 	constexpr unsigned int subdvY	= 51;
-	constexpr vec4 colDark			= vec4{ 0.7, 0.7, 0.7, 1.0 };
-	constexpr vec4 colLight			= vec4{ 0.4, 0.4, 0.4, 1.0 };
+	constexpr vec4 colDark			= vec4{ 0.7, 0.7, 0.7, 0.4 };
+	constexpr vec4 colLight			= vec4{ 0.4, 0.4, 0.4, 0.4 };
 
 	
 	vector<LineGizmoVertex> vertices{ (subdvX + subdvY) *2 };
@@ -128,7 +141,7 @@ void InitGrid(GizmosRenderer& gr)
 			.Position({ width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j , -0.001f })
 			.Color(color);
 	}
-	gr.CreateLineGizmo(1, line_list_gizmo_descriptor{
+	auto key = gr.CreateLineGizmo(line_list_gizmo_descriptor{
 		.vertices = vertices,
 		.line_size = 1,
 		.pattern_texture_descriptor = nullptr
@@ -143,9 +156,11 @@ void InitGrid(GizmosRenderer& gr)
 		.color = vec4{1.0f}
 		}
 	};
-	gr.InstanceLineGizmo(1, instances);
+	gr.InstanceLineGizmo(key, instances);
+
+	gr.AssignGizmoToLayers(key, { layers.transparentLayer });
 }
-void InitWorldAxis(GizmosRenderer& gr)
+void InitWorldAxis(GizmosRenderer& gr, const MyGizmoLayers& layers)
 {
 	/// Create 3 dashed axis in X,Y and Z
 	//////////////////////////////////////////
@@ -196,8 +211,140 @@ void InitWorldAxis(GizmosRenderer& gr)
 	//});
 }
 
+void CreateDashedPatternVC(unsigned int patternLen, unsigned int patternWidth, tao_gizmos_procedural::TextureDataRgbaUnsignedByte& tex)
+{
+	
+	tex.FillWithFunction([patternLen, patternWidth](unsigned int x, unsigned int y)
+	{
+		vec2 sampl = vec2{ x, y }+vec2{0.5f};
 
-void InitArrowTriad2D(tao_gizmos::GizmosRenderer& gizRdr)
+		float d = patternLen / 4.0f;
+
+		vec2 dashStart = vec2{ d , patternWidth / 2.0f };
+		vec2 dashEnd = vec2{ patternLen - d , patternWidth / 2.0f };
+
+		float val =
+			tao_gizmos_sdf::SdfSegment<float>{ sampl, dashStart, dashEnd };
+		val = tao_gizmos_sdf::SdfInflate(val, patternWidth*0.3f);
+		val = glm::clamp(val, 0.0f, 1.0f);
+		return vec<4, unsigned char>{ 255, 255, 255, (1.0f - val) * 255 };
+	});
+	
+}
+
+void InitViewCube(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayersVC& layers)
+{
+	/// Settings
+	///////////////////////////////////////////////////////////////////////
+	float zoomInvariantScale = 0.08f;
+	vec4 cubeColor = vec4{ 0.8, 0.8, 0.8, 0.0f };
+	vec4 edgeColor = vec4{ 0.8, 0.8, 0.8, 1.0f };
+
+	/// 3D Mesh
+	///////////////////////////////////////////////////////////////////////
+	auto box = tao_geometry::Mesh::Box(1, 1, 1);
+	auto pos = box.GetPositions();
+	auto nrm = box.GetNormals();
+	auto tri = box.GetIndices();
+
+	for (auto& p : pos) p -= vec3{ 0.5, 0.5, 0.5 }; 
+
+	vector<MeshGizmoVertex> vertices{pos.size()};
+
+	for(int i=0;i<vertices.size();i++)
+	{
+		vertices[i] = MeshGizmoVertex{}
+		.Position(pos[i])
+		.Normal(nrm[i])
+		.Color(cubeColor);
+	}
+
+	auto key = gizRdr.CreateMeshGizmo(mesh_gizmo_descriptor
+		{
+				.vertices = vertices,
+				.triangles = &tri,
+				.zoom_invariant = false,
+				.zoom_invariant_scale = zoomInvariantScale
+		});
+
+	gizRdr.InstanceMeshGizmo(key,
+	{
+			mesh_gizmo_instance{glm::scale(glm::mat4{1.0f}, vec3{0.98f}) , glm::vec4{1.0f}}
+		});
+
+	gizRdr.AssignGizmoToLayers(key, { layers.blendEqualLayer, layers.depthPrePassLayer });
+
+	/// Edges
+	///////////////////////////////////////////////////////////////////////
+	vector<vec3> edgePos{ 8 };
+	edgePos[0] = vec3{ -0.5f,  -0.5f, -0.5f };
+	edgePos[1] = vec3{  0.5f, -0.5f, -0.5f };
+	edgePos[2] = vec3{  0.5f,  0.5f, -0.5f };
+	edgePos[3] = vec3{  -0.5f, 0.5f, -0.5f };
+	for (int i = 0; i < 4; i++) edgePos[i + 4] = edgePos[i] + vec3{ 0.0f, 0.0f, 1.0f };
+
+	vector<LineGizmoVertex> edgeVertices;
+	for (int i = 0; i < 4; i++)
+	{
+		edgeVertices.push_back(LineGizmoVertex{}.Position(edgePos[(i + 0)%4]).Color(edgeColor));
+		edgeVertices.push_back(LineGizmoVertex{}.Position(edgePos[(i + 1)%4]).Color(edgeColor));
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		edgeVertices.push_back(LineGizmoVertex{}.Position(edgePos[4+((i + 0) % 4)]).Color(edgeColor));
+		edgeVertices.push_back(LineGizmoVertex{}.Position(edgePos[4+((i + 1) % 4)]).Color(edgeColor));
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		edgeVertices.push_back(LineGizmoVertex{}.Position(edgePos[i + 0]).Color(edgeColor));
+		edgeVertices.push_back(LineGizmoVertex{}.Position(edgePos[i + 4]).Color(edgeColor));
+	}
+
+	unsigned int edgeWidth = 3;
+	auto edgesKey = gizRdr.CreateLineGizmo(line_list_gizmo_descriptor
+	{
+		.vertices = edgeVertices,
+		.line_size = edgeWidth,
+		.zoom_invariant = false,
+		.zoom_invariant_scale = zoomInvariantScale ,
+		.pattern_texture_descriptor = nullptr
+	});
+
+	tao_gizmos_procedural::TextureDataRgbaUnsignedByte dashTex{ 16, 2, {0} };
+	CreateDashedPatternVC(16, 2, dashTex);
+	pattern_texture_descriptor dashPattern
+	{
+		.data = dashTex.DataPtr(),
+		.data_format = tex_for_rgba,
+		.data_type = tex_typ_unsigned_byte,
+		.width = 16,
+		.height = 2,
+		.pattern_length = 16
+	};
+
+	auto dashedEdgesKey = gizRdr.CreateLineGizmo(line_list_gizmo_descriptor
+		{
+			.vertices = edgeVertices,
+			.line_size = 2,
+			.zoom_invariant = false,
+			.zoom_invariant_scale = zoomInvariantScale ,
+			.pattern_texture_descriptor = &dashPattern
+		});
+
+	gizRdr.InstanceLineGizmo(edgesKey,
+		{
+			line_list_gizmo_instance{glm::mat4{1.0f}, vec4{1.0f}}
+		});
+	gizRdr.InstanceLineGizmo(dashedEdgesKey,
+		{
+			line_list_gizmo_instance{glm::mat4{1.0f}, vec4{0.4f}}
+		});
+
+	gizRdr.AssignGizmoToLayers(edgesKey, { layers.depthPrePassLayer, layers.opaqueLayer });
+	gizRdr.AssignGizmoToLayers(dashedEdgesKey, { layers.blendGreaterLayer });
+}
+
+void InitArrowTriad2D(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayers& layers)
 {
 	constexpr float axisLen = 0.8f;
 	constexpr float arrowWidth = 0.2f;
@@ -243,7 +390,7 @@ void InitArrowTriad2D(tao_gizmos::GizmosRenderer& gizRdr)
 	for (const auto& v : axisVertsY) verts.push_back(v);
 	for (const auto& v : axisVertsZ) verts.push_back(v);
 
-	gizRdr.CreateLineGizmo(2, line_list_gizmo_descriptor
+	auto key = gizRdr.CreateLineGizmo(line_list_gizmo_descriptor
 	{
 		.vertices					= verts,
 		.line_size					= 3,
@@ -252,11 +399,13 @@ void InitArrowTriad2D(tao_gizmos::GizmosRenderer& gizRdr)
 		.pattern_texture_descriptor = nullptr
 	});
 
-	gizRdr.InstanceLineGizmo(2,
+	gizRdr.InstanceLineGizmo(key,
 {
-		line_list_gizmo_instance{ translate(mat4{ 1.0f }, vec3{ 1.0,-1.0, 0.25 }), vec4(1.0f) },
+		line_list_gizmo_instance{ translate(mat4{ 1.0f }, vec3{ 1.0, -1.0, 0.25 }), vec4(1.0f) },
 		line_list_gizmo_instance{ translate(mat4{ 1.0f }, vec3{-1.0, 1.0, 0.25 }), vec4(1.0f) }
 		});
+
+	gizRdr.AssignGizmoToLayers(key, { layers.opaqueLayer });
 }
 
 
@@ -322,7 +471,7 @@ void CreateArrowTriad(
 
 }
 
-void InitArrowTriad3D(tao_gizmos::GizmosRenderer& gizRdr)
+void InitArrowTriad3D(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayers& layers)
 {
 	vector<glm::vec3> cubeMeshPos;
 	vector<glm::vec3> cubeMeshNrm;
@@ -343,7 +492,7 @@ void InitArrowTriad3D(tao_gizmos::GizmosRenderer& gizRdr)
 			.Color(cubeMeshCol[i]);
 	}
 
-	gizRdr.CreateMeshGizmo(0, mesh_gizmo_descriptor
+	auto key = gizRdr.CreateMeshGizmo(mesh_gizmo_descriptor
 		{
 			.vertices = cubeMeshVertices,
 			.triangles = &cubeMeshTris,
@@ -351,19 +500,191 @@ void InitArrowTriad3D(tao_gizmos::GizmosRenderer& gizRdr)
 			.zoom_invariant_scale = 0.1f
 		});
 
-	gizRdr.InstanceMeshGizmo(0,
+	gizRdr.InstanceMeshGizmo(key,
 		{
 			mesh_gizmo_instance{ translate(mat4{ 1.0f }, vec3{-1.0,-1.0, 0.25 }), vec4(1.0f) },
 			mesh_gizmo_instance{ translate(mat4{ 1.0f }, vec3{ 1.0, 1.0, 0.25 }), vec4(1.0f) },
 		});
+
+	gizRdr.AssignGizmoToLayers(key, { layers.opaqueLayer });
+}
+
+RenderLayer InitOpaqueGizmoLayer(GizmosRenderer& gr)
+{
+	auto opaqueLayer = gr.CreateRenderLayer(
+		ogl_depth_state
+		{
+			.depth_test_enable = true,
+			.depth_write_enable = true,
+			.depth_func = depth_func_less_equal,
+			.depth_range_near = 0.0,
+			.depth_range_far = 1.0
+		},
+		ogl_blend_state
+		{
+			.blend_enable = false,
+		},
+		ogl_rasterizer_state
+		{
+			.culling_enable = false ,
+			.polygon_mode = polygon_mode_fill,
+			.multisample_enable = true,
+			.alpha_to_coverage_enable = true
+		}
+	);
+
+	return opaqueLayer;
+}
+RenderLayer InitTransparentGizmoLayer(GizmosRenderer& gr)
+{
+	auto blendLayer = gr.CreateRenderLayer(
+		ogl_depth_state
+		{
+			.depth_test_enable = true,
+			.depth_write_enable = false,
+			.depth_func = depth_func_less_equal,
+			.depth_range_near = 0.0,
+			.depth_range_far = 1.0
+		},
+		ogl_blend_state
+		{
+			.blend_enable = true,
+			.blend_equation_rgb = ogl_blend_equation{blend_func_add, blend_fac_src_alpha, blend_fac_one_minus_src_alpha},
+			.blend_equation_alpha = ogl_blend_equation{blend_func_add, blend_fac_one, blend_fac_one }
+		},
+		ogl_rasterizer_state
+		{
+			.culling_enable = false ,
+			.polygon_mode = polygon_mode_fill,
+			.multisample_enable = true,
+			.alpha_to_coverage_enable = false
+		}
+	);
+
+	return blendLayer;
+}
+
+MyGizmoLayers InitGizmosLayersAndPasses(GizmosRenderer& gr)
+{
+	auto opaqueLayer		= InitOpaqueGizmoLayer(gr);
+	auto transparentLayer	= InitTransparentGizmoLayer(gr);
+	auto opaquePass			= gr.CreateRenderPass({ opaqueLayer });
+	auto transparentPass	= gr.CreateRenderPass({ transparentLayer });
+
+	gr.SetRenderPasses({ opaquePass, transparentPass });
+
+	MyGizmoLayers layers
+	{
+		.opaqueLayer = opaqueLayer,
+		.transparentLayer = transparentLayer
+	};
+
+	return layers;
+}
+
+MyGizmoLayersVC InitGizmosLayersAndPassesVC(GizmosRenderer& gr)
+{
+	MyGizmoLayersVC myLayers
+	{
+		.depthPrePassLayer = gr.CreateRenderLayer(
+		ogl_depth_state
+			{
+				.depth_test_enable = true,
+				.depth_write_enable = true,
+				.depth_func = depth_func_less_equal,
+				.depth_range_near = 0.0,
+				.depth_range_far = 1.0
+			},
+			ogl_blend_state
+			{
+				.blend_enable = false,
+				.color_mask = mask_none
+			},
+			ogl_rasterizer_state
+			{
+				.culling_enable = false,
+				.multisample_enable = true,
+				.alpha_to_coverage_enable = false
+			}
+		) ,
+		.opaqueLayer = gr.CreateRenderLayer(
+		ogl_depth_state
+			{
+				.depth_test_enable = true,
+				.depth_write_enable = true,
+				.depth_func = depth_func_less_equal,
+				.depth_range_near = 0.0,
+				.depth_range_far = 1.0
+			},
+			no_blend,
+			ogl_rasterizer_state
+			{
+				.culling_enable = false,
+				.multisample_enable = true,
+				.alpha_to_coverage_enable = true
+			}
+		) ,
+		.blendEqualLayer = gr.CreateRenderLayer(
+		ogl_depth_state
+			{
+				.depth_test_enable = true,
+				.depth_write_enable = false,
+				.depth_func = depth_func_equal,
+				.depth_range_near = 0.0,
+				.depth_range_far = 1.0
+			},
+			alpha_interpolate,
+			ogl_rasterizer_state
+			{
+				.culling_enable = false,
+				.multisample_enable = true,
+				.alpha_to_coverage_enable = false
+			}
+		) ,
+		.blendGreaterLayer = gr.CreateRenderLayer(
+		ogl_depth_state
+			{
+				.depth_test_enable = true,
+				.depth_write_enable = false,
+				.depth_func = depth_func_greater,
+				.depth_range_near = 0.0,
+				.depth_range_far = 1.0
+			},
+			alpha_interpolate,
+			ogl_rasterizer_state
+			{
+				.culling_enable = false,
+				.multisample_enable = true,
+				.alpha_to_coverage_enable = false
+			}
+		)
+	};
+
+	gr.SetRenderPasses({
+			gr.CreateRenderPass({ myLayers.depthPrePassLayer }),
+			gr.CreateRenderPass({ myLayers.blendGreaterLayer}),
+			gr.CreateRenderPass({ myLayers.opaqueLayer }),
+			gr.CreateRenderPass({ myLayers.blendEqualLayer })
+		});
+
+	return myLayers;
+
 }
 
 void InitGizmos(GizmosRenderer& gr)
 {
-	InitWorldAxis		(gr);
-	InitGrid			(gr);
-	InitArrowTriad3D	(gr);
-	InitArrowTriad2D	(gr);
+	MyGizmoLayers layers = InitGizmosLayersAndPasses(gr);
+
+	//InitWorldAxis		(gr, layers);
+	InitGrid			(gr, layers);
+	InitArrowTriad3D	(gr, layers);
+	InitArrowTriad2D	(gr, layers);
+}
+
+void InitGizmosVC(GizmosRenderer& gr)
+{
+	MyGizmoLayersVC layers = InitGizmosLayersAndPassesVC(gr);
+	InitViewCube(gr, layers);
 }
 
 int main()
@@ -378,6 +699,10 @@ int main()
 		RenderContext rc{ windowWidth, windowHeight };
 		rc.GetFramebufferSize(fboWidth, fboHeight);
 		GizmosRenderer gizRdr{ rc, fboWidth, fboHeight };
+
+		int fboWidthVC  = 256;
+		int fboHeightVC = 256;
+		GizmosRenderer gizRdrVC{ rc, fboWidthVC, fboHeightVC };
 
 		mouse_input_data mouseRotateData;
 		mouse_input_data mouseZoomData;
@@ -438,64 +763,7 @@ int main()
 		time_point startTime = high_resolution_clock::now();
 
 		InitGizmos(gizRdr);
-
-		// Add some line strips
-		vector<LineGizmoVertex> strip = Circle(1.0f, 64);
-		for (int i = 0; i < strip.size(); i++)
-		{
-			strip[i].Color(vec4{ static_cast<float>(i) / strip.size(), 0.0f, 0.7f, 1.0f });
-		}
-
-
-		// dashed pattern
-		unsigned int lineWidth  = 6;
-		unsigned int patternLen = 32;
-		tao_gizmos_procedural::TextureDataRgbaUnsignedByte patternTex
-		{
-			patternLen,
-			lineWidth,
-			tao_gizmos_procedural::TexelData<4,unsigned char>({0,0,0,0})
-		};
-
-		patternTex.FillWithFunction([lineWidth, patternLen](unsigned x, unsigned y)
-		{
-			float h = lineWidth  / 2.0f;
-			float k = patternLen / 10.0f;
-
-			// dash
-			float v0 = tao_gizmos_sdf::SdfSegment(vec2(x, y), vec2(3 * k, h), vec2(7 * k, h));
-			v0 = tao_gizmos_sdf::SdfInflate(v0, h);
-			
-			float a = glm::clamp(0.5f - v0, 0.0f, 1.0f); // `anti aliasing`
-			return vec<4, unsigned char>{255, 255, 255, static_cast<unsigned char>(a * 255)};
-		});
-
-		pattern_texture_descriptor patternDesc
-		{
-			.data = patternTex.DataPtr(),
-			.data_format = tex_for_rgba,
-			.data_type = tex_typ_unsigned_byte,
-			.width = patternLen,
-			.height = lineWidth,
-			.pattern_length = patternLen
-		};
-
-		gizRdr.CreateLineStripGizmo(0, line_strip_gizmo_descriptor
-			{
-				.vertices = strip,
-				.isLoop = true,
-				.line_size = lineWidth,
-				.pattern_texture_descriptor = &patternDesc
-			});
-
-		gizRdr.InstanceLineStripGizmo(0,
-			{
-				line_strip_gizmo_instance{rotate(translate(mat4{1}, vec3{2.0, 2.0, 2.0}),0.0f              , vec3(1, 0, 0)), vec4(0.95, 0.85, 0.9, 1.0)},
-				line_strip_gizmo_instance{rotate(translate(mat4{1}, vec3{2.0, 2.0, 2.0}),0.5f * pi<float>(), vec3(1, 0, 0)), vec4(0.95, 0.85, 0.9, 1.0)},
-				line_strip_gizmo_instance{rotate(translate(mat4{1}, vec3{2.0, 2.0, 2.0}),0.5f * pi<float>(), vec3(0, 1, 0)), vec4(0.95, 0.85, 0.9, 1.0)},
-			});
-
-
+		InitGizmosVC(gizRdrVC);
 
 		while (!rc.ShouldClose())
 		{
@@ -538,8 +806,21 @@ int main()
 			viewMatrix = glm::lookAt(eyePos, eyeTrg, up);
 			// ----------------------------------------------------------------------
 
-			
+
 			gizRdr.Render(viewMatrix, projMatrix, nearFar).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
+
+			mat4 viewMatrixVC = glm::lookAt(normalize(eyePos - eyeTrg)*2.9f, vec3{ 0.0f }, vec3{0.0, 0.0, 1.0});
+			mat4 projMatrixVC = glm::perspective(radians<float>(60), static_cast<float>(fboWidthVC) / fboHeightVC, 0.1f, 4.0f);
+
+			gizRdrVC.Render(viewMatrixVC, projMatrixVC, vec2{0.1f, 3.0f})
+				.CopyTo(
+					nullptr,
+					0, 0,
+					fboWidthVC, fboHeightVC,
+					fboWidth - fboWidthVC, fboHeight - fboHeightVC,
+					fboWidth, fboHeight,
+					fbo_copy_mask_color_bit, fbo_copy_filter_nearest
+				);
 
 			rc.SwapBuffers();
 			rc.PollEvents();
