@@ -130,21 +130,31 @@ namespace tao_gizmos
 	}
 
 	 PointGizmo::PointGizmo(RenderContext& rc, const point_gizmo_descriptor& desc):
-		_vbo{rc, 0, buf_usg_static_draw, ResizeBuffer },
-		_ssboInstanceColor{rc, 0, buf_usg_static_draw, ResizeBuffer},
-		_ssboInstanceTransform{ rc, 0, desc.zoom_invariant
-														? buf_usg_dynamic_draw
-														: buf_usg_static_draw, ResizeBuffer },
+		_vertexCount			{ static_cast<unsigned int>(desc.vertices.size())},
+		_vbo{rc, 0,
+			desc.usage_hint==gizmo_usage_hint::usage_static
+			? buf_usg_static_draw
+			: buf_usg_dynamic_draw
+			, ResizeBuffer },
+
+		_ssboInstanceColor{rc, 0,
+			desc.usage_hint == gizmo_usage_hint::usage_static
+			? buf_usg_static_draw
+			: buf_usg_dynamic_draw, ResizeBuffer},
+
+		_ssboInstanceTransform{ rc, 0,
+			desc.zoom_invariant || desc.usage_hint == gizmo_usage_hint::usage_dynamic		// Zoom invariance means we must update
+			? buf_usg_dynamic_draw															// the transform list whenever the view/proj
+			: buf_usg_static_draw, ResizeBuffer },										// matrix changes -> `dynamic` hint.
+
 		_vao{rc.CreateVertexAttribArray()},
 		_pointSize(desc.point_half_size),
-		_snap(desc.snap_to_pixel),
-		_isZoomInvariant{ desc.zoom_invariant },
-		_zoomInvariantScale{ desc.zoom_invariant_scale }
+		_snap(desc.snap_to_pixel)
 	 {
 
-		 _positionList = vector<vec3>{ desc.vertices.size() };
-		 for (int i = 0; i < _positionList.size(); i++)_positionList[i] = desc.vertices[i].GetPosition();
-
+		 Gizmo::_isZoomInvariant	= desc.zoom_invariant;
+		 Gizmo::_zoomInvariantScale = desc.zoom_invariant_scale;
+		 
 		 // vbo layout for points:
 		 // pos(vec3)-color(vec4)-tex(vec4) interleaved
 		 //--------------------------------------------
@@ -178,46 +188,54 @@ namespace tao_gizmos
 		}
 	 }
 
-	 void PointGizmo::SetInstanceData(const vector<vec3>& positions, const vector<vec4>& colors)
+	 void PointGizmo::SetInstanceData(const vector<gizmo_instance_descriptor>& instances)
 	 {
-		 constexpr int vertexSize = sizeof(float) * 11; // position(3) + color(4) + texCoord(4)
-		 const unsigned int posLen = positions.size();
+		Gizmo::SetInstanceData(instances);
 
-		 if (posLen != colors.size())
-			 throw exception{ "Instance data must match in count." };
-		 
-		 _instanceCount = posLen;
-
-		 _transformList = vector<mat4>{ positions.size() };
-		 for (int i = 0; i < _positionList.size(); i++)_positionList[i] = positions[i];
+		std::vector<glm::mat4> transformations(_instanceCount);
+		std::vector<glm::vec4> colors		  (_instanceCount);
+		for(int i=0;i<_instanceCount; i++)
+		{
+			transformations[i] = _instanceData[i].transform;
+			colors	       [i] = _instanceData[i].color;
+		}
 
 		 // Set instance transformation data
-		 unsigned int dataSize = _transformList.size() * sizeof(float) * 16;
+		 unsigned int dataSize = _instanceCount * sizeof(float) * 16;
 		 _ssboInstanceTransform.Resize(dataSize);
-		 _ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, _transformList.data());
+		 _ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transformations.data());
 
 		 // Set instance color data
-		 dataSize = colors.size() * sizeof(float) * 4;
+		 dataSize = _instanceCount * sizeof(float) * 4;
 		 _ssboInstanceColor.Resize(dataSize);
 		 _ssboInstanceColor.OglBuffer().SetSubData(0, dataSize, colors.data());
 	 }
 
 	 LineListGizmo::LineListGizmo(RenderContext& rc, const line_list_gizmo_descriptor& desc) :
-	     _vertices				(desc.vertices.size()),
-		 _vbo					{ rc, 0, ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
-		 _ssboInstanceColor		{ rc, 0, ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
-		 _ssboInstanceTransform	{ rc, 0, 
-		 						desc.zoom_invariant ? ogl_buffer_usage::buf_usg_dynamic_draw
-		 											: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+		 _vertexCount			{ static_cast<unsigned int>(desc.vertices.size())},
+		 _vbo					{ rc, 0,
+		 	desc.usage_hint == gizmo_usage_hint::usage_static
+			? buf_usg_static_draw
+			: buf_usg_dynamic_draw, ResizeBuffer },
+
+		 _ssboInstanceColor		{ rc, 0,
+			desc.usage_hint == gizmo_usage_hint::usage_static
+			? buf_usg_static_draw
+			: buf_usg_dynamic_draw, ResizeBuffer },
+
+		 _ssboInstanceTransform	{ rc, 0,													// Zoom invariance means we must update
+			desc.zoom_invariant || desc.usage_hint == gizmo_usage_hint::usage_dynamic		// the transform list whenever the view/proj  
+			? ogl_buffer_usage::buf_usg_dynamic_draw										// matrix changes -> `dynamic` hint.
+		 	: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+
 		 _vao					{ rc.CreateVertexAttribArray() },
 		 _lineSize				{ desc.line_size    },
-		 _patternSize			{ 0 },
-		 _isZoomInvariant		{ desc.zoom_invariant },
-		 _zoomInvariantScale	{ desc.zoom_invariant_scale }
-	 {
-		 _vertexCount = desc.vertices.size();
-		 for (int i = 0; i < _vertexCount; i++) _vertices[i] = desc.vertices[i].GetPosition();
+		 _patternSize			{ 0 }
+	  {
 
+		 Gizmo::_isZoomInvariant	= desc.zoom_invariant;
+		 Gizmo::_zoomInvariantScale = desc.zoom_invariant_scale;
+		 
 		 // vbo layout for points:
 		 // pos(vec3)-color(vec4)
 		 //--------------------------------------------
@@ -228,8 +246,9 @@ namespace tao_gizmos
 		 _vao.EnableVertexAttrib(0);
 		 _vao.EnableVertexAttrib(1);
 
-		 _vbo.Resize(vertexSize*_vertexCount);
-		 _vbo.OglBuffer().SetSubData(0, vertexSize* _vertexCount, desc.vertices.data());
+		 unsigned int vertexCount = desc.vertices.size();
+		 _vbo.Resize(vertexSize*vertexCount);
+		 _vbo.OglBuffer().SetSubData(0, vertexSize* vertexCount, desc.vertices.data());
 
 		 // pattern texture
 		 // --------------------------------------------
@@ -249,17 +268,20 @@ namespace tao_gizmos
 		 }
 	 }
 
-	 void LineListGizmo::SetInstanceData(const vector<mat4>& transformations, const vector<vec4>& colors)
+	 void LineListGizmo::SetInstanceData(const vector<gizmo_instance_descriptor>& instances)
 	 {
+		 Gizmo::SetInstanceData(instances);
 
-		 if (transformations.size() != colors.size())
-			 throw exception{ "Instance data must match in count." };
-
-		 _instanceCount = transformations.size();
-		 _transformList = transformations;
+		 vector<mat4> transformations(_instanceCount);
+		 vector<vec4> colors(_instanceCount);
+		 for(int i=0;i<_instanceCount;i++)
+		 {
+			 transformations[i] = instances[i].transform;
+			 colors			[i] = instances[i].color;
+		 }
 
 		 // Set instance transformation data
-		 unsigned int dataSize = _transformList.size() * sizeof(float) * 16;
+		 unsigned int dataSize = _instanceCount * sizeof(float) * 16;
 		 _ssboInstanceTransform.Resize(dataSize);
 		 _ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transformations.data());
 
@@ -270,18 +292,30 @@ namespace tao_gizmos
 	 }
 
 	 LineStripGizmo::LineStripGizmo(RenderContext& rc, const line_strip_gizmo_descriptor& desc) :
+		 _vertexCount			{ static_cast<unsigned int>(desc.vertices.size())},
 		 _vertices				(desc.vertices.size()), 
-		 _vboVertices			{ rc, 0, buf_usg_static_draw, ResizeBuffer },
-		 _ssboInstanceTransform	{ rc, 0,
-								desc.zoom_invariant ? ogl_buffer_usage::buf_usg_dynamic_draw
-													: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
-		 _ssboInstanceColor		{ rc, 0, ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+		 _vboVertices			{ rc, 0,
+			desc.usage_hint == gizmo_usage_hint::usage_static
+			? buf_usg_static_draw
+			: buf_usg_dynamic_draw, ResizeBuffer },
+
+		 _ssboInstanceColor		{ rc, 0,
+			desc.usage_hint == gizmo_usage_hint::usage_static
+			? buf_usg_static_draw
+			: buf_usg_dynamic_draw, ResizeBuffer },
+
+		 _ssboInstanceTransform{ rc, 0,
+			desc.zoom_invariant || desc.usage_hint == gizmo_usage_hint::usage_dynamic
+		 	? ogl_buffer_usage::buf_usg_dynamic_draw
+			: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+
 		 _vao					{ rc.CreateVertexAttribArray() },
 		 _lineSize				{ desc.line_size },
-		 _patternSize			{ 0 },
-		 _isZoomInvariant		{ desc.zoom_invariant },
-		 _zoomInvariantScale	{ desc.zoom_invariant_scale }
+		 _patternSize			{ 0 }
 	 {
+		 Gizmo::_isZoomInvariant	= desc.zoom_invariant;
+	 	 Gizmo::_zoomInvariantScale	= desc.zoom_invariant_scale;
+
 		 // vbo layout for linestrip:
 		 // vbo 0: pos(vec3)-color(vec4)
 		 //--------------------------------------------
@@ -350,38 +384,60 @@ namespace tao_gizmos
 		 }
 	 }
 
-	 void LineStripGizmo::SetInstanceData(const vector<mat4>& transforms, const vector<vec4>& colors)
+	 void LineStripGizmo::SetInstanceData(const vector<gizmo_instance_descriptor>& instances)
 	 {
-		 if (transforms.size() != colors.size())throw exception{ "Instance data must match in count." };
+		 Gizmo::SetInstanceData(instances);
 
-		 _instanceCount = transforms.size();
-		 _transformList = transforms;
-		
+		 vector<mat4> transformations(_instanceCount);
+		 vector<vec4> colors(_instanceCount);
+		 for(int i=0;i<_instanceCount;i++)
+		 {
+			 transformations[i] = instances[i].transform;
+			 colors			[i] = instances[i].color;
+		 }
+
 		 // Set instance transformation data
-		 unsigned int dataSize = _transformList.size() * sizeof(float) * 16;
+		 unsigned int dataSize = _instanceCount * sizeof(float) * 16;
 		 _ssboInstanceTransform.Resize(dataSize);
-		 _ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transforms.data());
+		 _ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transformations.data());
 		 
 		 // Set instance color data
-		 dataSize = _transformList.size() * sizeof(float) * 4;
+		 dataSize = _instanceCount * sizeof(float) * 4;
 		 _ssboInstanceColor.Resize(dataSize);
 		 _ssboInstanceColor.OglBuffer().SetSubData(0, dataSize, colors.data());
 	 }
 
 	 MeshGizmo::MeshGizmo(RenderContext& rc, const mesh_gizmo_descriptor& desc) :
-		 _vertices					{ desc.vertices.size() },
-		 _triangles					{ *desc.triangles },
-		 _vboVertices				{ rc, 0,  buf_usg_static_draw, ResizeBuffer},
-		 _vao						{ rc.CreateVertexAttribArray() },
-		 _ebo						{ rc, 0,  buf_usg_static_draw, ResizeBuffer },
+		 _vertexCount	{ static_cast<unsigned int>(desc.vertices.size())},
+		 _trisCount		{ static_cast<unsigned int>((*desc.triangles).size())},
+		 _vertices		{  desc.vertices.size() },
+		 _triangles		{  *desc.triangles },
+
+		 _vboVertices				{ rc, 0,
+			 desc.usage_hint == gizmo_usage_hint::usage_static
+										? buf_usg_static_draw
+										: buf_usg_dynamic_draw, ResizeBuffer },
+
+		 _ebo						{ rc, 0,
+			desc.usage_hint == gizmo_usage_hint::usage_static
+										? buf_usg_static_draw
+										: buf_usg_dynamic_draw, ResizeBuffer },
+
 		 _ssboInstanceTransform		{ rc, 0,
-									desc.zoom_invariant ? ogl_buffer_usage::buf_usg_dynamic_draw
-														: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
-		 _ssboInstanceColorAndNrmMat{ rc, 0, ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
-	     _isZoomInvariant			{desc.zoom_invariant},
-		 _zoomInvariantScale        {desc.zoom_invariant_scale}
-	    
-	 {
+		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic || desc.zoom_invariant
+										? buf_usg_dynamic_draw
+										: buf_usg_static_draw, ResizeBuffer },
+
+		 _ssboInstanceColorAndNrmMat{ rc, 0,
+			desc.usage_hint == gizmo_usage_hint::usage_static
+										? buf_usg_static_draw
+										: buf_usg_dynamic_draw, ResizeBuffer },
+
+		 _vao{ rc.CreateVertexAttribArray() }
+	  {
+
+		 Gizmo::_isZoomInvariant = desc.zoom_invariant;
+		 Gizmo::_zoomInvariantScale = desc.zoom_invariant_scale;
 
 		 // store vertex positions
 		 for (int i=0;i<desc.vertices.size(); i++)
@@ -418,13 +474,16 @@ namespace tao_gizmos
 
 	 }
 
-	 void MeshGizmo::SetInstanceData(const vector<mat4>& transforms, const vector<vec4>& colors)
+	 void MeshGizmo::SetInstanceData(const vector<gizmo_instance_descriptor>& instances)
 	 {
-		 if (transforms.size() != colors.size())throw exception{ "Instance data must match in count." };
-
-		 _instanceCount = transforms.size();
-		 _transformList = transforms;
-		 _colorList     = colors;
+		 Gizmo::SetInstanceData(instances);
+		 vector<mat4> transformations(_instanceCount);
+		 vector<vec4> colors(_instanceCount);
+		 for(int i=0;i<_instanceCount;i++)
+		 {
+			 transformations[i] = instances[i].transform;
+			 colors			[i] = instances[i].color;
+		 }
 
 		// Instance data:
 		// mat4 transform - mat4 normal matrix - vec4 color
@@ -434,13 +493,14 @@ namespace tao_gizmos
 		//
 
 		// Transform
-		unsigned int dataSize = _transformList.size() * sizeof(float) * 16;
+		unsigned int dataSize = _instanceCount * sizeof(float) * 16;
 		_ssboInstanceTransform.Resize(dataSize);
-		_ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transforms.data());
+		_ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transformations.data());
 
 		// Normal matrix and Color
 		vector<glm::mat4> normalMatrices{ _instanceCount };
-		for (int i = 0; i < _transformList.size(); i++) normalMatrices[i] = inverse(transpose(_transformList[i]));
+		for (int i = 0; i < _instanceCount; i++) normalMatrices[i] = inverse(transpose(transformations[i]));
+
 		BufferDataPacker pack{};
 		const auto data = pack
 			.AddDataArray(normalMatrices)
@@ -460,25 +520,94 @@ namespace tao_gizmos
 		 return r;
 	 }
 
+	 void GizmosRenderer::InitMainFramebuffer(int width, int height)
+	{
+		 _colorTex.TexImage(8, tex_int_for_rgba, width, height, false);
+		 _depthTex.TexImage(8, tex_int_for_depth, width, height, false);
+
+		 _mainFramebuffer.AttachTexture(fbo_attachment_color0, _colorTex, 0);
+		 _mainFramebuffer.AttachTexture(fbo_attachment_depth, _depthTex, 0);
+	}
+
+	 void GizmosRenderer::InitSelectionFramebuffer(int width, int height)
+	 {
+		 _selectionColorTex.TexImage(0, tex_int_for_rgba, width, height, tex_for_rgba, tex_typ_byte, nullptr);
+		 _selectionDepthTex.TexImage(0, tex_int_for_depth, width, height, tex_for_depth, tex_typ_unsigned_byte, nullptr);
+
+		 _selectionFramebuffer.AttachTexture(fbo_attachment_color0, _selectionColorTex, 0);
+		 _selectionFramebuffer.AttachTexture(fbo_attachment_depth, _selectionDepthTex, 0);
+	 }
+
+	 void GizmosRenderer::InitShaders()
+	 {
+		 // per-object data
+		 _pointsShader		.SetUniformBlockBinding(POINTS_OBJ_DATA_BLOCK_NAME, POINTS_OBJ_DATA_BINDING);
+		 _linesShader		.SetUniformBlockBinding(LINES_OBJ_BLOCK_NAME, LINES_OBJ_DATA_BINDING);
+		 _lineStripShader	.SetUniformBlockBinding(LINES_OBJ_BLOCK_NAME, LINE_STRIP_OBJ_DATA_BINDING);
+		 _meshShader		.SetUniformBlockBinding(MESH_OBJ_BLOCK_NAME, MESH_OBJ_DATA_BINDING);
+
+		 // per-frame data
+		 _pointsShader		.SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
+		 _lineStripShader	.SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
+		 _linesShader		.SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
+		 _meshShader		.SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
+
+		 // samplers
+		 _pointsShader		.UseProgram(); _pointsShader	.SetUniform(POINTS_TEX_ATLAS_NAME, 0);
+		 _linesShader		.UseProgram(); _linesShader		.SetUniform(LINE_PATTERN_TEX_NAME, 0);
+		 _lineStripShader	.UseProgram(); _lineStripShader	.SetUniform(LINE_PATTERN_TEX_NAME, 0);
+		 // todo: RESET
+	 }
+
+	 void GizmosRenderer::InitShadersForSelection()
+	 {
+		 // per-object data
+		 _pointsShaderForSelection		.SetUniformBlockBinding(POINTS_OBJ_DATA_BLOCK_NAME, POINTS_OBJ_DATA_BINDING);
+		 _linesShaderForSelection		.SetUniformBlockBinding(LINES_OBJ_BLOCK_NAME, LINES_OBJ_DATA_BINDING);
+		 _lineStripShaderForSelection	.SetUniformBlockBinding(LINES_OBJ_BLOCK_NAME, LINE_STRIP_OBJ_DATA_BINDING);
+		 _meshShaderForSelection		.SetUniformBlockBinding(MESH_OBJ_BLOCK_NAME, MESH_OBJ_DATA_BINDING);
+
+		 // per-frame data
+		 _pointsShaderForSelection			.SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
+		 _lineStripShaderForSelection		.SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
+		 _linesShaderForSelection			.SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
+		 _meshShaderForSelection			.SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
+
+		 // samplers
+		 _pointsShaderForSelection		.UseProgram(); _pointsShaderForSelection	.SetUniform(POINTS_TEX_ATLAS_NAME, 0);
+		 _linesShaderForSelection		.UseProgram(); _linesShaderForSelection		.SetUniform(LINE_PATTERN_TEX_NAME, 0);
+		 _lineStripShaderForSelection	.UseProgram(); _lineStripShaderForSelection	.SetUniform(LINE_PATTERN_TEX_NAME, 0);
+		 // todo: RESET
+	 }
+
+
 	 GizmosRenderer::GizmosRenderer(RenderContext& rc, int windowWidth, int windowHeight) :
 		 _windowWidth  (windowWidth),
 		 _windowHeight (windowHeight),
 		 _renderContext(&rc),
-		 _pointsShader		 (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::points   , SHADER_SRC_DIR)),
-		 _linesShader		 (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lines	   , SHADER_SRC_DIR)),
-		 _lineStripShader	 (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lineStrip, SHADER_SRC_DIR)),
-		 _meshShader		 (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::mesh     , SHADER_SRC_DIR)),
+		 _pointsShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::points    , gizmos_shader_modifier::none, SHADER_SRC_DIR)),
+		 _linesShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lines	 , gizmos_shader_modifier::none, SHADER_SRC_DIR)),
+		 _lineStripShader			  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lineStrip , gizmos_shader_modifier::none, SHADER_SRC_DIR)),
+		 _meshShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::mesh      , gizmos_shader_modifier::none, SHADER_SRC_DIR)),
+		 _pointsShaderForSelection	  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::points	 , gizmos_shader_modifier::selection, SHADER_SRC_DIR)),
+		 _linesShaderForSelection	  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lines	 , gizmos_shader_modifier::selection, SHADER_SRC_DIR)),
+		 _lineStripShaderForSelection (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lineStrip , gizmos_shader_modifier::selection, SHADER_SRC_DIR)),
+		 _meshShaderForSelection	  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::mesh		 , gizmos_shader_modifier::selection, SHADER_SRC_DIR)),
 		 _pointsObjDataUbo	 (rc.CreateUniformBuffer()),
 		 _linesObjDataUbo	 (rc.CreateUniformBuffer()),
 		 _lineStripObjDataUbo(rc.CreateUniformBuffer()),
 		 _meshObjDataUbo     (rc.CreateUniformBuffer()),
 		 _frameDataUbo		 (rc.CreateUniformBuffer()),
-		 _lenghSumSsbo		 {rc, 0, buf_usg_dynamic_draw, ResizeBuffer},
+		 _lenghSumSsbo		 {rc, 0, buf_usg_dynamic_draw, ResizeBuffer },
+		 _selectionColorSsbo {rc, 0, buf_usg_dynamic_draw, ResizeBuffer },
 		 _nearestSampler	 (rc.CreateSampler()),
 		 _linearSampler		 (rc.CreateSampler()),
 		 _colorTex			 (rc.CreateTexture2DMultisample()),
 		 _depthTex			 (rc.CreateTexture2DMultisample()),
 		 _mainFramebuffer	 (rc.CreateFramebuffer<OglTexture2DMultisample>()),
+		 _selectionColorTex		(rc.CreateTexture2D()),
+		 _selectionDepthTex		(rc.CreateTexture2D()),
+		 _selectionFramebuffer	(rc.CreateFramebuffer<OglTexture2D>()),
 		 _pointGizmos		 {},
 		 _lineGizmos		 {},
 		 _lineStripGizmos	 {},
@@ -495,33 +624,15 @@ namespace tao_gizmos
 		 defaultPass._layersMask |= defaultLayer._guid;
 		 _renderPasses.push_back(defaultPass);
 
-		 // main fbo
+		 // Framebuffers
 		 // -----------------------------------------
-		 _colorTex.TexImage(8, tex_int_for_rgba , _windowWidth, _windowHeight, false);
-		 _depthTex.TexImage(8, tex_int_for_depth, _windowWidth, _windowHeight, false);
+		 InitMainFramebuffer	 (_windowWidth, _windowHeight);
+		 InitSelectionFramebuffer(_windowWidth, _windowHeight); // false color drawing for mouse picking
 
-		 _mainFramebuffer.AttachTexture(fbo_attachment_color0, _colorTex, 0);
-		 _mainFramebuffer.AttachTexture(fbo_attachment_depth,  _depthTex, 0);
-
-		 // shaders ubo bindings
+		 // Shaders
 		 // -----------------------------------------
-		 // per-object data
-		 _pointsShader	 .SetUniformBlockBinding(POINTS_OBJ_DATA_BLOCK_NAME, POINTS_OBJ_DATA_BINDING);
-		 _linesShader	 .SetUniformBlockBinding(LINES_OBJ_BLOCK_NAME	   , LINES_OBJ_DATA_BINDING);
-		 _lineStripShader.SetUniformBlockBinding(LINES_OBJ_BLOCK_NAME	   , LINE_STRIP_OBJ_DATA_BINDING);
-		 _meshShader     .SetUniformBlockBinding(MESH_OBJ_BLOCK_NAME	   , MESH_OBJ_DATA_BINDING);
-
-		 // per-frame data
-		 _pointsShader	 .SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
-		 _lineStripShader.SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
-		 _linesShader	 .SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
-		 _meshShader     .SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
-
-		 // samplers
-		 _pointsShader	 .UseProgram(); _pointsShader	.SetUniform(POINTS_TEX_ATLAS_NAME, 0);
-		 _linesShader	 .UseProgram(); _linesShader	.SetUniform(LINE_PATTERN_TEX_NAME, 0);
-		 _lineStripShader.UseProgram(); _lineStripShader.SetUniform(LINE_PATTERN_TEX_NAME, 0);
-		 // todo: RESET
+		 InitShaders();
+		 InitShadersForSelection();
 
 		 // uniform buffers
 		 // -----------------------------------------
@@ -735,27 +846,74 @@ namespace tao_gizmos
 		_pointGizmos.erase(k);
 	}
 
-	std::vector<gizmo_instance_id> GizmosRenderer::InstancePointGizmo(gizmo_id key, const vector<point_gizmo_instance>& instances)
+	std::vector<gizmo_instance_id> GizmosRenderer::InstancePointGizmo(gizmo_id key, const vector<gizmo_instance_descriptor>& instances)
 	{
 		auto k = DecodeGizmoKey(key._key, KEY_MASK_POINT);
 		CheckKeyPresent(_pointGizmos, k, EXC_PREAMBLE);
 
-		vector<vec3>			positions	( instances.size() );
-		vector<vec4>			colors		( instances.size() );
-		
-		auto iter = instances.begin();
-		for(int i = 0; i < instances.size(); i++)
-		{
-			positions[i]	= iter->position;
-			colors[i]		= iter->color;
-			++iter;
-		}
-
-		_pointGizmos.at(k).SetInstanceData(positions, colors);
+		_pointGizmos.at(k).SetInstanceData(instances);
 
 		// give back keys to the caller so that the individual
 		// instances can be identified for future operations
 		return CreateInstanceKeys(key, instances.size());
+	}
+
+	void GizmosRenderer::SetGizmoInstances(const gizmo_id key, const std::vector<std::pair<gizmo_instance_id, gizmo_instance_descriptor>>& instances)
+	{
+		Gizmo* gzm = nullptr;
+		
+		const auto kMesh		= DecodeGizmoKey(key._key, KEY_MASK_MESH);
+		const auto kPoint		= DecodeGizmoKey(key._key, KEY_MASK_POINT);
+		const auto kLineList	= DecodeGizmoKey(key._key, KEY_MASK_LINE);
+		const auto kLineStrip	= DecodeGizmoKey(key._key, KEY_MASK_LINE_STRIP);
+
+		// check the key is well formed
+		// only one of the Decode tries
+		// should yield a valid result
+		if(
+			(kMesh>0)		+
+			(kPoint>0)		+
+			(kLineStrip>0)	+
+			(kLineList>0)
+							>1) throw std::exception{"Invlid key."};
+
+		if(kMesh)
+		{
+			CheckKeyPresent(_meshGizmos, kMesh, EXC_PREAMBLE);
+			gzm = &_meshGizmos.at(kMesh);
+		}
+		else if(kPoint)
+		{
+			CheckKeyPresent(_pointGizmos, kPoint, EXC_PREAMBLE);
+			gzm = &_pointGizmos.at(kPoint);
+		}
+		else if(kLineList)
+		{
+			CheckKeyPresent(_lineGizmos, kLineList, EXC_PREAMBLE);
+			gzm = &_lineGizmos.at(kLineList);
+		}
+		else if(kLineStrip)
+		{
+			CheckKeyPresent(_lineStripGizmos, kLineStrip, EXC_PREAMBLE);
+			gzm = &_lineStripGizmos.at(kLineStrip);
+		}
+		
+		// 1. copy current data
+		// 2. edit only the instance data identified by the keys in `instances`
+		// 3. send all the data (old+new) to the GPU
+		std::vector<gizmo_instance_descriptor> newInstData	= gzm->GetInstanceData();
+		
+		for (int i = 0; i < instances.size(); i++)
+		{
+			const unsigned int index = instances[i].first._instanceKey;
+
+			if (index >= newInstData.size())
+				throw std::exception{ "Invalid gizmo instance id." };
+
+			newInstData[index]	= instances[i].second;
+		}
+
+		gzm->SetInstanceData(newInstData);
 	}
 
 	gizmo_id GizmosRenderer::CreateLineGizmo(const line_list_gizmo_descriptor& desc)
@@ -780,20 +938,12 @@ namespace tao_gizmos
 		_lineGizmos.erase(k);
 	}
 
-	std::vector<gizmo_instance_id> GizmosRenderer::InstanceLineGizmo(const gizmo_id key, const vector<line_list_gizmo_instance>& instances)
+	std::vector<gizmo_instance_id> GizmosRenderer::InstanceLineGizmo(const gizmo_id key, const vector<gizmo_instance_descriptor>& instances)
 	{
 		auto k = DecodeGizmoKey(key._key, KEY_MASK_LINE);
 		CheckKeyPresent(_lineGizmos, k, EXC_PREAMBLE);
 
-		std::vector<mat4> transforms(instances.size());
-		std::vector<vec4> colors(instances.size());
-		for (int i = 0; i < instances.size(); i++)
-		{
-			transforms[i]	= instances[i].transformation;
-			colors[i]		= instances[i].color;
-		}
-
-		_lineGizmos.at(k).SetInstanceData(transforms, colors);
+		_lineGizmos.at(k).SetInstanceData(instances);
 
 		// give back keys to the caller so that the individual
 		// instances can be identified for future operations
@@ -822,26 +972,19 @@ namespace tao_gizmos
 		_lineStripGizmos.erase(k);
 	}
 
-	std::vector<gizmo_instance_id> GizmosRenderer::InstanceLineStripGizmo(const gizmo_id key, const vector<line_strip_gizmo_instance>& instances)
+	std::vector<gizmo_instance_id> GizmosRenderer::InstanceLineStripGizmo(const gizmo_id key, const vector<gizmo_instance_descriptor>& instances)
 	{
 		auto k = DecodeGizmoKey(key._key, KEY_MASK_LINE_STRIP);
 		CheckKeyPresent(_lineStripGizmos, k, EXC_PREAMBLE);
 
-		std::vector<mat4> transforms(instances.size());
-		std::vector<vec4> colors    (instances.size());
-		for (int i = 0; i < instances.size(); i++)
-		{
-			transforms[i] = instances[i].transformation;
-			colors    [i] = instances[i].color;
-		}
-
-		_lineStripGizmos.at(k).SetInstanceData(transforms, colors);
+		_lineStripGizmos.at(k).SetInstanceData(instances);
 
 		// give back keys to the caller so that the individual
 		// instances can be identified for future operations
 		return CreateInstanceKeys(key, instances.size());
 	}
 
+	
 	gizmo_id GizmosRenderer::CreateMeshGizmo(const mesh_gizmo_descriptor& desc)
 	{
 		const auto longKey = EncodeGizmoKey(++_latestMeshKey, KEY_MASK_MESH);
@@ -864,25 +1007,18 @@ namespace tao_gizmos
 		_meshGizmos.erase(k);
 	}
 
-	std::vector<gizmo_instance_id> GizmosRenderer::InstanceMeshGizmo(const gizmo_id key, const vector<mesh_gizmo_instance>& instances)
+	std::vector<gizmo_instance_id> GizmosRenderer::InstanceMeshGizmo(const gizmo_id key, const vector<gizmo_instance_descriptor>& instances)
 	{
 		auto k = DecodeGizmoKey(key._key, KEY_MASK_MESH);
 		CheckKeyPresent(_meshGizmos, k, EXC_PREAMBLE);
 
-		std::vector<mat4> transforms(instances.size());
-		std::vector<vec4> colors(instances.size());
-		for (int i = 0; i < instances.size(); i++)
-		{
-			transforms[i] = instances[i].transformation;
-			colors	  [i] = instances[i].color;
-		}
-
-		_meshGizmos.at(k).SetInstanceData(transforms, colors);
+		_meshGizmos.at(k).SetInstanceData(instances);
 
 		// give back keys to the caller so that the individual
 		// instances can be identified for future operations
 		return CreateInstanceKeys(key, instances.size());
 	}
+
 
 	float ComputeZoomInvarianceScale(
 		const glm::vec3& boundingSphereCenter,
@@ -908,13 +1044,13 @@ namespace tao_gizmos
 		const float zoomInvariantScale,
 		const glm::mat4& viewMatrix,
 		const glm::mat4& projectionMatrix,
-		const vector<glm::mat4>& transformations)
+		const vector<gizmo_instance_descriptor>& instanceData)
 	{
-		vector<glm::mat4> newTransformations{ transformations.size() };
+		vector<glm::mat4> newTransformations{ instanceData.size() };
 		float r = 1.0f;
-		for (int i = 0; i < transformations.size(); i++)
+		for (int i = 0; i < instanceData.size(); i++)
 		{
-			glm::mat4 tr = transformations[i];
+			glm::mat4 tr = instanceData[i].transform;
 
 			glm::vec4 o{0.0f, 0.0f, 0.0f, 1.0f };
 			glm::vec4 rx = o + glm::vec4{ r, 0.0f, 0.0f, 0.0f };
@@ -941,9 +1077,22 @@ namespace tao_gizmos
 		return gzm._layerMask & currentLayer._guid & currentPass._layersMask;
 	}
 
+	void GizmosRenderer::ProcessPointGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix)
+	{
+		for (auto& pGzm : _pointGizmos)
+		if (pGzm.second._isZoomInvariant)
+		{
+			vector<mat4> newTransf =
+				ComputeZoomInvarianceTransformations(
+					pGzm.second._zoomInvariantScale,
+					viewMatrix, projectionMatrix, pGzm.second._instanceData
+				);
+			pGzm.second._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 /*mat4*/ * sizeof(float), newTransf.data());
+		}
+	}
+
 	void GizmosRenderer::RenderPointGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
 	{
-		_pointsShader.UseProgram();
 		_pointsObjDataUbo.Bind(POINTS_OBJ_DATA_BINDING);
 
 		for (auto& pGzm : _pointGizmos)
@@ -964,17 +1113,6 @@ namespace tao_gizmos
 				.snap = pGzm.second._snap,
 				.has_texture = hasTexture
 			};
-
-			// TODO: compute and set data outside this func!!! (multiple passes)
-			if (pGzm.second._isZoomInvariant)
-			{
-				vector<glm::mat4> newTransf =
-					ComputeZoomInvarianceTransformations(
-						pGzm.second._zoomInvariantScale,
-						viewMatrix, projectionMatrix, pGzm.second._transformList
-					);
-				pGzm.second._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 * sizeof(float), newTransf.data());
-			}
 
 			_pointsObjDataUbo.SetSubData(0, sizeof(points_obj_data_block), &objData);
 
@@ -1006,9 +1144,66 @@ namespace tao_gizmos
 		}
 	}
 
+	void GizmosRenderer::RenderPointGizmosForSelection(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc)
+	{
+		_pointsObjDataUbo.Bind(POINTS_OBJ_DATA_BINDING);
+
+		for (auto& pGzm : _pointGizmos)
+		{
+			const bool hasTexture = pGzm.second._symbolAtlas.has_value();
+			if (hasTexture)
+			{
+				pGzm.second._symbolAtlas->BindToTextureUnit(tex_unit_0);
+
+				(pGzm.second._symbolAtlasLinearFilter
+					? _linearSampler
+					: _nearestSampler)
+					.BindToTextureUnit(tex_unit_0);
+			}
+			points_obj_data_block const objData
+			{
+				.size = pGzm.second._pointSize,
+				.snap = pGzm.second._snap,
+				.has_texture = hasTexture
+			};
+
+			preDrawFunc(pGzm.second._instanceCount);
+
+			_pointsObjDataUbo.SetSubData(0, sizeof(points_obj_data_block), &objData);
+
+			// bind static instance data SSBO (draw instanced)
+			pGzm.second._ssboInstanceColor.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			// bind dynamic instance data SSBO (draw instanced)
+			pGzm.second._ssboInstanceTransform.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+
+			pGzm.second._vao.Bind();
+
+			_renderContext->DrawArrays(pmt_type_points, 0, pGzm.second._instanceCount);
+			
+			if (hasTexture)
+			{
+				OglTexture2D::UnBindToTextureUnit(tex_unit_0);
+				OglSampler::UnBindToTextureUnit(tex_unit_0);
+			}
+		}
+	}
+
+	void GizmosRenderer::ProcessLineListGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix)
+	{
+		for (auto& lGzm : _lineGizmos)
+			if (lGzm.second._isZoomInvariant)
+			{
+				vector<mat4> newTransf =
+					ComputeZoomInvarianceTransformations(
+						lGzm.second._zoomInvariantScale,
+						viewMatrix, projectionMatrix, lGzm.second._instanceData
+					);
+				lGzm.second._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 /*mat4*/ * sizeof(float), newTransf.data());
+			}
+	}
+
 	void GizmosRenderer::RenderLineGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
 	 {
-		_linesShader.UseProgram();
 		_linesObjDataUbo.Bind(LINES_OBJ_DATA_BINDING);
 
 		for (auto& lGzm : _lineGizmos)
@@ -1026,17 +1221,6 @@ namespace tao_gizmos
 				.has_texture    = hasTexture,
 				.pattern_size	= lGzm.second._patternSize
 			};
-
-			// TODO - multiple passes waste computation
-			if (lGzm.second._isZoomInvariant)
-			{
-				vector<glm::mat4> newTransf =
-					ComputeZoomInvarianceTransformations(
-						lGzm.second._zoomInvariantScale,
-						viewMatrix, projectionMatrix, lGzm.second._transformList
-					);
-				lGzm.second._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 * sizeof(float), newTransf.data());
-			}
 
 			_linesObjDataUbo.SetSubData(0, sizeof(lines_obj_data_block), &objData);
 			
@@ -1059,6 +1243,41 @@ namespace tao_gizmos
 					_renderContext->DrawArraysInstanced(pmt_type_lines, 0, lGzm.second._vertexCount, lGzm.second._instanceCount);
 				}
 			}
+		}
+	 }
+
+	void GizmosRenderer::RenderLineGizmosForSelection(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc)
+	 {
+		_linesObjDataUbo.Bind(LINES_OBJ_DATA_BINDING);
+
+		for (auto& lGzm : _lineGizmos)
+		{
+			bool hasTexture = lGzm.second._patternTexture.has_value();
+			if (hasTexture)
+			{
+				lGzm.second._patternTexture->BindToTextureUnit(tex_unit_0);
+
+				_linearSampler.BindToTextureUnit(tex_unit_0);
+			}
+			lines_obj_data_block const objData
+			{
+				.size			= lGzm.second._lineSize,
+				.has_texture    = hasTexture,
+				.pattern_size	= lGzm.second._patternSize
+			};
+
+			preDrawFunc(lGzm.second._instanceCount);
+
+			_linesObjDataUbo.SetSubData(0, sizeof(lines_obj_data_block), &objData);
+			
+			// bind static instance data SSBO (draw instanced)
+			lGzm.second._ssboInstanceColor		.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			// bind dynamic instance data SSBO (draw instanced)
+			lGzm.second._ssboInstanceTransform	.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+
+			lGzm.second._vao.Bind();
+		
+			_renderContext->DrawArraysInstanced(pmt_type_lines, 0, lGzm.second._vertexCount, lGzm.second._instanceCount);
 		}
 	 }
 
@@ -1119,7 +1338,7 @@ namespace tao_gizmos
 
 	vector<float> PefixSumLineStrip(
 		const vector<glm::vec3>& verts,
-		const vector<glm::mat4>& instances, 
+		const vector<gizmo_instance_descriptor>& instances, 
 		const glm::mat4& viewMatrix, 
 		const glm::mat4& projectionMatrix,
 		const unsigned int screenWidth, 
@@ -1135,7 +1354,7 @@ namespace tao_gizmos
 		{
 			float dstAccum = 0;
 			bool  restart = true;
-			const mat4 mvp = projectionMatrix * viewMatrix * instances[i];
+			const mat4 mvp = projectionMatrix * viewMatrix * instances[i].transform;
 
 			for (int v = 0; v < verts.size(); v++) // for each vertex in the strip
 			{
@@ -1187,42 +1406,39 @@ namespace tao_gizmos
 
 		return sum;
 	}
-	
-	void GizmosRenderer::RenderLineStripGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
-	{
-		_lineStripShader.UseProgram();
-		_linesObjDataUbo.Bind(LINE_STRIP_OBJ_DATA_BINDING);
 
+	void GizmosRenderer::ProcessLineStripGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix)
+	{
 		/////////////////////////////////////////////////////
 		// Line Strip Preprocessing:					   //
 		// computing screen length for each line segment   //
 		// to draw stippled lines.						   //
 		/////////////////////////////////////////////////////
-		
+
 		// total number of vertices considering
 		// all the instances for each linestrip gizmo.
 		unsigned int totalVerts = 0;
-		for (const auto& lGzm : _lineStripGizmos) 
+		for (const auto& lGzm : _lineStripGizmos)
 			totalVerts += lGzm.second._instanceCount * lGzm.second._vertices.size();
 
 		vector<float> ssboData(totalVerts);
 		unsigned int cnt = 0;
 
-		// TODO: multiple passes waste computation 
 		for (auto& pair : _lineStripGizmos)
 		{
 			LineStripGizmo& lGzm = pair.second;
-			vector<glm::mat4>& realTransformList = lGzm._transformList;
+			vector<gizmo_instance_descriptor>& realTransformList = lGzm._instanceData;
 
 			if (lGzm._isZoomInvariant)
 			{
 				vector<glm::mat4> newTransf =
 					ComputeZoomInvarianceTransformations(
 						lGzm._zoomInvariantScale,
-						viewMatrix, projectionMatrix, lGzm._transformList
+						viewMatrix, projectionMatrix, lGzm._instanceData
 					);
 
-				realTransformList = newTransf;
+				for(int i=0;i<realTransformList.size();i++)
+					realTransformList[i].transform = newTransf[i];
 
 				lGzm._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 * sizeof(float), newTransf.data());
 			}
@@ -1234,12 +1450,17 @@ namespace tao_gizmos
 				viewMatrix, projectionMatrix,
 				_windowWidth, _windowHeight);
 
-			std::copy(part.begin(), part.end(), ssboData.begin()+cnt);
+			std::copy(part.begin(), part.end(), ssboData.begin() + cnt);
 			cnt += part.size();
 		}
 
 		_lenghSumSsbo.Resize(totalVerts * sizeof(float));
-		_lenghSumSsbo.OglBuffer().SetSubData(0, totalVerts*sizeof(float), ssboData.data());
+		_lenghSumSsbo.OglBuffer().SetSubData(0, totalVerts * sizeof(float), ssboData.data());
+	}
+
+	void GizmosRenderer::RenderLineStripGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
+	{
+		_linesObjDataUbo.Bind(LINE_STRIP_OBJ_DATA_BINDING);
 
 		unsigned int vertDrawn = 0;
 		for (auto& lGzm : _lineStripGizmos)
@@ -1292,9 +1513,68 @@ namespace tao_gizmos
 		}
 	}
 
+	void GizmosRenderer::RenderLineStripGizmosForSelection(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc)
+	{
+		_linesObjDataUbo.Bind(LINE_STRIP_OBJ_DATA_BINDING);
+
+		unsigned int vertDrawn = 0;
+		for (auto& lGzm : _lineStripGizmos)
+		{
+			if (lGzm.second._instanceCount == 0)continue;
+
+			const unsigned int vertCount	 = lGzm.second._vertices.size();
+			const unsigned int instanceCount = lGzm.second._instanceCount;
+
+			bool hasTexture = lGzm.second._patternTexture.has_value();
+			if (hasTexture)
+			{
+				lGzm.second._patternTexture->BindToTextureUnit(tex_unit_0);
+			
+				_linearSampler.BindToTextureUnit(tex_unit_0);
+			}
+			line_strip_obj_data_block const objData
+			{
+				.size			= lGzm.second._lineSize,
+				.has_texture	= hasTexture,
+				.pattern_size	= lGzm.second._patternSize,
+				.vert_count     = vertCount
+			};
+
+			preDrawFunc(lGzm.second._instanceCount);
+
+			// Bind UBO
+			_lineStripObjDataUbo.SetSubData(0, sizeof(line_strip_obj_data_block), &objData);
+			// Bind SSBO for screen length sum
+			_lenghSumSsbo.OglBuffer().BindRange(LINE_STRIP_SSBO_BINDING_SCREEN_LENGTH, vertDrawn * sizeof(float), vertCount * instanceCount * sizeof(float));
+			// bind static instance data SSBO (draw instanced)
+			lGzm.second._ssboInstanceColor.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			// bind dynamic instance data SSBO (draw instanced)
+			lGzm.second._ssboInstanceTransform.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			// Bind VAO
+			lGzm.second._vao.Bind();
+
+			_renderContext->DrawArraysInstanced(pmt_type_line_strip_adjacency, 0, vertCount, instanceCount);
+
+			vertDrawn += vertCount * instanceCount;
+		}
+	}
+
+	void GizmosRenderer::ProcessMeshGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix)
+	{
+		for (auto& mGzm : _meshGizmos)
+		if (mGzm.second._isZoomInvariant)
+		{
+			vector<glm::mat4> newTransf =
+				ComputeZoomInvarianceTransformations(
+					mGzm.second._zoomInvariantScale,
+					viewMatrix, projectionMatrix, mGzm.second._instanceData
+				);
+			mGzm.second._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 * sizeof(float), newTransf.data());
+		}
+	}
+
 	void GizmosRenderer::RenderMeshGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
 	{
-		_meshShader.UseProgram();
 		_meshObjDataUbo.Bind(MESH_OBJ_DATA_BINDING);
 
 		for (auto& mGzm : _meshGizmos)
@@ -1305,17 +1585,6 @@ namespace tao_gizmos
 			};
 
 			_meshObjDataUbo.SetSubData(0, sizeof(mesh_obj_data_block), &objData);
-			
-			// TODO: multiple passes waste computation
-			if(mGzm.second._isZoomInvariant)
-			{
-				vector<glm::mat4> newTransf =
-					ComputeZoomInvarianceTransformations(
-						mGzm.second._zoomInvariantScale,
-						viewMatrix, projectionMatrix, mGzm.second._transformList
-					); 
-				mGzm.second._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 * sizeof(float), newTransf.data());
-			}
 
 			// bind VAO
 			mGzm.second._vao.Bind();
@@ -1341,9 +1610,60 @@ namespace tao_gizmos
 		}
 	}
 
+	void GizmosRenderer::RenderMeshGizmosForSelection(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc)
+	{
+		_meshObjDataUbo.Bind(MESH_OBJ_DATA_BINDING);
+
+		unsigned int drawnInstances = 0;
+		for (auto& mGzm : _meshGizmos)
+		{
+			mesh_obj_data_block const objData
+			{
+				.has_texture = false,
+			};
+
+			_meshObjDataUbo.SetSubData(0, sizeof(mesh_obj_data_block), &objData);
+
+			preDrawFunc(mGzm.second._instanceCount);
+
+			// bind VAO
+			mGzm.second._vao.Bind();
+			// bind static instance data SSBO (draw instanced)
+			mGzm.second._ssboInstanceColorAndNrmMat	.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			// bind dynamic instance data SSBO (draw instanced)
+			mGzm.second._ssboInstanceTransform		.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			// bind EBO
+			mGzm.second._ebo.OglBuffer().Bind();
+
+			_renderContext->DrawElementsInstanced(pmt_type_triangles, mGzm.second._trisCount, idx_typ_unsigned_int, nullptr, mGzm.second._instanceCount);
+		}
+	}
+
+	vec4 IndexToFalseColor(unsigned int index)
+	{
+		if(index>(1<<24)-1) throw std::exception("index is bigger than 24 bits unsigned.");
+
+		const unsigned char b = (index>>0 ) % 256;
+		const unsigned char g = (index>>8 ) % 256;
+		const unsigned char r = (index>>16) % 256;
+
+		return vec4{r/255.0f, g/255.0f, b/255.0f, 1.0f};
+	}
+
+	unsigned int FalseColorToIndex(unsigned char r, unsigned char g, unsigned char b)
+	{
+		const unsigned int bi = b;
+		const unsigned int gi = g;
+		const unsigned int ri = r;
+		return
+			bi<<0  |
+			gi<<8  |
+			ri<<16 ;
+	}
+
 	const OglFramebuffer<OglTexture2DMultisample>& GizmosRenderer::Render(
-		const glm::mat4& viewMatrix, 
-		const glm::mat4& projectionMatrix, 
+		const glm::mat4& viewMatrix,
+		const glm::mat4& projectionMatrix,
 		const glm::vec2& nearFar)
 	{
 		// todo isCurrent()
@@ -1365,29 +1685,155 @@ namespace tao_gizmos
 
 		frame_data_block const frameData
 		{
-			.view_matrix		= viewMatrix,
-			.projection_matrix	= projectionMatrix,
-			.view_position		= glm::inverse(viewMatrix) * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
-			.view_direction		= -viewMatrix[2],
-			.viewport_size		=        glm::vec2(_windowWidth, _windowHeight),
-			.viewport_size_inv	= 1.0f / glm::vec2(_windowWidth, _windowHeight),
-			.near_far			= nearFar //todo 
+			.view_matrix = viewMatrix,
+			.projection_matrix = projectionMatrix,
+			.view_position = glm::inverse(viewMatrix) * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+			.view_direction = -viewMatrix[2],
+			.viewport_size = glm::vec2(_windowWidth, _windowHeight),
+			.viewport_size_inv = 1.0f / glm::vec2(_windowWidth, _windowHeight),
+			.near_far = nearFar //todo 
 		};
 
 		_frameDataUbo.SetSubData(0, sizeof(frame_data_block), &frameData);
 		_frameDataUbo.Bind(FRAME_DATA_BINDING);
 
+		ProcessPointGizmos(viewMatrix, projectionMatrix);
+		ProcessLineListGizmos(viewMatrix, projectionMatrix);
+		ProcessLineStripGizmos(viewMatrix, projectionMatrix);
+		ProcessMeshGizmos(viewMatrix, projectionMatrix);
+
 		for (const RenderPass& pass : _renderPasses)
 		{
-			RenderMeshGizmos		(viewMatrix, projectionMatrix, pass);
-			RenderLineGizmos		(viewMatrix, projectionMatrix, pass);
-			RenderLineStripGizmos	(viewMatrix, projectionMatrix, pass);
-			RenderPointGizmos		(viewMatrix, projectionMatrix, pass);
+			_meshShader		.UseProgram(); RenderMeshGizmos		(viewMatrix, projectionMatrix, pass);
+			_linesShader	.UseProgram(); RenderLineGizmos		(viewMatrix, projectionMatrix, pass);
+			_lineStripShader.UseProgram(); RenderLineStripGizmos(viewMatrix, projectionMatrix, pass);
+			_pointsShader	.UseProgram(); RenderPointGizmos	(viewMatrix, projectionMatrix, pass);
+		}
+
+
+		return _mainFramebuffer;
+	}
+
+	optional<gizmo_instance_id> GizmosRenderer::GetGizmoUnderCursor(const unsigned cursorX, const unsigned cursorY, const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const glm::vec2& nearFar)
+	{
+		optional<gizmo_instance_id> selectedItem{};
+		if(cursorX>=_windowWidth || cursorY>=_windowHeight)
+			return selectedItem;
+
+		/// Draw for selection
+		///--------------------------------------------------------------
+		_renderContext->SetDepthState		(SELECTION_DEPTH_STATE);
+		_renderContext->SetBlendState		(SELECTION_BLEND_STATE);
+		_renderContext->SetRasterizerState	(SELECTION_RASTERIZER_STATE);
+
+		_selectionFramebuffer.Bind(fbo_read_draw);
+		_renderContext->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+		_renderContext->ClearDepthStencil();
+
+		vector<vec4> falseColors{};
+		vector<pair<unsigned long long, ivec2>> lut;
+		unsigned int k=0;
+		
+		/// Mesh false colors
+		//////////////////////////////////////////////////////////////////
+		for(const auto& val : _meshGizmos	)
+		{
+			lut.emplace_back(EncodeGizmoKey(val.first, KEY_MASK_MESH), ivec2{k, k+val.second._instanceCount});
+
+			for(int i=0;i<val.second._instanceCount;i++)
+				falseColors.push_back(IndexToFalseColor(++k));
+		}
+		
+		/// Lines false colors
+		//////////////////////////////////////////////////////////////////
+		for(const auto& val : _lineGizmos)
+		{
+			lut.emplace_back(EncodeGizmoKey(val.first, KEY_MASK_LINE), ivec2{k, k+val.second._instanceCount});
+
+			for(int i=0;i<val.second._instanceCount;i++)
+				falseColors.push_back(IndexToFalseColor(++k));
+		}
+		
+		/// Line Strip false colors
+		//////////////////////////////////////////////////////////////////
+		for(const auto& val : _lineStripGizmos)
+		{
+			lut.emplace_back(EncodeGizmoKey(val.first, KEY_MASK_LINE_STRIP), ivec2{k, k+val.second._instanceCount});
+
+			for(int i=0;i<val.second._instanceCount;i++)
+				falseColors.push_back(IndexToFalseColor(++k));
+		}
+		
+		/// Points false colors
+		//////////////////////////////////////////////////////////////////
+		for(const auto& val : _pointGizmos)
+		{
+			lut.emplace_back(EncodeGizmoKey(val.first, KEY_MASK_POINT), ivec2{k, k+val.second._instanceCount});
+
+			for(int i=0;i<val.second._instanceCount;i++)
+				falseColors.push_back(IndexToFalseColor(++k));
+		}
+		
+		unsigned int size = falseColors.size()*4*sizeof(float);
+
+		_selectionColorSsbo.Resize(size);
+		_selectionColorSsbo.OglBuffer().SetSubData(0, size, falseColors.data());
+
+		unsigned int accum=0;
+		auto& ssbo = _selectionColorSsbo;
+		auto bindSsboRange = [&accum, &ssbo](unsigned int instancesToDraw)
+		{
+			ssbo.OglBuffer().BindRange(SELECTION_COLOR_SSBO_BINDING, accum*4*sizeof(float), instancesToDraw*4*sizeof(float));
+			accum+=instancesToDraw;
+		};
+
+		_meshShaderForSelection.UseProgram();
+		RenderMeshGizmosForSelection(viewMatrix, projectionMatrix, bindSsboRange);
+
+		_linesShaderForSelection.UseProgram();
+		RenderLineGizmosForSelection(viewMatrix, projectionMatrix, bindSsboRange);
+		
+		_lineStripShaderForSelection.UseProgram();
+		RenderLineStripGizmosForSelection(viewMatrix, projectionMatrix, bindSsboRange);
+		
+		_pointsShaderForSelection.UseProgram();
+		RenderPointGizmosForSelection(viewMatrix, projectionMatrix, bindSsboRange);
+
+		// TODO: PBOs, async
+		// default alignment is 4 byte so no need to worry
+		// about the stride.
+		vector<unsigned char> pixelData(4*_windowWidth*_windowHeight);
+		glReadPixels(0, 0, _windowWidth, _windowHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixelData.data());
+
+		unsigned int index=FalseColorToIndex(
+			pixelData[cursorX*4+cursorY*_windowWidth*4+0],
+			pixelData[cursorX*4+cursorY*_windowWidth*4+1],
+			pixelData[cursorX*4+cursorY*_windowWidth*4+2]
+		);
+
+		if(index)
+		{
+			index-=1; // it was starting at 1
+
+			for(const auto& t : lut)
+			{
+				if(t.second.x <= index && index < t.second.y)
+				{
+					selectedItem = gizmo_instance_id{};
+					auto gizmoId = gizmo_id{};
+					gizmoId._key =t.first;
+
+					selectedItem->_gizmoKey = gizmoId;
+					selectedItem->_instanceKey = index-t.second.x;
+				}
+			}
 		}
 
 		OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
 
-		return _mainFramebuffer;
+		return selectedItem;
 	}
+
+
 
 }

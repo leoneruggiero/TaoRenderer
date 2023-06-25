@@ -165,16 +165,16 @@
     <None Include="Shaders\Include\Helper.glsl" />
     <None Include="Shaders\Include\UboDefs.glsl" />
     <None Include="Shaders\Lines.frag" />
+    <None Include="Shaders\Lines.geom" />
     <None Include="Shaders\Lines.vert" />
     <None Include="Shaders\LineStrip.frag" />
+    <None Include="Shaders\LineStrip.geom" />
     <None Include="Shaders\LineStrip.vert" />
-    <None Include="Shaders\MeshUnlit.frag" />
-    <None Include="Shaders\MeshUnlit.vert" />
+    <None Include="Shaders\Mesh.frag" />
+    <None Include="Shaders\Mesh.vert" />
     <None Include="Shaders\Points.frag" />
+    <None Include="Shaders\Points.geom" />
     <None Include="Shaders\Points.vert" />
-    <None Include="Shaders\ThickLines.geom" />
-    <None Include="Shaders\ThickLineStrip.geom" />
-    <None Include="Shaders\ThickPoints.geom" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -99,6 +99,11 @@ namespace tao_gizmos
 	struct gizmo_id
 	{
 		friend class GizmosRenderer;
+	public:
+		bool operator==(const gizmo_id& other) const
+		{
+			return this->_key == other._key;
+		}
 	private:
 		unsigned long long _key=0;
 	};
@@ -106,7 +111,13 @@ namespace tao_gizmos
 	struct gizmo_instance_id
 	{
 		friend class GizmosRenderer;
-
+	public:
+		bool operator==(const gizmo_instance_id& other) const
+		{
+			return
+				this->_gizmoKey		== other._gizmoKey		&&
+				this->_instanceKey	== other._instanceKey	;
+		}
 	private:
 		gizmo_id _gizmoKey;
 		unsigned int _instanceKey=0;
@@ -143,20 +154,42 @@ namespace tao_gizmos
 		}
 	};
 
+	struct gizmo_instance_descriptor
+	{
+		glm::mat4    transform	= glm::mat4{1.0f};
+		glm::vec4    color		= glm::vec4{1.0f};
+		bool		 visible	= true;
+		bool		 selectable = true;
+	};
+
+	// TODO: virtual destructor and deleted methods
 	class Gizmo
 	{
 		friend class GizmosRenderer;
-
+		
 	private:
 		unsigned int _layerMask = 0xFFFFFFFF;
+
+	protected:
+
+		// instance data (transform, visibility, color, ...)
+		// ---------------------------------------------------
+		unsigned int							_instanceCount;
+		std::vector<gizmo_instance_descriptor>	_instanceData;
+
+		virtual void									SetInstanceData(const std::vector<gizmo_instance_descriptor>& instances)
+		{
+			_instanceCount = instances.size();
+			_instanceData  = instances;
+		};
+		const std::vector<gizmo_instance_descriptor>&	GetInstanceData()const { return _instanceData; }
+
+		// zoom invariance
+		// ---------------------------------------------------
+		bool  _isZoomInvariant = false;
+		float _zoomInvariantScale;
 	};
 
-	struct point_gizmo_instance
-	{
-		glm::vec3    position;
-		glm::vec4    color;
-	};
-	
 	struct symbol_atlas_descriptor
 	{
 		const void*                              data;
@@ -233,6 +266,12 @@ namespace tao_gizmos
 		}
 	};
 
+	enum class gizmo_usage_hint
+	{
+		usage_static,
+		usage_dynamic
+	};
+
 	struct point_gizmo_descriptor
 	{
 		unsigned int					point_half_size = 1;
@@ -242,17 +281,16 @@ namespace tao_gizmos
 		bool							zoom_invariant = false;
 		float							zoom_invariant_scale = 0.0f;
 		symbol_atlas_descriptor*		symbol_atlas_descriptor = nullptr;
+		gizmo_usage_hint				usage_hint = gizmo_usage_hint::usage_static;
 	};
 
 	class PointGizmo : public Gizmo
 	{
 		friend class GizmosRenderer;
 	private:
-		unsigned int			_instanceCount	= 0;
-		std::vector<glm::vec3>	_positionList;
-		std::vector<glm::mat4>	_transformList;
 			
 		// graphics data -----------------
+		unsigned int _vertexCount = 0;
 		ResizableVbo								   _vbo;
 		ResizableSsbo								   _ssboInstanceColor;
 		ResizableSsbo								   _ssboInstanceTransform;
@@ -264,13 +302,10 @@ namespace tao_gizmos
 		bool		 _snap;
 		bool		 _symbolAtlasLinearFilter;
 
-		// zoom invariance ---------------
-		bool  _isZoomInvariant = false;
-		float _zoomInvariantScale;
-
 		// this will be called by GizomsRenderer instances
 		PointGizmo(tao_render_context::RenderContext& rc, const point_gizmo_descriptor& desc);
-		void SetInstanceData(const std::vector<glm::vec3>& positions, const std::vector<glm::vec4>& colors);
+		void SetInstanceData(const std::vector<gizmo_instance_descriptor>& instances) override;
+		
 	};
 
 	struct LineGizmoVertex
@@ -311,12 +346,6 @@ namespace tao_gizmos
 		}
 	};
 
-	struct line_list_gizmo_instance
-	{
-		glm::mat4 transformation;
-		glm::vec4 color;
-	};
-
 	struct pattern_texture_descriptor
 	{
 		const void*                              data;
@@ -334,20 +363,17 @@ namespace tao_gizmos
 		bool						  zoom_invariant			  = false;
 		float						  zoom_invariant_scale		  = 0.0f;
 		pattern_texture_descriptor*   pattern_texture_descriptor  = nullptr;
+		gizmo_usage_hint			  usage_hint = gizmo_usage_hint::usage_static;
 	};
 
 	class LineListGizmo : public Gizmo
 	{
 		friend class GizmosRenderer;
 	private:
-		unsigned int _vertexCount;
-		unsigned int _instanceCount = 0;
 		
 		// graphics data
 		// -----------------------------
-		std::vector<glm::vec3> _vertices;
-		std::vector<glm::mat4> _transformList;
-
+		unsigned int _vertexCount = 0;
 		ResizableVbo								   _vbo;
 		ResizableSsbo								   _ssboInstanceColor;
 		ResizableSsbo								   _ssboInstanceTransform;
@@ -359,19 +385,10 @@ namespace tao_gizmos
 		unsigned int _lineSize;
 		unsigned int _patternSize;
 
-		// zoom invariance ---------------
-		bool  _isZoomInvariant = false;
-		float _zoomInvariantScale;
-
 		// this will be called by GizomsRenderer instances
 		LineListGizmo(tao_render_context::RenderContext& rc, const line_list_gizmo_descriptor& desc);
-		void SetInstanceData(const std::vector<glm::mat4>& transformations, const std::vector<glm::vec4>& colors);
-	};
+		void SetInstanceData(const std::vector<gizmo_instance_descriptor>& instances) override;
 
-	struct line_strip_gizmo_instance
-	{
-		glm::mat4			transformation;
-		glm::vec4			color;
 	};
 
 	struct line_strip_gizmo_descriptor
@@ -382,22 +399,21 @@ namespace tao_gizmos
 		bool							zoom_invariant				= false;
 		float							zoom_invariant_scale		= 0.0f;
 		pattern_texture_descriptor*		pattern_texture_descriptor	= nullptr;
+		gizmo_usage_hint				usage_hint = gizmo_usage_hint::usage_static;
 	};
 
 	class LineStripGizmo : public Gizmo
 	{
 		friend class GizmosRenderer;
 	private:
-		unsigned int _instanceCount				= 0;
-		
 		// graphics data
 		// -----------------------------
+		unsigned int		   _vertexCount = 0;
 		std::vector<glm::vec3> _vertices;        
-		std::vector<glm::mat4> _transformList;    // one transformation per instance.
 
 		ResizableVbo									_vboVertices;     
-		ResizableSsbo									_ssboInstanceTransform;
 		ResizableSsbo									_ssboInstanceColor;
+		ResizableSsbo									_ssboInstanceTransform;
 		tao_ogl_resources::OglVertexAttribArray			_vao;
 		std::optional<tao_ogl_resources::OglTexture2D>  _patternTexture;
 
@@ -406,13 +422,10 @@ namespace tao_gizmos
 		unsigned int _lineSize;
 		unsigned int _patternSize;
 
-		// zoom invariance ---------------
-		bool  _isZoomInvariant = false;
-		float _zoomInvariantScale;
-
 		// this will be called by GizomsRenderer instances
 		LineStripGizmo(tao_render_context::RenderContext& rc, const line_strip_gizmo_descriptor& desc);
-		void SetInstanceData(const std::vector<glm::mat4>& transforms, const std::vector<glm::vec4>& colors);
+		void SetInstanceData(const std::vector<gizmo_instance_descriptor>& instances) override;
+		
 	};
 
 	struct MeshGizmoVertex
@@ -479,52 +492,92 @@ namespace tao_gizmos
 			return glm::vec2{ tX, tY };
 		}
 	};
-
-	struct mesh_gizmo_instance
-	{
-		glm::mat4	transformation;
-		glm::vec4	color;
-	};
-
+	
 	struct mesh_gizmo_descriptor
 	{
 		std::vector<MeshGizmoVertex>&    vertices;
 		std::vector<unsigned int>*		 triangles = nullptr;
 		bool							 zoom_invariant       = false;
 		float							 zoom_invariant_scale = 0.0f;
+		gizmo_usage_hint				 usage_hint = gizmo_usage_hint::usage_static;
 	};
 
 	class MeshGizmo : public Gizmo
 	{
 		friend class GizmosRenderer;
 	private:
-		unsigned int _instanceCount				= 0;
 		unsigned int _vertexCount				= 0;
 		unsigned int _trisCount					= 0;
-
+		
 		// graphics data
 		// --------------------------------------------------------
 		std::vector<glm::vec3>	   _vertices;
 		std::vector<unsigned int>  _triangles;
-		// instance data ------------------------------------------
-		std::vector<glm::mat4> _transformList;    // instance transformation
-		std::vector<glm::vec4> _colorList;        // instance color
+		
 
 		ResizableVbo							    _vboVertices;
-		tao_ogl_resources::OglVertexAttribArray		_vao;
 		ResizableEbo								_ebo;
 		ResizableSsbo								_ssboInstanceTransform;
 		ResizableSsbo								_ssboInstanceColorAndNrmMat;
-
-		// zoom invariance ---------------
-		bool  _isZoomInvariant = false;
-		float _zoomInvariantScale;
+		tao_ogl_resources::OglVertexAttribArray		_vao;
 
 		// this will be called by GizomsRenderer instances
 		MeshGizmo(tao_render_context::RenderContext& rc, const mesh_gizmo_descriptor& desc);
-		void SetInstanceData(const std::vector<glm::mat4>& transforms, const std::vector<glm::vec4>& colors);
+		void SetInstanceData(const std::vector<gizmo_instance_descriptor>& instances) override;
+
 	};
 
+	constexpr tao_ogl_resources::ogl_depth_state GetDefaultDepthState()
+	{
+		return tao_ogl_resources::ogl_depth_state{
+		.depth_test_enable = true,
+		.depth_write_enable = true,
+		.depth_func = tao_ogl_resources::depth_func_less_equal,
+		.depth_range_near = 0.0,
+		.depth_range_far = 1.0
+		};
+	}
+	constexpr tao_ogl_resources::ogl_blend_state GetDefaultBlendState()
+	{
+		return tao_ogl_resources::ogl_blend_state{
+		.blend_enable = false,
+		};
+	}
+	constexpr tao_ogl_resources::ogl_rasterizer_state GetDefaultRasterizerState()
+	{
+		return tao_ogl_resources::ogl_rasterizer_state{
+		.culling_enable = false,
+		.polygon_mode = tao_ogl_resources::polygon_mode_fill,
+		.multisample_enable = true,
+		.alpha_to_coverage_enable = true
+		};
+	}
+	constexpr tao_ogl_resources::ogl_depth_state GetDepthStateForSelection()
+	{
+		return tao_ogl_resources::ogl_depth_state{
+		.depth_test_enable = true,
+		.depth_write_enable = true,
+		.depth_func = tao_ogl_resources::depth_func_less_equal,
+		.depth_range_near = 0.0,
+		.depth_range_far = 1.0
+		};
+	}
+	constexpr tao_ogl_resources::ogl_blend_state GetBlendStateForSelection()
+	{
+		return tao_ogl_resources::ogl_blend_state{
+		.blend_enable = false,
+		};
+	}
+	constexpr tao_ogl_resources::ogl_rasterizer_state GetRasterizerStateForSelection()
+	{
+		return tao_ogl_resources::ogl_rasterizer_state{
+		.culling_enable = false,
+		.polygon_mode = tao_ogl_resources::polygon_mode_fill,
+		.multisample_enable = true,
+		.alpha_to_coverage_enable = false
+		};
+	}
+	
 
 	class GizmosRenderer
 	{
@@ -538,6 +591,13 @@ namespace tao_gizmos
 		tao_ogl_resources::OglShaderProgram _linesShader;
 		tao_ogl_resources::OglShaderProgram _lineStripShader;
 		tao_ogl_resources::OglShaderProgram _meshShader;
+		void InitShaders();
+
+		tao_ogl_resources::OglShaderProgram _pointsShaderForSelection;
+		tao_ogl_resources::OglShaderProgram _linesShaderForSelection;
+		tao_ogl_resources::OglShaderProgram _lineStripShaderForSelection;
+		tao_ogl_resources::OglShaderProgram _meshShaderForSelection;
+		void InitShadersForSelection();
 
 		tao_ogl_resources::OglUniformBuffer _pointsObjDataUbo;
 		tao_ogl_resources::OglUniformBuffer _linesObjDataUbo;
@@ -545,15 +605,26 @@ namespace tao_gizmos
 		tao_ogl_resources::OglUniformBuffer _meshObjDataUbo;
 		tao_ogl_resources::OglUniformBuffer _frameDataUbo;
 
-		ResizableSsbo _lenghSumSsbo; 
+		ResizableSsbo _lenghSumSsbo;
+		ResizableSsbo _selectionColorSsbo;
 
 		tao_ogl_resources::OglSampler _nearestSampler;
 		tao_ogl_resources::OglSampler _linearSampler;
 
-		tao_ogl_resources::OglTexture2DMultisample _colorTex;
-		tao_ogl_resources::OglTexture2DMultisample _depthTex;
+		/// Main Framebuffer and Textures
+		////////////////////////////////////////////////
+		tao_ogl_resources::OglTexture2DMultisample										_colorTex;
+		tao_ogl_resources::OglTexture2DMultisample										_depthTex;
+		tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2DMultisample>	_mainFramebuffer;
+		void InitMainFramebuffer(int width, int height);
 
-		tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2DMultisample> _mainFramebuffer;
+		///  Selection Framebuffer and Textures
+		/// (false color drawing)
+		////////////////////////////////////////////////
+		tao_ogl_resources::OglTexture2D										_selectionColorTex;
+		tao_ogl_resources::OglTexture2D										_selectionDepthTex;
+		tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>	_selectionFramebuffer;
+		void InitSelectionFramebuffer(int width, int height);
 
 		std::map<unsigned short, PointGizmo>		_pointGizmos;
 		std::map<unsigned short, LineListGizmo>		_lineGizmos;
@@ -582,34 +653,36 @@ namespace tao_gizmos
 
 		[[nodiscard]] unsigned int MakeLayerMask(std::initializer_list<RenderLayer> layers);
 
-		static constexpr tao_ogl_resources::ogl_depth_state		DEFAULT_DEPTH_STATE
-		{
-			.depth_test_enable = true,
-			.depth_write_enable = true,
-			.depth_func = tao_ogl_resources::depth_func_less_equal,
-			.depth_range_near = 0.0,
-			.depth_range_far = 1.0
-		};
-		static constexpr tao_ogl_resources::ogl_blend_state		DEFAULT_BLEND_STATE
-		{
-			.blend_enable = false,
-		};
-		static constexpr tao_ogl_resources::ogl_rasterizer_state	DEFAULT_RASTERIZER_STATE
-		{
-			.culling_enable = false,
-			.polygon_mode = tao_ogl_resources::polygon_mode_fill,
-			.multisample_enable = true,
-			.alpha_to_coverage_enable = true
-		};
+		static constexpr tao_ogl_resources::ogl_depth_state			DEFAULT_DEPTH_STATE			= GetDefaultDepthState();
+		static constexpr tao_ogl_resources::ogl_blend_state			DEFAULT_BLEND_STATE			= GetDefaultBlendState();
+		static constexpr tao_ogl_resources::ogl_rasterizer_state	DEFAULT_RASTERIZER_STATE	= GetDefaultRasterizerState();
+		static constexpr tao_ogl_resources::ogl_depth_state			SELECTION_DEPTH_STATE		= GetDepthStateForSelection();
+		static constexpr tao_ogl_resources::ogl_blend_state			SELECTION_BLEND_STATE		= GetBlendStateForSelection();
+		static constexpr tao_ogl_resources::ogl_rasterizer_state	SELECTION_RASTERIZER_STATE	= GetRasterizerStateForSelection();
+		
 
 		[[nodiscard]] static RenderLayer DefaultLayer();
 
 		[[nodiscard]]static bool ShouldRenderGizmo(const Gizmo& gzm, const RenderPass& currentPass, const RenderLayer& currentLayer);
 
+		// Preprocessing, such as computing transformations
+		// to achieve zoom invariance or computing screen
+		// length for line strips (to apply a pattern)
+		// ------------------------------------------------
+		void ProcessPointGizmos		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
+		void ProcessLineListGizmos	(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
+		void ProcessLineStripGizmos	(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
+		void ProcessMeshGizmos		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix);
+
 		void RenderPointGizmos		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass);
 		void RenderLineGizmos		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass);
 		void RenderLineStripGizmos	(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass);
 		void RenderMeshGizmos		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass);
+
+		void RenderPointGizmosForSelection		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc);
+		void RenderLineGizmosForSelection		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc);
+		void RenderLineStripGizmosForSelection	(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc);
+		void RenderMeshGizmosForSelection		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc);
 
 	public:
 		GizmosRenderer(tao_render_context::RenderContext& rc, int windowWidth, int windowHeight);
@@ -621,29 +694,43 @@ namespace tao_gizmos
 			const glm::vec2& nearFar
 		);
 
+		[[nodiscard]] std::optional<gizmo_instance_id> GetGizmoUnderCursor(
+			const unsigned int cursorX,
+			const unsigned int cursorY,
+			const glm::mat4& viewMatrix, 
+			const glm::mat4& projectionMatrix,
+			const glm::vec2& nearFar
+		);
+
 		///////////////////////////////////////
  		// Point Gizmos
-		[[nodiscard]] gizmo_id			CreatePointGizmo	(const point_gizmo_descriptor& desc);
-		std::vector<gizmo_instance_id>	InstancePointGizmo	(const gizmo_id key, const std::vector<point_gizmo_instance>& instances);
-		void							DestroyPointGizmo	(const gizmo_id key);
+		[[nodiscard]] gizmo_id							CreatePointGizmo	   (const point_gizmo_descriptor& desc);
+		// TODO: InstanceGizmo
+		[[nodiscard]] std::vector<gizmo_instance_id>	InstancePointGizmo	   (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+		void											DestroyPointGizmo	   (const gizmo_id key);
 
 		///////////////////////////////////////
 		// Line Gizmos
-		[[nodiscard]] gizmo_id			CreateLineGizmo		(const line_list_gizmo_descriptor& desc);
-		std::vector<gizmo_instance_id>	InstanceLineGizmo	(const gizmo_id key, const std::vector<line_list_gizmo_instance>& instances);
-		void							DestroyLineGizmo	(const gizmo_id key);
+		[[nodiscard]] gizmo_id							CreateLineGizmo			  (const line_list_gizmo_descriptor& desc);
+		// TODO: InstanceGizmo
+		[[nodiscard]] std::vector<gizmo_instance_id>	InstanceLineGizmo		  (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+		void											DestroyLineGizmo		  (const gizmo_id key);
 
 		///////////////////////////////////////
 		// LineStrip Gizmos
-		[[nodiscard]] gizmo_id			CreateLineStripGizmo	(const line_strip_gizmo_descriptor& desc);
-		std::vector<gizmo_instance_id>	InstanceLineStripGizmo	(const gizmo_id key, const std::vector<line_strip_gizmo_instance>& instances);
-		void							DestroyLineStripGizmo	(const gizmo_id key);
+		[[nodiscard]] gizmo_id							CreateLineStripGizmo	   (const line_strip_gizmo_descriptor& desc);
+		// TODO: InstanceGizmo
+		[[nodiscard]] std::vector<gizmo_instance_id>	InstanceLineStripGizmo	   (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+		void											DestroyLineStripGizmo	   (const gizmo_id key);
 
 		///////////////////////////////////////
 		// Mesh Gizmos
-		[[nodiscard]] gizmo_id			CreateMeshGizmo		(const mesh_gizmo_descriptor& desc);
-		std::vector<gizmo_instance_id>	InstanceMeshGizmo	(const gizmo_id key, const std::vector<mesh_gizmo_instance>& instances);
-		void							DestroyMeshGizmo	(const gizmo_id key);
+		[[nodiscard]] gizmo_id							CreateMeshGizmo		  (const mesh_gizmo_descriptor& desc);
+		// TODO: InstanceGizmo
+		[[nodiscard]] std::vector<gizmo_instance_id>	InstanceMeshGizmo	  (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+		void											DestroyMeshGizmo	  (const gizmo_id key);
+
+		void											SetGizmoInstances (const gizmo_id key, const std::vector<std::pair<gizmo_instance_id, gizmo_instance_descriptor>>& instances);
 
 		///////////////////////////////////////
 		// Render Passes and Layers

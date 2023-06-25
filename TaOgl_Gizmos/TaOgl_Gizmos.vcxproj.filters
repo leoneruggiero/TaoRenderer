@@ -43,21 +43,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Shaders\MeshUnlit.frag">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="Shaders\MeshUnlit.vert">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="Shaders\ThickLines.geom">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="Shaders\ThickLineStrip.geom">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="Shaders\ThickPoints.geom">
-      <Filter>Shaders</Filter>
-    </None>
     <None Include="Shaders\Include\UboDefs.glsl">
       <Filter>Shaders\Include</Filter>
     </None>
@@ -81,6 +66,21 @@
     </None>
     <None Include="Shaders\Include\Helper.glsl">
       <Filter>Shaders\Include</Filter>
+    </None>
+    <None Include="Shaders\Lines.geom">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\LineStrip.geom">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\Mesh.frag">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\Mesh.vert">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="Shaders\Points.geom">
+      <Filter>Shaders</Filter>
     </None>
   </ItemGroup>
 </Project>

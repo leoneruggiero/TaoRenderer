@@ -96,6 +96,106 @@ struct MyGizmoLayersVC
 	RenderLayer blendGreaterLayer;
 };
 
+
+std::function<void(long)> animation;
+std::function<void(const gizmo_instance_id&)> onSelection;
+
+void InitDynamicScene(GizmosRenderer& gr, const MyGizmoLayers& layers, std::function<void(long)>& animateFunc)
+{
+	/// Init Mesh Gizmo (cube)
+	//////////////////////////////
+	auto geom = tao_geometry::Mesh::Box(1, 1, 1);
+	auto positions		= geom.GetPositions();
+	auto normals		= geom.GetNormals();
+	auto indices						= geom.GetIndices();
+
+	// center to origin
+	std::for_each(positions.begin(), positions.end(), [](vec3& v) {v -= vec3{ 0.5 }; });
+
+	std::vector<MeshGizmoVertex> vertices(geom.NumVertices());
+	for(int i=0; i<vertices.size(); i++)
+	{
+		vertices[i] = MeshGizmoVertex{}
+			.Position(positions[i])
+			.Normal(normals[i])
+			.Color(vec4(1.0));
+	}
+
+	auto cubeId = gr.CreateMeshGizmo(mesh_gizmo_descriptor
+	{
+		.vertices = vertices,
+		.triangles = &indices,
+		.zoom_invariant = false,
+		.usage_hint = gizmo_usage_hint::usage_dynamic
+	}
+	);
+
+	gr.AssignGizmoToLayers(cubeId, { layers.opaqueLayer });
+
+	/// Instancing on a grid
+	//////////////////////////////
+	const int count = 10;
+	const float ext = 2.0f;
+
+	std::vector<gizmo_instance_descriptor> instances(count*count);
+
+	const float d = ext / count;
+	for (int y = 0; y < count; y++)
+	for (int x = 0; x < count; x++)
+	{
+		vec3 tr = vec3{ (x - count / 2) * d, (y - count / 2) * d , 0.0f};
+		instances[y * count + x].color = vec4{ 1.0f };
+		instances[y * count + x].transform = 
+			glm::scale(glm::translate(glm::mat4{1.0f}, tr), vec3{ d*0.7f});
+	}
+
+	auto instanceIDs = gr.InstanceMeshGizmo(cubeId, instances);
+
+	animateFunc = [&gr, cubeId, d, ext, count, instanceIDs](float time)
+	{
+		std::vector<std::pair<gizmo_instance_id, gizmo_instance_descriptor>> instances(count * count);
+
+		for (int y = 0; y < count; y++)
+		for (int x = 0; x < count; x++)
+		{
+			vec3 tr = vec3{ (x - count / 2) * d, (y - count / 2) * d , 0.0f };
+
+			float dst = glm::length(tr);
+			float sin = glm::sin((dst/ext)*15.0f-time*0.0025f);
+			sin = sin * 0.5f + 0.5f;
+			float h = sin * (1.0f - (dst / ext));
+			tr.z = h*0.45f;
+
+			vec4 color = vec4{0.0f, 0.0f, 0.0f, 1.0f};//vec4{ 0.3f+h*0.7f, 0.0f, 0.8f + h * 0.2f, 1.0f };
+			mat4 transform =
+				glm::translate(mat4{ 1.0f }, tr) *
+				//glm::rotate(mat4{ 1.0f }, glm::pi<float>() * time * 0.001f*(1.0f - dst/ext), vec3{ 1.0, 0.0, 0.0 })*
+				glm::scale(mat4{ 1.0f }, vec3{ d * 0.7f });
+
+			const int idx = y * count + x;
+			instances[idx] = std::make_pair(instanceIDs[idx], gizmo_instance_descriptor{ transform, color });
+		}
+
+		gr.SetGizmoInstances(cubeId, instances);
+	};
+
+	onSelection = [cubeId, instanceIDs, instances, &gr ](gizmo_instance_id selected)
+	{
+		vector<pair<gizmo_instance_id, gizmo_instance_descriptor>> newInstances(instances.size());
+
+		for(int i=0;i<instances.size();i++)
+		{
+			newInstances[i] = make_pair(instanceIDs[i], instances[i]);
+			if(selected==instanceIDs[i])	
+				newInstances[i].second.color = vec4{1.0f, 0.0f, 0.0f, 1.0f};
+			
+		}
+
+		gr.SetGizmoInstances(cubeId, newInstances);
+	};
+
+}
+
 void InitGrid(GizmosRenderer& gr, const MyGizmoLayers& layers)
 {
 	constexpr float width			= 10.0f;
@@ -148,12 +248,12 @@ void InitGrid(GizmosRenderer& gr, const MyGizmoLayers& layers)
 	});
 
 	// a single instance
-	vector<line_list_gizmo_instance> instances
+	vector<gizmo_instance_descriptor> instances
 	{
-	line_list_gizmo_instance
+		gizmo_instance_descriptor
 		{
-		.transformation = glm::mat4{1.0f},
-		.color = vec4{1.0f}
+			.transform	= glm::mat4{1.0f},
+			.color		= vec4{1.0f}
 		}
 	};
 	gr.InstanceLineGizmo(key, instances);
@@ -195,20 +295,7 @@ void InitWorldAxis(GizmosRenderer& gr, const MyGizmoLayers& layers)
 		.height			= lineWidth,
 		.pattern_length = patternLen
 	};
-
-	//gr.CreateLineGizmo(0, line_list_gizmo_descriptor
-	//{
-	//	.vertices = 
-	//	.line_size = lineWidth,
-	//	.pattern_texture_descriptor = nullptr//&patternDesc
-	//});
-	//
-	//gr.InstanceLineGizmo(0,
-//{
-	//	line_list_gizmo_instance{mat4{1.0f},vec4{1, 0, 0, 1}}, // X axis (red)
-	//	line_list_gizmo_instance{mat4{1.0f},vec4{0, 1, 0, 1}}, // Y axis (green)
-	//	line_list_gizmo_instance{mat4{1.0f},vec4{0, 0, 1, 1}}, // Z axis (blue)
-	//});
+	
 }
 
 void CreateDashedPatternVC(unsigned int patternLen, unsigned int patternWidth, tao_gizmos_procedural::TextureDataRgbaUnsignedByte& tex)
@@ -269,7 +356,7 @@ void InitViewCube(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayersVC& lay
 
 	gizRdr.InstanceMeshGizmo(key,
 	{
-			mesh_gizmo_instance{glm::scale(glm::mat4{1.0f}, vec3{0.98f}) , glm::vec4{1.0f}}
+			gizmo_instance_descriptor{glm::scale(glm::mat4{1.0f}, vec3{0.98f}) , glm::vec4{1.0f}}
 		});
 
 	gizRdr.AssignGizmoToLayers(key, { layers.blendEqualLayer, layers.depthPrePassLayer });
@@ -333,11 +420,11 @@ void InitViewCube(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayersVC& lay
 
 	gizRdr.InstanceLineGizmo(edgesKey,
 		{
-			line_list_gizmo_instance{glm::mat4{1.0f}, vec4{1.0f}}
+			gizmo_instance_descriptor{glm::mat4{1.0f}, vec4{1.0f}}
 		});
 	gizRdr.InstanceLineGizmo(dashedEdgesKey,
 		{
-			line_list_gizmo_instance{glm::mat4{1.0f}, vec4{0.4f}}
+			gizmo_instance_descriptor{glm::mat4{1.0f}, vec4{0.4f}}
 		});
 
 	gizRdr.AssignGizmoToLayers(edgesKey, { layers.depthPrePassLayer, layers.opaqueLayer });
@@ -401,8 +488,8 @@ void InitArrowTriad2D(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayers& l
 
 	gizRdr.InstanceLineGizmo(key,
 {
-		line_list_gizmo_instance{ translate(mat4{ 1.0f }, vec3{ 1.0, -1.0, 0.25 }), vec4(1.0f) },
-		line_list_gizmo_instance{ translate(mat4{ 1.0f }, vec3{-1.0, 1.0, 0.25 }), vec4(1.0f) }
+		gizmo_instance_descriptor{ translate(mat4{ 1.0f }, vec3{ 1.0, -1.0, 0.25 }), vec4(1.0f) },
+		gizmo_instance_descriptor{ translate(mat4{ 1.0f }, vec3{-1.0, 1.0, 0.25 }), vec4(1.0f) }
 		});
 
 	gizRdr.AssignGizmoToLayers(key, { layers.opaqueLayer });
@@ -471,7 +558,7 @@ void CreateArrowTriad(
 
 }
 
-void InitArrowTriad3D(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayers& layers)
+void InitArrowTriad3D(tao_gizmos::GizmosRenderer& gizRdr, const tao_gizmos::RenderLayer& layer)
 {
 	vector<glm::vec3> cubeMeshPos;
 	vector<glm::vec3> cubeMeshNrm;
@@ -500,13 +587,53 @@ void InitArrowTriad3D(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayers& l
 			.zoom_invariant_scale = 0.1f
 		});
 
-	gizRdr.InstanceMeshGizmo(key,
+	vector<gizmo_instance_descriptor> instances =
 		{
-			mesh_gizmo_instance{ translate(mat4{ 1.0f }, vec3{-1.0,-1.0, 0.25 }), vec4(1.0f) },
-			mesh_gizmo_instance{ translate(mat4{ 1.0f }, vec3{ 1.0, 1.0, 0.25 }), vec4(1.0f) },
+			gizmo_instance_descriptor{ translate(mat4{ 1.0f }, vec3{-1.0,-1.0, 0.25 }), vec4(1.0f) },
+			gizmo_instance_descriptor{ translate(mat4{ 1.0f }, vec3{ 1.0, 1.0, 0.25 }), vec4(1.0f) },
+		};
+
+	auto keys= gizRdr.InstanceMeshGizmo(key, instances);
+
+
+	gizRdr.AssignGizmoToLayers(key, { layer });
+}
+
+void InitArrowTriad3DVC(tao_gizmos::GizmosRenderer& gizRdr, const tao_gizmos::RenderLayer& layer)
+{
+	vector<glm::vec3> cubeMeshPos;
+	vector<glm::vec3> cubeMeshNrm;
+	vector<glm::vec2> cubeMeshTex;
+	vector<glm::vec4> cubeMeshCol;
+	vector<unsigned int> cubeMeshTris;
+
+	CreateArrowTriad(cubeMeshPos, cubeMeshNrm, cubeMeshCol, cubeMeshTris);
+
+	vector<MeshGizmoVertex> cubeMeshVertices{ cubeMeshPos.size() };
+
+	for (int i = 0; i < cubeMeshVertices.size(); i++)
+	{
+		cubeMeshVertices[i] =
+			MeshGizmoVertex{}
+			.Position(cubeMeshPos[i])
+			.Normal(cubeMeshNrm[i])
+			.Color(cubeMeshCol[i]);
+	}
+
+	auto key = gizRdr.CreateMeshGizmo(mesh_gizmo_descriptor
+		{
+			.vertices = cubeMeshVertices,
+			.triangles = &cubeMeshTris,
+			.zoom_invariant = false,
+			.zoom_invariant_scale = 0.1f
 		});
 
-	gizRdr.AssignGizmoToLayers(key, { layers.opaqueLayer });
+	gizRdr.InstanceMeshGizmo(key,
+		{
+			gizmo_instance_descriptor{ scale(mat4{ 1.0f }, vec3{1.5f}), vec4(1.0f) },
+		});
+
+	gizRdr.AssignGizmoToLayers(key, { layer });
 }
 
 RenderLayer InitOpaqueGizmoLayer(GizmosRenderer& gr)
@@ -677,14 +804,16 @@ void InitGizmos(GizmosRenderer& gr)
 
 	//InitWorldAxis		(gr, layers);
 	InitGrid			(gr, layers);
-	InitArrowTriad3D	(gr, layers);
+	InitArrowTriad3D	(gr, layers.opaqueLayer);
 	InitArrowTriad2D	(gr, layers);
+	InitDynamicScene	(gr, layers, animation);
 }
 
 void InitGizmosVC(GizmosRenderer& gr)
 {
 	MyGizmoLayersVC layers = InitGizmosLayersAndPassesVC(gr);
 	InitViewCube(gr, layers);
+	//InitArrowTriad3DVC(gr, layers.opaqueLayer);
 }
 
 int main()
@@ -744,9 +873,15 @@ int main()
 			},
 			60.0f
 		};
-
+		MouseInputListener mouseRawPosition
+		{
+			[](){return true;},
+			[](){},
+			[](){}
+		};
 		rc.Mouse().AddListener(mouseRotate);
 		rc.Mouse().AddListener(mouseZoom);
+		rc.Mouse().AddListener(mouseRawPosition);
 
 		vec2 nearFar = vec2(0.5f, 50.f);
 		vec3 eyePos = vec3(-2.5f, -2.5f, 2.f);
@@ -806,11 +941,22 @@ int main()
 			viewMatrix = glm::lookAt(eyePos, eyeTrg, up);
 			// ----------------------------------------------------------------------
 
+			time_point timeNow = high_resolution_clock::now();
+			auto delta = duration_cast<milliseconds>(timeNow - startTime).count();
+			//animation(delta);
 
 			gizRdr.Render(viewMatrix, projMatrix, nearFar).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
 
-			mat4 viewMatrixVC = glm::lookAt(normalize(eyePos - eyeTrg)*2.9f, vec3{ 0.0f }, vec3{0.0, 0.0, 1.0});
-			mat4 projMatrixVC = glm::perspective(radians<float>(60), static_cast<float>(fboWidthVC) / fboHeightVC, 0.1f, 4.0f);
+			float mouseX, mouseY;
+			mouseRawPosition.Position(mouseX, mouseY);
+			auto selectedItem = gizRdr.GetGizmoUnderCursor(mouseX, mouseY, viewMatrix, projMatrix, nearFar);
+			if(selectedItem.has_value())
+			{
+				if(onSelection) onSelection(selectedItem.value());
+			}
+
+			mat4 viewMatrixVC = glm::lookAt(normalize(eyePos - eyeTrg)*3.5f, vec3{ 0.0f }, vec3{0.0, 0.0, 1.0});
+			mat4 projMatrixVC = glm::perspective(radians<float>(60), static_cast<float>(fboWidthVC) / fboHeightVC, 0.1f, 5.0f);
 
 			gizRdrVC.Render(viewMatrixVC, projMatrixVC, vec2{0.1f, 3.0f})
 				.CopyTo(

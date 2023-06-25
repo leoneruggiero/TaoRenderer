@@ -41,7 +41,35 @@ namespace tao_gizmos
         return outStr.str();
     }
 
-    void GizmosShaderLib::LoadShaderSource(gizmos_shader_type shaderType, const char* shaderSrcDir, string* vertSrc, string* geomSrc, string* fragSrc)
+    void GizmosShaderLib::DefineConditional(string& shaderSource, const vector<string>& definitions)
+    {
+        string line{};
+        stringstream inStr{shaderSource};
+        stringstream outStr{};
+        
+        getline(inStr, line);
+
+        // if the first line is #version ...
+        if (regex_search(line, GlslVersionRgx())) 
+        {
+            outStr << line << endl; // append #version
+
+            // append all the symbols
+            for (const string& def : definitions)
+                outStr << DEFINE_DIRECTIVE << " " << def << endl;
+
+            // copy the rest of the shader as is
+            while (getline(inStr, line)) outStr << line << endl;
+        }
+        else
+            throw std::exception{ "Cannot define conditional symbols. The shader is ill-formed." };
+
+        shaderSource = outStr.str();
+    }
+
+
+
+    void GizmosShaderLib::LoadShaderSource(gizmos_shader_type shaderType, gizmos_shader_modifier modifier, const char* shaderSrcDir, string* vertSrc, string* geomSrc, string* fragSrc)
     {
         const char* vertSrcFile;
         const char* fragSrcFile;
@@ -58,15 +86,22 @@ namespace tao_gizmos
 		/* Not optional */*vertSrc = PreProcessShaderSource(string{}.append(shaderSrcDir).append("/").append(vertSrcFile).c_str()); 
         if(geomSrcFile)   *geomSrc = PreProcessShaderSource(string{}.append(shaderSrcDir).append("/").append(geomSrcFile).c_str()); 
         /* Not optional */*fragSrc = PreProcessShaderSource(string{}.append(shaderSrcDir).append("/").append(fragSrcFile).c_str());
+
+        if(modifier == gizmos_shader_modifier::selection)
+        {
+            /* Not optional */  DefineConditional(*vertSrc, { SELECTION_SYMBOL });
+            if (geomSrcFile)    DefineConditional(*geomSrc, { SELECTION_SYMBOL });
+            /* Not optional */  DefineConditional(*fragSrc, { SELECTION_SYMBOL });
+        }
     }
 
-    OglShaderProgram GizmosShaderLib::CreateShaderProgram(RenderContext& rc, gizmos_shader_type shaderType, const char* shaderSrcDir)
+    OglShaderProgram GizmosShaderLib::CreateShaderProgram(RenderContext& rc, gizmos_shader_type shaderType, gizmos_shader_modifier modifier, const char* shaderSrcDir)
     {
         string vertSrc;
         string fragSrc;
         string geomSrc;
     	
-        LoadShaderSource(shaderType, shaderSrcDir, &vertSrc, &geomSrc, &fragSrc);
+        LoadShaderSource(shaderType, modifier, shaderSrcDir, &vertSrc, &geomSrc, &fragSrc);
 
         return
             rc.CreateShaderProgram(vertSrc.c_str(), geomSrc.empty() ? nullptr : geomSrc.c_str(), fragSrc.c_str());

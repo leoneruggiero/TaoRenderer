@@ -16,27 +16,35 @@ namespace tao_gizmos
         lineStrip,
         mesh
     };
+    enum class gizmos_shader_modifier
+    {
+        none,
+        selection
+    };
+
     class GizmosShaderLib
     {
 
     private:
 
         static constexpr const char* INCLUDE_DIRECTIVE   = "//! #include";
+        static constexpr const char* DEFINE_DIRECTIVE    = "#define";
+        static constexpr const char* SELECTION_SYMBOL    = "SELECTION";
 
         static constexpr const char* LINE_STRIP_VERT_SRC = "LineStrip.vert";
-        static constexpr const char* LINE_STRIP_GEO_SRC  = "ThickLineStrip.geom";
+        static constexpr const char* LINE_STRIP_GEO_SRC  = "LineStrip.geom";
         static constexpr const char* LINE_STRIP_FRAG_SRC = "LineStrip.frag";
 
-        static constexpr const char* POINTS_GEO_SRC      = "ThickPoints.geom";
+        static constexpr const char* POINTS_GEO_SRC      = "Points.geom";
         static constexpr const char* POINTS_VERT_SRC     = "Points.vert";
         static constexpr const char* POINTS_FRAG_SRC     = "Points.frag";
 
         static constexpr const char* LINES_VERT_SRC      = "Lines.vert";
-        static constexpr const char* LINES_GEO_SRC       = "ThickLines.geom";
+        static constexpr const char* LINES_GEO_SRC       = "Lines.geom";
         static constexpr const char* LINES_FRAG_SRC      = "Lines.frag";
 
-        static constexpr const char* MESH_VERT_SRC       = "MeshUnlit.vert";
-        static constexpr const char* MESH_FRAG_SRC       = "MeshUnlit.frag";
+        static constexpr const char* MESH_VERT_SRC       = "Mesh.vert";
+        static constexpr const char* MESH_FRAG_SRC       = "Mesh.frag";
         static constexpr const char* EXC_PREAMBLE        = "GizmosShaderLibrary: ";
 
         static string FileNotFoundExceptionMsg(const char* filePath)
@@ -61,11 +69,19 @@ namespace tao_gizmos
             .append(R"(\s+"(.+/)*(\w+.glsl)\")")
             };
         }
+        static regex GlslVersionRgx()
+        {
+            // #version ...
+            return regex{ string{}
+            .append(R"(^\s*#version)")
+            };
+        }
         static string PreProcessShaderSource(const char* sourceFilePath);
-        static void LoadShaderSource(gizmos_shader_type shaderType, const char* shaderSrcDir, string* vertSrc, string* geomSrc, string* fragSrc );
+        static void   DefineConditional     (string& shaderSource, const vector<string>& definitions);
+        static void   LoadShaderSource      (gizmos_shader_type shaderType, gizmos_shader_modifier modifier, const char* shaderSrcDir, string* vertSrc, string* geomSrc, string* fragSrc );
 
     public:
-        [[nodiscard]] static OglShaderProgram CreateShaderProgram(RenderContext& rc, gizmos_shader_type shaderType, const char* shaderSrcDir);
+        [[nodiscard]] static OglShaderProgram CreateShaderProgram(RenderContext& rc, gizmos_shader_type shaderType, gizmos_shader_modifier modifier, const char* shaderSrcDir);
     };
 
 }

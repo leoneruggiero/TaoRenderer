@@ -24,6 +24,13 @@ layout(std430, binding = 1) buffer buff_instance_data_1
      mat4 i_transform[];
 };
 
+#ifdef SELECTION
+layout(std430, binding = 2) buffer buff_instance_data_2
+{
+     vec4 i_selection_color[];
+};
+#endif
+
 out VS_OUT
 {
     vec3 v_position;
@@ -41,6 +48,11 @@ void main()
     gl_Position         = f_projMat * f_viewMat * worldPosition;
     vs_out.v_position   = worldPosition.xyz;
     vs_out.v_normal     = normalMat * v_normal;
-    vs_out.v_color      = v_color*i_nrm_mat_col[gl_InstanceID].i_color;
+    vs_out.v_color      = 
+    #ifndef SELECTION
+                            v_color*i_nrm_mat_col[gl_InstanceID].i_color;
+    #else
+                            i_selection_color[gl_InstanceID];
+    #endif
     vs_out.v_texCoord   = v_texCoord;
 }

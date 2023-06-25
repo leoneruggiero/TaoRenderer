@@ -18,11 +18,13 @@ void main()
 {
     vec4 color = fs_in.v_color;
 
+    #ifndef SELECTION
     if(o_hasTexture) 
     {
         vec2 tc = vec2(mod(fs_in.v_texCoord.x, 1.0), fs_in.v_texCoord.y);
         color *= texture(s2D_patternTexture, tc);
     }
+    #endif
 
     FragColor = color;
 }

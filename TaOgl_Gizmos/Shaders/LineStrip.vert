@@ -15,11 +15,17 @@ layout(std430, binding = 1) buffer buff_instance_data_1
      mat4 i_transform[];
 };
 
-layout(std430, binding = 2) buffer buff
+#ifdef SELECTION
+layout(std430, binding = 2) buffer buff_instance_data_2
+{
+     vec4 i_selection_color[];
+};
+#endif
+
+layout(std430, binding = 3) buffer buff
 {
     float b_screenDst[];
 };
-
 
 out VS_OUT
 {
@@ -31,6 +37,12 @@ vs_out;
 void main()
 {
     gl_Position         = f_projMat * f_viewMat * i_transform[gl_InstanceID] * vec4(v_position, 1.0);
-    vs_out.v_color      = v_color * i_color[gl_InstanceID];
+    
+    vs_out.v_color      = 
+    #ifndef SELECTION
+                            v_color * i_color[gl_InstanceID];
+    #else
+                            i_selection_color[gl_InstanceID];
+    #endif
     vs_out.v_texCoord   = vec2(b_screenDst[o_vertCount * gl_InstanceID + gl_VertexID]/o_patternSize, 0.0);
 }

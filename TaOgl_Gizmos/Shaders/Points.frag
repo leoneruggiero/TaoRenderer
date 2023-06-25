@@ -16,7 +16,9 @@ void main()
 {
     vec4 color = fs_in.v_color;
     
+    #ifndef SELECTION
     if(o_hasTexture) color *= texture(s2D_colorTexture, fs_in.v_texCoord);
+    #endif
     
     FragColor = color;
 }

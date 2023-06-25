@@ -32,26 +32,28 @@ void main() {
         c.xy*= c.w;
     }
 
-    gs_out.v_color     = vs_out[0].v_color;
-
     // Top - Right
     gl_Position = c + vec4(f.xy, 0.0, 0.0);
     gs_out.v_texCoord  = vs_out[0].v_texCoord.zw; 
+    gs_out.v_color     = vs_out[0].v_color;
     EmitVertex();
 
     // Bottom - Right
     gl_Position = c + vec4(f.x, -f.y, 0.0, 0.0);
     gs_out.v_texCoord  = vs_out[0].v_texCoord.zy; 
+    gs_out.v_color     = vs_out[0].v_color;
     EmitVertex();
 
     // Top - Left
     gl_Position = c + vec4(-f.x, f.y, 0.0, 0.0);
     gs_out.v_texCoord  = vs_out[0].v_texCoord.xw; 
+    gs_out.v_color     = vs_out[0].v_color;
     EmitVertex();
 
     // Bottom - Left          
     gl_Position = c + vec4(-f.xy, 0.0, 0.0);
     gs_out.v_texCoord  = vs_out[0].v_texCoord.xy; 
+    gs_out.v_color     = vs_out[0].v_color;
     EmitVertex();
 
     EndPrimitive();

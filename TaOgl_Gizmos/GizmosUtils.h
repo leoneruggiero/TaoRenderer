@@ -23,7 +23,8 @@ namespace tao_gizmos
 
 	constexpr unsigned int INSTANCE_DATA_STATIC_SSBO_BINDING	 = 0;
 	constexpr unsigned int INSTANCE_DATA_DYNAMIC_SSBO_BINDING	 = 1;
-	constexpr unsigned int LINE_STRIP_SSBO_BINDING_SCREEN_LENGTH = 2;
+	constexpr unsigned int SELECTION_COLOR_SSBO_BINDING			 = 2;
+	constexpr unsigned int LINE_STRIP_SSBO_BINDING_SCREEN_LENGTH = 3;
 	
 	// #pragma pack(4) TODO
 	struct points_obj_data_block
