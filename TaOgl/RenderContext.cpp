@@ -109,6 +109,16 @@ namespace tao_render_context
 		GL_CALL(glViewport(x, y, width, height));
 	}
 
+	void RenderContext::ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, ogl_read_pixels_format format, ogl_texture_data_type type, void* data)
+	{
+		GL_CALL(glReadPixels(x, y, width, height, format, type, data));
+	}
+
+	void RenderContext::ReadnPixels(GLint x, GLint y, GLsizei width, GLsizei height, ogl_read_pixels_format format, ogl_texture_data_type type, GLsizei bufSize, void* data)
+	{
+		glReadnPixels(x, y, width, height, format, type, bufSize, data);
+	}
+
 
 	void RenderContext::DrawArrays(ogl_primitive_type mode, GLint first, GLsizei count)
 	{
@@ -255,6 +265,16 @@ namespace tao_render_context
 	OglShaderStorageBuffer RenderContext::CreateShaderStorageBuffer()
 	{
 		return OglShaderStorageBuffer{ OglResource<shader_storage_buffer>{} };
+	}
+
+	OglPixelPackBuffer RenderContext::CreatePixelPackBuffer()
+	{
+		return OglPixelPackBuffer{ OglResource<pixel_pack_buffer>{} };
+	}
+
+	OglFence RenderContext::CreateFence()
+	{
+		return OglFence{ sync_condition_gpu_commands_complete };
 	}
 
 	OglTexture2D RenderContext::CreateTexture2D()

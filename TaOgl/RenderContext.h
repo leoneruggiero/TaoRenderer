@@ -55,12 +55,16 @@ namespace tao_render_context
                 throw std::exception("RenderContext initialization failed.");
             }
 
+            glfwMakeContextCurrent(_glf_window);
+
+            // disable v-sync
+            glfwSwapInterval(0);
+
             // Mouse input initialization
             ///////////////////////////////
             _mouseInput = make_unique<MouseInput>(_glf_window);
             SetInputOptions(_glf_window);
 
-            glfwMakeContextCurrent(_glf_window);
 
             // GLAD loading
             //////////////////////////////
@@ -109,6 +113,10 @@ namespace tao_render_context
 
         void SetViewport(GLint x, GLint y, GLsizei width, GLsizei height);
 
+        void ReadPixels(GLint x, GLint y, GLsizei width, GLsizei height, ogl_read_pixels_format format, ogl_texture_data_type type, void* data);
+
+        void ReadnPixels(GLint x, GLint y, GLsizei width, GLsizei height, ogl_read_pixels_format format, ogl_texture_data_type type, GLsizei bufSize, void* data);
+
         void DrawArrays           (ogl_primitive_type mode, GLint first, GLsizei count);
         void DrawArraysInstanced  (ogl_primitive_type mode, GLint first, GLsizei count, GLsizei instanceCount);
         void DrawElementsInstanced(ogl_primitive_type mode, GLsizei count, ogl_indices_type type, const void* offset, GLsizei instanceCount);
@@ -147,6 +155,10 @@ namespace tao_render_context
         [[nodiscard]] OglIndexBuffer CreateIndexBuffer();
 
         [[nodiscard]] OglShaderStorageBuffer CreateShaderStorageBuffer();
+
+    	[[nodiscard]] OglPixelPackBuffer CreatePixelPackBuffer();
+
+        [[nodiscard]] OglFence CreateFence();
     };
 }
 

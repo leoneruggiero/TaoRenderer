@@ -4,6 +4,7 @@
 #include <map>
 #include <optional>
 #include <glm/gtc/type_ptr.hpp>
+#include <queue>
 
 namespace tao_gizmos
 {
@@ -578,6 +579,16 @@ namespace tao_gizmos
 		};
 	}
 	
+	struct SelectionRequest
+	{
+		tao_ogl_resources::OglPixelPackBuffer& _pbo;
+		tao_ogl_resources::OglFence _fence;
+		unsigned int _imageWidth;
+		unsigned int _imageHeight;
+		unsigned int _posX;
+		unsigned int _posY;
+		std::vector<std::pair<unsigned long long, glm::ivec2>> _gizmoKeyIndicesLUT;
+	};
 
 	class GizmosRenderer
 	{
@@ -626,6 +637,13 @@ namespace tao_gizmos
 		tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>	_selectionFramebuffer;
 		void InitSelectionFramebuffer(int width, int height);
 
+		unsigned int										_latestSelectionPBOIdx = 0;
+		static constexpr unsigned int						_selectionPBOsCount = 3;
+		std::vector<tao_ogl_resources::OglPixelPackBuffer>	_selectionPBOs;
+
+
+		std::queue<SelectionRequest> _selectionRequests;
+
 		std::map<unsigned short, PointGizmo>		_pointGizmos;
 		std::map<unsigned short, LineListGizmo>		_lineGizmos;
 		std::map<unsigned short, LineStripGizmo>	_lineStripGizmos;
@@ -659,7 +677,6 @@ namespace tao_gizmos
 		static constexpr tao_ogl_resources::ogl_depth_state			SELECTION_DEPTH_STATE		= GetDepthStateForSelection();
 		static constexpr tao_ogl_resources::ogl_blend_state			SELECTION_BLEND_STATE		= GetBlendStateForSelection();
 		static constexpr tao_ogl_resources::ogl_rasterizer_state	SELECTION_RASTERIZER_STATE	= GetRasterizerStateForSelection();
-		
 
 		[[nodiscard]] static RenderLayer DefaultLayer();
 
@@ -684,6 +701,23 @@ namespace tao_gizmos
 		void RenderLineStripGizmosForSelection	(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc);
 		void RenderMeshGizmosForSelection		(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc);
 
+		[[nodiscard]]std::optional<gizmo_instance_id> GetGizmoKeyFromFalseColors(
+			const unsigned char* pixelDataAsRGBAUint, unsigned int stride, 
+			int imageWidth, int imageHeight,
+			unsigned int posX, unsigned int posY, 
+			std::vector<std::pair<unsigned long long, glm::ivec2>> lut
+		);
+
+
+		const std::function<void(std::optional<gizmo_instance_id>)>* _selectionCallback;
+
+		void IssueSelectionRequest(
+			unsigned int imageWidth, unsigned int imageHeight, unsigned int posX, unsigned int posY, 
+			std::vector<std::pair<unsigned long long, glm::ivec2>> lut
+		);
+
+		void ProcessSelectionRequests();
+
 	public:
 		GizmosRenderer(tao_render_context::RenderContext& rc, int windowWidth, int windowHeight);
 
@@ -694,7 +728,9 @@ namespace tao_gizmos
 			const glm::vec2& nearFar
 		);
 
-		[[nodiscard]] std::optional<gizmo_instance_id> GetGizmoUnderCursor(
+		void SetSelectionCallback(const std::function<void(std::optional<gizmo_instance_id>)>& callback);
+
+		void GetGizmoUnderCursor(
 			const unsigned int cursorX,
 			const unsigned int cursorY,
 			const glm::mat4& viewMatrix, 

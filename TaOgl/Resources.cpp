@@ -20,6 +20,10 @@ namespace tao_ogl_resources
     void   uniform_buffer::Destroy(GLuint id) { GL_CALL(glDeleteBuffers(1, &id)); }
     GLuint shader_storage_buffer::Create() { GLuint id = 0; GL_CALL(glCreateBuffers(1, &id)); return id; }
     void   shader_storage_buffer::Destroy(GLuint id) { GL_CALL(glDeleteBuffers(1, &id)); }
+    GLuint pixel_pack_buffer::Create() { GLuint id = 0; GL_CALL(glCreateBuffers(1, &id)); return id; }
+    void   pixel_pack_buffer::Destroy(GLuint id) { GL_CALL(glDeleteBuffers(1, &id)); }
+    GLuint pixel_unpack_buffer::Create() { GLuint id = 0; GL_CALL(glCreateBuffers(1, &id)); return id; }
+    void   pixel_unpack_buffer::Destroy(GLuint id) { GL_CALL(glDeleteBuffers(1, &id)); }
     GLuint vertex_attrib_array::Create() { GLuint id = 0; GL_CALL(glCreateVertexArrays(1, &id)); return id; }
     void   vertex_attrib_array::Destroy(GLuint id) { GL_CALL(glDeleteVertexArrays(1, &id)); }
     GLuint texture_1D::Create() { GLuint id = 0; GL_CALL(glCreateTextures(GL_TEXTURE_1D, 1, &id)); return id; }
@@ -174,6 +178,19 @@ namespace tao_ogl_resources
     void OglShaderStorageBuffer::BindRange(GLuint index, GLintptr offset, GLsizeiptr size) { GL_CALL(glBindBufferRange(GL_SHADER_STORAGE_BUFFER, index, _ogl_obj.ID(), offset, size)); }
     void OglShaderStorageBuffer::SetData(GLsizeiptr size, const void* data, ogl_buffer_usage usage) { namedBufferData(_ogl_obj.ID(), size, data, usage); }
     void OglShaderStorageBuffer::SetSubData(GLintptr offset, GLsizeiptr size, const void* data) { namedBufferSubData(_ogl_obj.ID(), offset, size, data); }
+
+    /// Pixel Pack Buffer
+    ////////////////////////////
+    void  OglPixelPackBuffer::Bind()     { GL_CALL(glBindBuffer(GL_PIXEL_PACK_BUFFER, _ogl_obj.ID())); }
+    void  OglPixelPackBuffer::UnBind()   { GL_CALL(glBindBuffer(GL_PIXEL_PACK_BUFFER, 0)); }
+    void  OglPixelPackBuffer::BufferStorage(GLsizeiptr size, const void* data, ogl_buffer_flags flags){GL_CALL(glNamedBufferStorage(_ogl_obj.ID(), size, data, flags);)}
+    void* OglPixelPackBuffer::MapBuffer(ogl_map_flags access){GL_CALL(return glMapNamedBuffer(_ogl_obj.ID(), access);)}
+    void  OglPixelPackBuffer::UnmapBuffer(){ GL_CALL(glUnmapNamedBuffer(_ogl_obj.ID())); }
+
+    /// Pixel Unpack buffer
+    ////////////////////////////
+    void OglPixelUnpackBuffer::Bind()   { GL_CALL(glBindBuffer(GL_PIXEL_UNPACK_BUFFER, _ogl_obj.ID())); }
+    void OglPixelUnpackBuffer::UnBind() { GL_CALL(glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0)); }
 
     /// Texture Utils
     ///////////////////
@@ -420,6 +437,21 @@ namespace tao_ogl_resources
     template class OglFramebuffer<OglTexture2DMultisample>;
     template class OglFramebuffer<OglTextureCube>;
 
+
+    void OglFence::Create(ogl_sync_condition condition)
+    {
+        GL_CALL(_id = glFenceSync(condition, 0); )
+    }
+
+    void OglFence::Destroy()
+    {
+		GL_CALL(glDeleteSync(_id); )
+    }
+
+    ogl_wait_sync_result OglFence::ClientWaitSync(ogl_wait_sync_flags flags, unsigned long long timeout)
+    {
+	    GL_CALL(return static_cast<ogl_wait_sync_result>(glClientWaitSync(_id, flags, timeout));)
+    }
 
 	// ReSharper restore CppMemberFunctionMayBeConst
 }

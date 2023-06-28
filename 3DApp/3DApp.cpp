@@ -98,7 +98,7 @@ struct MyGizmoLayersVC
 
 
 std::function<void(long)> animation;
-std::function<void(const gizmo_instance_id&)> onSelection;
+std::function<void(std::optional<gizmo_instance_id>)> onSelection;
 
 void InitDynamicScene(GizmosRenderer& gr, const MyGizmoLayers& layers, std::function<void(long)>& animateFunc)
 {
@@ -179,14 +179,14 @@ void InitDynamicScene(GizmosRenderer& gr, const MyGizmoLayers& layers, std::func
 		gr.SetGizmoInstances(cubeId, instances);
 	};
 
-	onSelection = [cubeId, instanceIDs, instances, &gr ](gizmo_instance_id selected)
+	onSelection = [cubeId, instanceIDs, instances, &gr ](std::optional<gizmo_instance_id> selected)
 	{
 		vector<pair<gizmo_instance_id, gizmo_instance_descriptor>> newInstances(instances.size());
 
 		for(int i=0;i<instances.size();i++)
 		{
 			newInstances[i] = make_pair(instanceIDs[i], instances[i]);
-			if(selected==instanceIDs[i])	
+			if(selected.has_value() && selected==instanceIDs[i])	
 				newInstances[i].second.color = vec4{1.0f, 0.0f, 0.0f, 1.0f};
 			
 		}
@@ -900,6 +900,8 @@ int main()
 		InitGizmos(gizRdr);
 		InitGizmosVC(gizRdrVC);
 
+		gizRdr.SetSelectionCallback(onSelection);
+
 		while (!rc.ShouldClose())
 		{
 			// zoom and rotation
@@ -949,11 +951,8 @@ int main()
 
 			float mouseX, mouseY;
 			mouseRawPosition.Position(mouseX, mouseY);
-			auto selectedItem = gizRdr.GetGizmoUnderCursor(mouseX, mouseY, viewMatrix, projMatrix, nearFar);
-			if(selectedItem.has_value())
-			{
-				if(onSelection) onSelection(selectedItem.value());
-			}
+
+			gizRdr.GetGizmoUnderCursor(mouseX, mouseY, viewMatrix, projMatrix, nearFar);
 
 			mat4 viewMatrixVC = glm::lookAt(normalize(eyePos - eyeTrg)*3.5f, vec3{ 0.0f }, vec3{0.0, 0.0, 1.0});
 			mat4 projMatrixVC = glm::perspective(radians<float>(60), static_cast<float>(fboWidthVC) / fboHeightVC, 0.1f, 5.0f);

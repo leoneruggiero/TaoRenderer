@@ -131,6 +131,19 @@ namespace tao_ogl_resources
 		tex_for_depth_stencil = GL_DEPTH_STENCIL
 	};
 
+	enum ogl_read_pixels_format
+	{
+		read_pix_for_red = GL_RED,
+		read_pix_for_green = GL_GREEN,
+		read_pix_for_blue = GL_BLUE,
+		read_pix_for_rgb = GL_RGB,
+		read_pix_for_bgr = GL_BGR,
+		read_pix_for_rgba = GL_RGBA,
+		read_pix_for_brga = GL_BGRA,
+		read_pix_for_depth = GL_DEPTH_COMPONENT,
+		read_pix_for_depth_stencil = GL_DEPTH_STENCIL
+	};
+
 	enum ogl_texture_data_type
 	{
 		tex_typ_unsigned_byte = GL_UNSIGNED_BYTE,
@@ -578,5 +591,41 @@ namespace tao_ogl_resources
 		ogl_polygon_mode polygon_mode       = polygon_mode_fill;
 		bool  multisample_enable			= false;
 		bool  alpha_to_coverage_enable		= false;
+	};
+
+	enum ogl_buffer_flags
+	{
+		buffer_flags_dynamic_storage	= GL_DYNAMIC_STORAGE_BIT,
+		buffer_flags_map_read			= GL_MAP_READ_BIT,
+		buffer_flags_map_write			= GL_MAP_WRITE_BIT,
+		buffer_flags_map_persistent		= GL_MAP_PERSISTENT_BIT,
+		buffer_flags_map_coherent		= GL_MAP_COHERENT_BIT,
+		buffer_flags_client_storage		= GL_CLIENT_STORAGE_BIT
+	};
+
+	enum ogl_map_flags
+	{
+		map_flags_read_only		= GL_READ_ONLY,
+		map_flags_write_only	= GL_WRITE_ONLY,
+		map_flags_read_write	= GL_READ_WRITE
+	};
+
+	enum ogl_sync_condition
+	{
+		sync_condition_gpu_commands_complete = GL_SYNC_GPU_COMMANDS_COMPLETE
+	};
+
+	enum ogl_wait_sync_flags
+	{
+		wait_sync_flags_none = 0,
+		wait_sync_flags_flush_commands = GL_SYNC_FLUSH_COMMANDS_BIT
+	};
+
+	enum ogl_wait_sync_result
+	{
+		wait_sync_res_already_signaled = GL_ALREADY_SIGNALED,
+		wait_sync_res_timeout_expired = GL_TIMEOUT_EXPIRED ,
+		wait_sync_res_condition_satisfied = GL_CONDITION_SATISFIED ,
+		wait_sync_res_failed = GL_WAIT_FAILED,
 	};
 }

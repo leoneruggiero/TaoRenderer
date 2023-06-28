@@ -536,6 +536,15 @@ namespace tao_gizmos
 
 		 _selectionFramebuffer.AttachTexture(fbo_attachment_color0, _selectionColorTex, 0);
 		 _selectionFramebuffer.AttachTexture(fbo_attachment_depth, _selectionDepthTex, 0);
+
+		 for(int i=0;i<_selectionPBOsCount;i++)
+		 {
+			_selectionPBOs.emplace_back(_renderContext->CreatePixelPackBuffer());
+
+			// This works as long as we ask OGL to give us back results 4-byte aligned
+			// ( or if we keep the default)
+			_selectionPBOs[i].BufferStorage(width*height*4, nullptr, ogl_buffer_flags::buffer_flags_map_read);
+		 }
 	 }
 
 	 void GizmosRenderer::InitShaders()
@@ -600,6 +609,7 @@ namespace tao_gizmos
 		 _frameDataUbo		 (rc.CreateUniformBuffer()),
 		 _lenghSumSsbo		 {rc, 0, buf_usg_dynamic_draw, ResizeBuffer },
 		 _selectionColorSsbo {rc, 0, buf_usg_dynamic_draw, ResizeBuffer },
+		  _selectionPBOs	 {},
 		 _nearestSampler	 (rc.CreateSampler()),
 		 _linearSampler		 (rc.CreateSampler()),
 		 _colorTex			 (rc.CreateTexture2DMultisample()),
@@ -608,6 +618,7 @@ namespace tao_gizmos
 		 _selectionColorTex		(rc.CreateTexture2D()),
 		 _selectionDepthTex		(rc.CreateTexture2D()),
 		 _selectionFramebuffer	(rc.CreateFramebuffer<OglTexture2D>()),
+		 _selectionRequests  {},
 		 _pointGizmos		 {},
 		 _lineGizmos		 {},
 		 _lineStripGizmos	 {},
@@ -1710,16 +1721,127 @@ namespace tao_gizmos
 			_pointsShader	.UseProgram(); RenderPointGizmos	(viewMatrix, projectionMatrix, pass);
 		}
 
+		// TODO: here???
+		ProcessSelectionRequests();
 
 		return _mainFramebuffer;
 	}
 
-	optional<gizmo_instance_id> GizmosRenderer::GetGizmoUnderCursor(const unsigned cursorX, const unsigned cursorY, const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const glm::vec2& nearFar)
+	
+
+	std::optional<gizmo_instance_id> GizmosRenderer::GetGizmoKeyFromFalseColors(
+		const unsigned char* pixelDataAsRGBAUint, unsigned int stride, 
+		int imageWidth, int imageHeight,
+		unsigned int posX, unsigned int posY, 
+		std::vector<std::pair<unsigned long long, glm::ivec2>> lut)
 	{
-		optional<gizmo_instance_id> selectedItem{};
-		if(cursorX>=_windowWidth || cursorY>=_windowHeight)
+		std::optional<gizmo_instance_id> selectedItem;
+
+		if(posX>=imageWidth || posY>=imageHeight)
 			return selectedItem;
 
+		unsigned int index=FalseColorToIndex(
+			pixelDataAsRGBAUint[posX*4+posY*stride+0],
+			pixelDataAsRGBAUint[posX*4+posY*stride+1],
+			pixelDataAsRGBAUint[posX*4+posY*stride+2]
+		);
+
+		if(index)
+		{
+			index-=1; // it was starting at 1
+
+			for(const auto& t : lut)
+			{
+				if(t.second.x <= index && index < t.second.y)
+				{
+					selectedItem = gizmo_instance_id{};
+					auto gizmoId = gizmo_id{};
+					gizmoId._key =t.first;
+
+					selectedItem->_gizmoKey = gizmoId;
+					selectedItem->_instanceKey = index-t.second.x;
+				}
+			}
+		}
+
+		return selectedItem;
+	}
+
+	void GizmosRenderer::IssueSelectionRequest(unsigned int imageWidth, unsigned int imageHeight, unsigned posX, unsigned posY, std::vector<std::pair<unsigned long long, glm::ivec2>> lut)
+	{
+		// too many requests, issuing another one will mean
+		// binding a PBO that is still waiting for results
+		// to be written by OGL or read by us.
+		if(_selectionRequests.size()>=_selectionPBOsCount)
+			throw std::exception("Too many selection requests.");
+
+		_selectionPBOs[_latestSelectionPBOIdx].Bind();
+
+		// TODO: PIXEL_PACK Alignment
+		_renderContext->ReadPixels(0, 0, imageWidth, imageHeight, read_pix_for_rgba, tex_typ_unsigned_byte, 0);
+		
+		_selectionRequests.push(SelectionRequest
+		{
+			._pbo = _selectionPBOs[_latestSelectionPBOIdx],
+			._fence = _renderContext->CreateFence(),
+			._imageWidth = imageWidth,
+			._imageHeight = imageHeight,
+			._posX = posX,
+			._posY = posY,
+			._gizmoKeyIndicesLUT = lut
+		});
+
+		_latestSelectionPBOIdx = (++_latestSelectionPBOIdx)%_selectionPBOsCount;
+	}
+
+
+	void GizmosRenderer::ProcessSelectionRequests()
+	{
+		if(_selectionRequests.empty()) return;
+
+		bool ready=false;
+
+		do
+		{
+			SelectionRequest& currentRequest =_selectionRequests.front();
+
+			auto res = currentRequest._fence.ClientWaitSync(wait_sync_flags_none, 0);
+
+			if(res == wait_sync_res_already_signaled || res == wait_sync_res_condition_satisfied)
+				ready = true;
+			else if (res == wait_sync_res_timeout_expired)
+				ready = false;
+			else throw std::exception("Unexpected OpenGl sync object state.");
+
+			if(ready)
+			{
+				auto selectedItem = GetGizmoKeyFromFalseColors(
+					static_cast<const unsigned char*>(currentRequest._pbo.MapBuffer(map_flags_read_only)), 
+					currentRequest._imageWidth * 4,
+					currentRequest._imageWidth,
+					currentRequest._imageHeight,
+					currentRequest._posX, currentRequest._posY, 
+					currentRequest._gizmoKeyIndicesLUT
+				);
+
+				if(_selectionCallback) (*_selectionCallback)(selectedItem);
+
+				currentRequest._pbo.UnmapBuffer();
+
+				_selectionRequests.pop();
+			}
+		}
+		while(ready && !_selectionRequests.empty());
+	}
+
+	void GizmosRenderer::SetSelectionCallback(const std::function<void(std::optional<gizmo_instance_id>)>& callback)
+	{
+		_selectionCallback = &callback;
+	}
+
+	void GizmosRenderer::GetGizmoUnderCursor(const unsigned cursorX, const unsigned cursorY, const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const glm::vec2& nearFar)
+	{
+		
 		/// Draw for selection
 		///--------------------------------------------------------------
 		_renderContext->SetDepthState		(SELECTION_DEPTH_STATE);
@@ -1799,39 +1921,9 @@ namespace tao_gizmos
 		_pointsShaderForSelection.UseProgram();
 		RenderPointGizmosForSelection(viewMatrix, projectionMatrix, bindSsboRange);
 
-		// TODO: PBOs, async
-		// default alignment is 4 byte so no need to worry
-		// about the stride.
-		vector<unsigned char> pixelData(4*_windowWidth*_windowHeight);
-		glReadPixels(0, 0, _windowWidth, _windowHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixelData.data());
-
-		unsigned int index=FalseColorToIndex(
-			pixelData[cursorX*4+cursorY*_windowWidth*4+0],
-			pixelData[cursorX*4+cursorY*_windowWidth*4+1],
-			pixelData[cursorX*4+cursorY*_windowWidth*4+2]
-		);
-
-		if(index)
-		{
-			index-=1; // it was starting at 1
-
-			for(const auto& t : lut)
-			{
-				if(t.second.x <= index && index < t.second.y)
-				{
-					selectedItem = gizmo_instance_id{};
-					auto gizmoId = gizmo_id{};
-					gizmoId._key =t.first;
-
-					selectedItem->_gizmoKey = gizmoId;
-					selectedItem->_instanceKey = index-t.second.x;
-				}
-			}
-		}
+		IssueSelectionRequest(_windowWidth, _windowHeight, cursorX, cursorY, lut);
 
 		OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
-
-		return selectedItem;
 	}
 
 

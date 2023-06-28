@@ -72,6 +72,18 @@ namespace tao_ogl_resources
 		static void Destroy(GLuint);
 		static constexpr const char* to_string = "shader storage buffer";
 	};
+	struct pixel_pack_buffer
+	{
+		static GLuint Create();
+		static void Destroy(GLuint);
+		static constexpr const char* to_string = "shader storage buffer";
+	};
+	struct pixel_unpack_buffer
+	{
+		static GLuint Create();
+		static void Destroy(GLuint);
+		static constexpr const char* to_string = "shader storage buffer";
+	};
 	struct texture_1D
 	{
 		static GLuint Create();
@@ -120,6 +132,8 @@ namespace tao_ogl_resources
 		std::is_same_v<T, index_buffer>				||
 		std::is_same_v<T, uniform_buffer>			||
 		std::is_same_v<T, shader_storage_buffer>	||
+		std::is_same_v<T, pixel_pack_buffer>		||
+		std::is_same_v<T, pixel_unpack_buffer>		||
 		std::is_same_v<T, texture_1D>				||
 		std::is_same_v<T, texture_2D>				||
 		std::is_same_v<T, texture_2D_multisample>	||
@@ -138,6 +152,8 @@ namespace tao_ogl_resources
 		std::is_same_v<T, vertex_buffer_object> ||
 		std::is_same_v<T, index_buffer>			||
 		std::is_same_v<T, uniform_buffer>		||
+		std::is_same_v<T, pixel_pack_buffer>	||
+		std::is_same_v<T, pixel_unpack_buffer>	||
 		std::is_same_v<T, shader_storage_buffer>;
 
 	template<typename T>
@@ -306,7 +322,6 @@ namespace tao_ogl_resources
 		using ogl_resource_type = vertex_buffer_object;
 
 		friend class tao_render_context::RenderContext;
-		friend class OglVertexAttribArray;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
 		OglVertexBuffer(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
@@ -325,7 +340,6 @@ namespace tao_ogl_resources
 		using ogl_resource_type = index_buffer;
 
 		friend class tao_render_context::RenderContext;
-		friend class OglVertexAttribArray;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
 		OglIndexBuffer(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
@@ -345,7 +359,6 @@ namespace tao_ogl_resources
 		using ogl_resource_type = vertex_attrib_array;
 
 		friend class tao_render_context::RenderContext;
-		friend class OglVertexAttribArray;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
 		OglVertexAttribArray(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
@@ -366,7 +379,6 @@ namespace tao_ogl_resources
 		using ogl_resource_type = uniform_buffer;
 
 		friend class tao_render_context::RenderContext;
-		friend class OglVertexAttribArray;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
 		OglUniformBuffer(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
@@ -385,7 +397,6 @@ namespace tao_ogl_resources
 		using ogl_resource_type = shader_storage_buffer;
 
 		friend class tao_render_context::RenderContext;
-		friend class OglVertexAttribArray;
 	private:
 		OglResource<ogl_resource_type> _ogl_obj;
 		OglShaderStorageBuffer(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
@@ -396,6 +407,41 @@ namespace tao_ogl_resources
 		void SetData(GLsizeiptr size, const void* data, ogl_buffer_usage usage);
 		void SetSubData(GLintptr offset, GLsizeiptr size, const void* data);
 
+	};
+
+	/// PBO (pack)
+	//////////////////////////////////////
+	class OglPixelPackBuffer
+	{
+		using ogl_resource_type = pixel_pack_buffer;
+
+		friend class tao_render_context::RenderContext;
+	private:
+		OglResource<ogl_resource_type> _ogl_obj;
+		OglPixelPackBuffer(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
+
+	public:
+		void Bind();
+		static void UnBind();
+		void BufferStorage(GLsizeiptr size, const void* data, ogl_buffer_flags flags);
+		void* MapBuffer(ogl_map_flags access);
+		void UnmapBuffer();
+	};
+
+	/// PBO (unpack)
+	//////////////////////////////////////
+	class OglPixelUnpackBuffer
+	{
+		using ogl_resource_type = pixel_unpack_buffer;
+
+		friend class tao_render_context::RenderContext;
+	private:
+		OglResource<ogl_resource_type> _ogl_obj;
+		OglPixelUnpackBuffer(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
+
+	public:
+		void Bind();
+		static void UnBind();
 	};
 
 	/// Texture1D
@@ -544,4 +590,46 @@ namespace tao_ogl_resources
 		void CopyTo  (const OglFramebuffer* dst, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter) const;
 	};
 
+	class OglFence
+	{
+		// RenderContext is the one in charge of calling the private constructor
+		friend class tao_render_context::RenderContext; 
+
+	public:
+		
+		OglFence(const OglFence&) = delete;
+
+		OglFence& operator=(const OglFence&) = delete;
+
+		OglFence(OglFence&& other) noexcept
+		{
+			_id = other._id;
+			other._id = 0;
+		}
+
+		OglFence& operator=(OglFence&& other) noexcept
+		{
+			if (this != &other)
+			{
+				Destroy();
+
+				_id = other._id;
+				other._id = nullptr;
+			}
+			return *this;
+		}
+
+		ogl_wait_sync_result ClientWaitSync(ogl_wait_sync_flags flags, unsigned long long timeout);
+
+		~OglFence() { Destroy(); }
+
+	private:
+
+		GLsync _id;
+
+		void Create(ogl_sync_condition condition);
+		void Destroy();
+		
+		explicit OglFence(ogl_sync_condition condition) { Create(condition); }
+	};
 }
