@@ -295,6 +295,8 @@ namespace tao_gizmos
 		ResizableVbo								   _vbo;
 		ResizableSsbo								   _ssboInstanceColor;
 		ResizableSsbo								   _ssboInstanceTransform;
+		ResizableSsbo								   _ssboInstanceVisibility;
+		ResizableSsbo								   _ssboInstanceSelectability;
 		tao_ogl_resources::OglVertexAttribArray        _vao;
 		std::optional<tao_ogl_resources::OglTexture2D> _symbolAtlas;
 		
@@ -378,6 +380,8 @@ namespace tao_gizmos
 		ResizableVbo								   _vbo;
 		ResizableSsbo								   _ssboInstanceColor;
 		ResizableSsbo								   _ssboInstanceTransform;
+		ResizableSsbo								   _ssboInstanceVisibility;
+		ResizableSsbo								   _ssboInstanceSelectability;
 		tao_ogl_resources::OglVertexAttribArray        _vao;
 		std::optional<tao_ogl_resources::OglTexture2D> _patternTexture;
 
@@ -415,6 +419,8 @@ namespace tao_gizmos
 		ResizableVbo									_vboVertices;     
 		ResizableSsbo									_ssboInstanceColor;
 		ResizableSsbo									_ssboInstanceTransform;
+		ResizableSsbo								    _ssboInstanceVisibility;
+		ResizableSsbo								    _ssboInstanceSelectability;
 		tao_ogl_resources::OglVertexAttribArray			_vao;
 		std::optional<tao_ogl_resources::OglTexture2D>  _patternTexture;
 
@@ -519,6 +525,8 @@ namespace tao_gizmos
 		ResizableVbo							    _vboVertices;
 		ResizableEbo								_ebo;
 		ResizableSsbo								_ssboInstanceTransform;
+		ResizableSsbo								_ssboInstanceVisibility;
+		ResizableSsbo								_ssboInstanceSelectability;
 		ResizableSsbo								_ssboInstanceColorAndNrmMat;
 		tao_ogl_resources::OglVertexAttribArray		_vao;
 

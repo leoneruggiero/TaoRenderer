@@ -147,6 +147,7 @@ void InitDynamicScene(GizmosRenderer& gr, const MyGizmoLayers& layers, std::func
 		instances[y * count + x].color = vec4{ 1.0f };
 		instances[y * count + x].transform = 
 			glm::scale(glm::translate(glm::mat4{1.0f}, tr), vec3{ d*0.7f});
+		instances[y * count + x].selectable = y>0;
 	}
 
 	auto instanceIDs = gr.InstanceMeshGizmo(cubeId, instances);
@@ -424,7 +425,7 @@ void InitViewCube(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayersVC& lay
 		});
 	gizRdr.InstanceLineGizmo(dashedEdgesKey,
 		{
-			gizmo_instance_descriptor{glm::mat4{1.0f}, vec4{0.4f}}
+			gizmo_instance_descriptor{glm::mat4{1.0f}, vec4{0.6f}}
 		});
 
 	gizRdr.AssignGizmoToLayers(edgesKey, { layers.depthPrePassLayer, layers.opaqueLayer });
@@ -967,6 +968,7 @@ int main()
 					fbo_copy_mask_color_bit, fbo_copy_filter_nearest
 				);
 
+		
 			rc.SwapBuffers();
 			rc.PollEvents();
 

@@ -9,8 +9,9 @@ in VS_OUT
 {
     vec4  v_color;
     vec4  v_texCoord; // rect, .xy = bl, .zw = tr 
+    bool  v_visible;
 }
-vs_out[];
+gs_in[];
 
 out GS_OUT
 {
@@ -20,6 +21,8 @@ out GS_OUT
 
 void main() {
 
+    if(!gs_in[0].v_visible) return;
+    
     vec2 f = vec2(o_size);
     f = 2.0* f * f_invViewportSize.xy * gl_in[0].gl_Position.w;        
     
@@ -34,26 +37,26 @@ void main() {
 
     // Top - Right
     gl_Position = c + vec4(f.xy, 0.0, 0.0);
-    gs_out.v_texCoord  = vs_out[0].v_texCoord.zw; 
-    gs_out.v_color     = vs_out[0].v_color;
+    gs_out.v_texCoord  = gs_in[0].v_texCoord.zw; 
+    gs_out.v_color     = gs_in[0].v_color;
     EmitVertex();
 
     // Bottom - Right
     gl_Position = c + vec4(f.x, -f.y, 0.0, 0.0);
-    gs_out.v_texCoord  = vs_out[0].v_texCoord.zy; 
-    gs_out.v_color     = vs_out[0].v_color;
+    gs_out.v_texCoord  = gs_in[0].v_texCoord.zy; 
+    gs_out.v_color     = gs_in[0].v_color;
     EmitVertex();
 
     // Top - Left
     gl_Position = c + vec4(-f.x, f.y, 0.0, 0.0);
-    gs_out.v_texCoord  = vs_out[0].v_texCoord.xw; 
-    gs_out.v_color     = vs_out[0].v_color;
+    gs_out.v_texCoord  = gs_in[0].v_texCoord.xw; 
+    gs_out.v_color     = gs_in[0].v_color;
     EmitVertex();
 
     // Bottom - Left          
     gl_Position = c + vec4(-f.xy, 0.0, 0.0);
-    gs_out.v_texCoord  = vs_out[0].v_texCoord.xy; 
-    gs_out.v_color     = vs_out[0].v_color;
+    gs_out.v_texCoord  = gs_in[0].v_texCoord.xy; 
+    gs_out.v_color     = gs_in[0].v_color;
     EmitVertex();
 
     EndPrimitive();

@@ -146,6 +146,16 @@ namespace tao_gizmos
 			desc.zoom_invariant || desc.usage_hint == gizmo_usage_hint::usage_dynamic		// Zoom invariance means we must update
 			? buf_usg_dynamic_draw															// the transform list whenever the view/proj
 			: buf_usg_static_draw, ResizeBuffer },										// matrix changes -> `dynamic` hint.
+																								
+		 _ssboInstanceVisibility	{ rc, 0,
+		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
+			? buf_usg_dynamic_draw
+			: buf_usg_static_draw, ResizeBuffer },
+
+		_ssboInstanceSelectability { rc, 0,
+		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
+			? buf_usg_dynamic_draw
+			: buf_usg_static_draw, ResizeBuffer },
 
 		_vao{rc.CreateVertexAttribArray()},
 		_pointSize(desc.point_half_size),
@@ -192,12 +202,17 @@ namespace tao_gizmos
 	 {
 		Gizmo::SetInstanceData(instances);
 
-		std::vector<glm::mat4> transformations(_instanceCount);
-		std::vector<glm::vec4> colors		  (_instanceCount);
+		std::vector<glm::mat4> transformations (_instanceCount);
+		std::vector<glm::vec4> colors		   (_instanceCount);
+		std::vector<unsigned int> visibility   (_instanceCount);
+		std::vector<unsigned int> selectability(_instanceCount);
+
 		for(int i=0;i<_instanceCount; i++)
 		{
 			transformations[i] = _instanceData[i].transform;
 			colors	       [i] = _instanceData[i].color;
+			visibility	   [i] = _instanceData[i].visible;
+			selectability  [i] = _instanceData[i].selectable;
 		}
 
 		 // Set instance transformation data
@@ -209,6 +224,16 @@ namespace tao_gizmos
 		 dataSize = _instanceCount * sizeof(float) * 4;
 		 _ssboInstanceColor.Resize(dataSize);
 		 _ssboInstanceColor.OglBuffer().SetSubData(0, dataSize, colors.data());
+
+		 // Set visibility data
+		 dataSize = _instanceCount * sizeof(unsigned int);
+		 _ssboInstanceVisibility.Resize(dataSize);
+		 _ssboInstanceVisibility.OglBuffer().SetSubData(0, dataSize, visibility.data());
+
+		 // Set selectability data
+		 dataSize = _instanceCount * sizeof(unsigned int);
+		 _ssboInstanceSelectability.Resize(dataSize);
+		 _ssboInstanceSelectability.OglBuffer().SetSubData(0, dataSize, selectability.data());
 	 }
 
 	 LineListGizmo::LineListGizmo(RenderContext& rc, const line_list_gizmo_descriptor& desc) :
@@ -227,6 +252,16 @@ namespace tao_gizmos
 			desc.zoom_invariant || desc.usage_hint == gizmo_usage_hint::usage_dynamic		// the transform list whenever the view/proj  
 			? ogl_buffer_usage::buf_usg_dynamic_draw										// matrix changes -> `dynamic` hint.
 		 	: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+
+		 _ssboInstanceVisibility	{ rc, 0,
+		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
+			? buf_usg_dynamic_draw
+			: buf_usg_static_draw, ResizeBuffer },
+
+		_ssboInstanceSelectability { rc, 0,
+		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
+			? buf_usg_dynamic_draw
+			: buf_usg_static_draw, ResizeBuffer },
 
 		 _vao					{ rc.CreateVertexAttribArray() },
 		 _lineSize				{ desc.line_size    },
@@ -272,13 +307,16 @@ namespace tao_gizmos
 	 {
 		 Gizmo::SetInstanceData(instances);
 
-		 vector<mat4> transformations(_instanceCount);
-		 vector<vec4> colors(_instanceCount);
-		 for(int i=0;i<_instanceCount;i++)
-		 {
-			 transformations[i] = instances[i].transform;
-			 colors			[i] = instances[i].color;
-		 }
+		 std::vector<glm::mat4> transformations(_instanceCount);
+		std::vector<glm::vec4> colors		   (_instanceCount);
+		std::vector<unsigned int> visibility   (_instanceCount);
+
+		for(int i=0;i<_instanceCount; i++)
+		{
+			transformations[i] = _instanceData[i].transform;
+			colors	       [i] = _instanceData[i].color;
+			visibility	   [i] = _instanceData[i].visible;
+		}
 
 		 // Set instance transformation data
 		 unsigned int dataSize = _instanceCount * sizeof(float) * 16;
@@ -286,9 +324,14 @@ namespace tao_gizmos
 		 _ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transformations.data());
 
 		 // Set instance color data
-		 dataSize = colors.size() * sizeof(float) * 4;
+		 dataSize = _instanceCount * sizeof(float) * 4;
 		 _ssboInstanceColor.Resize(dataSize);
 		 _ssboInstanceColor.OglBuffer().SetSubData(0, dataSize, colors.data());
+
+		// Set visibility data
+		 dataSize = _instanceCount * sizeof(unsigned int);
+		 _ssboInstanceVisibility.Resize(dataSize);
+		 _ssboInstanceVisibility.OglBuffer().SetSubData(0, dataSize, visibility.data());
 	 }
 
 	 LineStripGizmo::LineStripGizmo(RenderContext& rc, const line_strip_gizmo_descriptor& desc) :
@@ -308,6 +351,16 @@ namespace tao_gizmos
 			desc.zoom_invariant || desc.usage_hint == gizmo_usage_hint::usage_dynamic
 		 	? ogl_buffer_usage::buf_usg_dynamic_draw
 			: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+
+		 _ssboInstanceVisibility	{ rc, 0,
+		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
+			? buf_usg_dynamic_draw
+			: buf_usg_static_draw, ResizeBuffer },
+
+		 _ssboInstanceSelectability { rc, 0,
+		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
+			? buf_usg_dynamic_draw
+			: buf_usg_static_draw, ResizeBuffer },
 
 		 _vao					{ rc.CreateVertexAttribArray() },
 		 _lineSize				{ desc.line_size },
@@ -386,25 +439,40 @@ namespace tao_gizmos
 
 	 void LineStripGizmo::SetInstanceData(const vector<gizmo_instance_descriptor>& instances)
 	 {
-		 Gizmo::SetInstanceData(instances);
+		Gizmo::SetInstanceData(instances);
 
-		 vector<mat4> transformations(_instanceCount);
-		 vector<vec4> colors(_instanceCount);
-		 for(int i=0;i<_instanceCount;i++)
-		 {
-			 transformations[i] = instances[i].transform;
-			 colors			[i] = instances[i].color;
-		 }
+		std::vector<glm::mat4> transformations (_instanceCount);
+		std::vector<glm::vec4> colors		   (_instanceCount);
+		std::vector<unsigned int> visibility   (_instanceCount);
+		std::vector<unsigned int> selectability(_instanceCount);
+
+		for(int i=0;i<_instanceCount; i++)
+		{
+			transformations[i] = _instanceData[i].transform;
+			colors	       [i] = _instanceData[i].color;
+			visibility	   [i] = _instanceData[i].visible;
+			selectability  [i] = _instanceData[i].selectable;
+		}
 
 		 // Set instance transformation data
 		 unsigned int dataSize = _instanceCount * sizeof(float) * 16;
 		 _ssboInstanceTransform.Resize(dataSize);
 		 _ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transformations.data());
-		 
+
 		 // Set instance color data
 		 dataSize = _instanceCount * sizeof(float) * 4;
 		 _ssboInstanceColor.Resize(dataSize);
 		 _ssboInstanceColor.OglBuffer().SetSubData(0, dataSize, colors.data());
+
+		 // Set visibility data
+		 dataSize = _instanceCount * sizeof(unsigned int);
+		 _ssboInstanceVisibility.Resize(dataSize);
+		 _ssboInstanceVisibility.OglBuffer().SetSubData(0, dataSize, visibility.data());
+
+		 // Set selectability data
+		 dataSize = _instanceCount * sizeof(unsigned int);
+		 _ssboInstanceSelectability.Resize(dataSize);
+		 _ssboInstanceSelectability.OglBuffer().SetSubData(0, dataSize, selectability.data());
 	 }
 
 	 MeshGizmo::MeshGizmo(RenderContext& rc, const mesh_gizmo_descriptor& desc) :
@@ -425,6 +493,16 @@ namespace tao_gizmos
 
 		 _ssboInstanceTransform		{ rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic || desc.zoom_invariant
+										? buf_usg_dynamic_draw
+										: buf_usg_static_draw, ResizeBuffer },
+
+		 _ssboInstanceVisibility	{ rc, 0,
+		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
+										? buf_usg_dynamic_draw
+										: buf_usg_static_draw, ResizeBuffer },
+
+		 _ssboInstanceSelectability { rc, 0,
+		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
 										? buf_usg_dynamic_draw
 										: buf_usg_static_draw, ResizeBuffer },
 
@@ -477,25 +555,41 @@ namespace tao_gizmos
 	 void MeshGizmo::SetInstanceData(const vector<gizmo_instance_descriptor>& instances)
 	 {
 		 Gizmo::SetInstanceData(instances);
-		 vector<mat4> transformations(_instanceCount);
-		 vector<vec4> colors(_instanceCount);
+
+		 vector<mat4> transformations		(_instanceCount);
+		 vector<vec4> colors				(_instanceCount);
+		 vector<unsigned int> visiblity		(_instanceCount);
+		 vector<unsigned int> selectability (_instanceCount);
+
 		 for(int i=0;i<_instanceCount;i++)
 		 {
 			 transformations[i] = instances[i].transform;
 			 colors			[i] = instances[i].color;
+			 visiblity      [i] = instances[i].visible;
+			 selectability  [i] = instances[i].selectable;
 		 }
 
 		// Instance data:
-		// mat4 transform - mat4 normal matrix - vec4 color
-		// [ ----------- ]  [ --------------------------- ]
-		//   per-frame					constant
+		// mat4 transform - mat4 normal matrix - vec4 color - uint visibility - uint selectability
+		// [ ---buff0--- ]  [ ---------buff1------------- ]	 [ ----buff2---- ] [ -----buff3------ ] 
+		//   per-frame					constant			      constant			 constant
 		// (zoom invariance)
-		//
+		//    
 
 		// Transform
 		unsigned int dataSize = _instanceCount * sizeof(float) * 16;
 		_ssboInstanceTransform.Resize(dataSize);
 		_ssboInstanceTransform.OglBuffer().SetSubData(0, dataSize, transformations.data());
+
+		// Visibility
+		dataSize = _instanceCount * sizeof(unsigned int);
+		_ssboInstanceVisibility.Resize(dataSize);
+		_ssboInstanceVisibility.OglBuffer().SetSubData(0, dataSize, visiblity.data());
+
+		// Selectability
+		dataSize = _instanceCount * sizeof(unsigned int);
+		_ssboInstanceSelectability.Resize(dataSize);
+		_ssboInstanceSelectability.OglBuffer().SetSubData(0, dataSize, selectability.data());
 
 		// Normal matrix and Color
 		vector<glm::mat4> normalMatrices{ _instanceCount };
@@ -543,7 +637,7 @@ namespace tao_gizmos
 
 			// This works as long as we ask OGL to give us back results 4-byte aligned
 			// ( or if we keep the default)
-			_selectionPBOs[i].BufferStorage(width*height*4, nullptr, ogl_buffer_flags::buffer_flags_map_read);
+			_selectionPBOs[i].BufferStorage(/*width*height**/4, nullptr, ogl_buffer_flags::buffer_flags_map_read);
 		 }
 	 }
 
@@ -1131,6 +1225,8 @@ namespace tao_gizmos
 			pGzm.second._ssboInstanceColor.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)
 			pGzm.second._ssboInstanceTransform.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			// bind instance visibility SSBO (draw instanced)
+			pGzm.second._ssboInstanceVisibility.OglBuffer().Bind(INSTANCE_DATA_VISIBILITY_SSBO_BINDING);
 
 			pGzm.second._vao.Bind();
 
@@ -1183,9 +1279,13 @@ namespace tao_gizmos
 			_pointsObjDataUbo.SetSubData(0, sizeof(points_obj_data_block), &objData);
 
 			// bind static instance data SSBO (draw instanced)
-			pGzm.second._ssboInstanceColor.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			pGzm.second._ssboInstanceColor			.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)
-			pGzm.second._ssboInstanceTransform.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			pGzm.second._ssboInstanceTransform		.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			// bind instance visibility SSBO (draw instanced)
+			pGzm.second._ssboInstanceVisibility		.OglBuffer().Bind(INSTANCE_DATA_VISIBILITY_SSBO_BINDING);
+			// bind instance selectability SSBO (draw instanced)
+			pGzm.second._ssboInstanceSelectability	.OglBuffer().Bind(INSTANCE_DATA_SELECTABILITY_SSBO_BINDING);
 
 			pGzm.second._vao.Bind();
 
@@ -1239,6 +1339,8 @@ namespace tao_gizmos
 			lGzm.second._ssboInstanceColor		.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)
 			lGzm.second._ssboInstanceTransform	.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			// bind instance visibility SSBO (draw instanced)
+			lGzm.second._ssboInstanceVisibility	.OglBuffer().Bind(INSTANCE_DATA_VISIBILITY_SSBO_BINDING);
 
 			lGzm.second._vao.Bind();
 
@@ -1282,9 +1384,13 @@ namespace tao_gizmos
 			_linesObjDataUbo.SetSubData(0, sizeof(lines_obj_data_block), &objData);
 			
 			// bind static instance data SSBO (draw instanced)
-			lGzm.second._ssboInstanceColor		.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			lGzm.second._ssboInstanceColor			.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)
-			lGzm.second._ssboInstanceTransform	.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			lGzm.second._ssboInstanceTransform		.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			// bind instance visibility SSBO (draw instanced)
+			lGzm.second._ssboInstanceVisibility		.OglBuffer().Bind(INSTANCE_DATA_VISIBILITY_SSBO_BINDING);
+			// bind instance selectability SSBO (draw instanced)
+			lGzm.second._ssboInstanceSelectability	.OglBuffer().Bind(INSTANCE_DATA_SELECTABILITY_SSBO_BINDING);
 
 			lGzm.second._vao.Bind();
 		
@@ -1499,11 +1605,13 @@ namespace tao_gizmos
 			// Bind UBO
 			_lineStripObjDataUbo.SetSubData(0, sizeof(line_strip_obj_data_block), &objData);
 			// Bind SSBO for screen length sum
-			_lenghSumSsbo.OglBuffer().BindRange(LINE_STRIP_SSBO_BINDING_SCREEN_LENGTH, vertDrawn * sizeof(float), vertCount * instanceCount * sizeof(float));
+			_lenghSumSsbo.OglBuffer().BindRange(LINE_STRIP_SCREEN_LENGTH_SSBO_BINDING, vertDrawn * sizeof(float), vertCount * instanceCount * sizeof(float));
 			// bind static instance data SSBO (draw instanced)
-			lGzm.second._ssboInstanceColor.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			lGzm.second._ssboInstanceColor		.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)
-			lGzm.second._ssboInstanceTransform.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			lGzm.second._ssboInstanceTransform	.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			// bind instance visibility SSBO (draw instanced)
+			lGzm.second._ssboInstanceVisibility	.OglBuffer().Bind(INSTANCE_DATA_VISIBILITY_SSBO_BINDING);
 			// Bind VAO
 			lGzm.second._vao.Bind();
 
@@ -1556,11 +1664,15 @@ namespace tao_gizmos
 			// Bind UBO
 			_lineStripObjDataUbo.SetSubData(0, sizeof(line_strip_obj_data_block), &objData);
 			// Bind SSBO for screen length sum
-			_lenghSumSsbo.OglBuffer().BindRange(LINE_STRIP_SSBO_BINDING_SCREEN_LENGTH, vertDrawn * sizeof(float), vertCount * instanceCount * sizeof(float));
+			_lenghSumSsbo.OglBuffer().BindRange(LINE_STRIP_SCREEN_LENGTH_SSBO_BINDING, vertDrawn * sizeof(float), vertCount * instanceCount * sizeof(float));
 			// bind static instance data SSBO (draw instanced)
-			lGzm.second._ssboInstanceColor.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
+			lGzm.second._ssboInstanceColor			.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)
-			lGzm.second._ssboInstanceTransform.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			lGzm.second._ssboInstanceTransform		.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			// bind instance visibility SSBO (draw instanced)
+			lGzm.second._ssboInstanceVisibility		.OglBuffer().Bind(INSTANCE_DATA_VISIBILITY_SSBO_BINDING);
+			// bind instance selectability SSBO (draw instanced)
+			lGzm.second._ssboInstanceSelectability	.OglBuffer().Bind(INSTANCE_DATA_SELECTABILITY_SSBO_BINDING);
 			// Bind VAO
 			lGzm.second._vao.Bind();
 
@@ -1603,6 +1715,8 @@ namespace tao_gizmos
 			mGzm.second._ssboInstanceColorAndNrmMat	.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)
 			mGzm.second._ssboInstanceTransform		.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			// bind instance visibility SSBO (draw instanced)
+			mGzm.second._ssboInstanceVisibility		.OglBuffer().Bind(INSTANCE_DATA_VISIBILITY_SSBO_BINDING);
 			// bind EBO
 			mGzm.second._ebo.OglBuffer().Bind();
 
@@ -1643,6 +1757,10 @@ namespace tao_gizmos
 			mGzm.second._ssboInstanceColorAndNrmMat	.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)
 			mGzm.second._ssboInstanceTransform		.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
+			// bind instance visibility  SSBO (draw instanced)
+			mGzm.second._ssboInstanceVisibility		.OglBuffer().Bind(INSTANCE_DATA_VISIBILITY_SSBO_BINDING);
+			// bind instance selectability  SSBO (draw instanced)
+			mGzm.second._ssboInstanceSelectability	.OglBuffer().Bind(INSTANCE_DATA_SELECTABILITY_SSBO_BINDING);
 			// bind EBO
 			mGzm.second._ebo.OglBuffer().Bind();
 
@@ -1741,9 +1859,9 @@ namespace tao_gizmos
 			return selectedItem;
 
 		unsigned int index=FalseColorToIndex(
-			pixelDataAsRGBAUint[posX*4+posY*stride+0],
-			pixelDataAsRGBAUint[posX*4+posY*stride+1],
-			pixelDataAsRGBAUint[posX*4+posY*stride+2]
+			pixelDataAsRGBAUint[/*posX*4+posY*stride+*/0],
+			pixelDataAsRGBAUint[/*posX*4+posY*stride+*/1],
+			pixelDataAsRGBAUint[/*posX*4+posY*stride+*/2]
 		);
 
 		if(index)
@@ -1778,7 +1896,7 @@ namespace tao_gizmos
 		_selectionPBOs[_latestSelectionPBOIdx].Bind();
 
 		// TODO: PIXEL_PACK Alignment
-		_renderContext->ReadPixels(0, 0, imageWidth, imageHeight, read_pix_for_rgba, tex_typ_unsigned_byte, 0);
+		_renderContext->ReadPixels(posX, posY, 1, 1, read_pix_for_rgba, tex_typ_unsigned_byte, 0);
 		
 		_selectionRequests.push(SelectionRequest
 		{
@@ -1801,19 +1919,21 @@ namespace tao_gizmos
 
 		bool ready=false;
 
-		do
+		do // Async read from PBO
 		{
 			SelectionRequest& currentRequest =_selectionRequests.front();
-
+			
 			auto res = currentRequest._fence.ClientWaitSync(wait_sync_flags_none, 0);
 
-			if(res == wait_sync_res_already_signaled || res == wait_sync_res_condition_satisfied)
+			if(	res == wait_sync_res_already_signaled || 
+				res == wait_sync_res_condition_satisfied)
 				ready = true;
 			else if (res == wait_sync_res_timeout_expired)
 				ready = false;
-			else throw std::exception("Unexpected OpenGl sync object state.");
+			else 
+				throw std::exception("Unexpected OpenGl sync object state.");
 
-			if(ready)
+			if(ready) // The fence for that PBO is signaled, we can read without stalling 
 			{
 				auto selectedItem = GetGizmoKeyFromFalseColors(
 					static_cast<const unsigned char*>(currentRequest._pbo.MapBuffer(map_flags_read_only)), 

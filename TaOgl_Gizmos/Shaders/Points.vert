@@ -16,8 +16,17 @@ layout(std430, binding = 1) buffer buff_instance_data_1
      mat4 i_transform[];
 };
 
-#ifdef SELECTION
 layout(std430, binding = 2) buffer buff_instance_data_2
+{
+     uint i_visible[];
+};
+
+#ifdef SELECTION
+layout(std430, binding = 3) buffer buff_instance_data_3
+{
+     uint i_selectable[];
+};
+layout(std430, binding = 4) buffer buff_instance_data_4
 {
      vec4 i_selection_color[];
 };
@@ -27,6 +36,7 @@ out VS_OUT
 {
     vec4  v_color;
     vec4  v_texCoord;
+    bool  v_visible;
 }
 vs_out;
 
@@ -38,8 +48,10 @@ void main()
     #ifndef SELECTION
                       v_color * i_color[gl_InstanceID];
     #else
-                      i_selection_color[gl_InstanceID];
+                      i_selection_color[gl_InstanceID] * vec4(vec3(i_selectable[gl_InstanceID]), 1.0);
     #endif
 
     vs_out.v_texCoord   = v_texCoord;
+
+    vs_out.v_visible    = i_visible[gl_InstanceID]>0;
 }
