@@ -8,95 +8,6 @@
 
 namespace tao_gizmos
 {
-	template
-		<typename Buff,
-		Buff CreateFunc(tao_render_context::RenderContext&, tao_ogl_resources::ogl_buffer_usage),
-		void ResizeFunc(Buff&, unsigned int, tao_ogl_resources::ogl_buffer_usage)>
-		requires tao_ogl_resources::ogl_buffer<typename Buff::ogl_resource_type>
-	class ResizableOglBuffer
-	{
-		
-	private:
-		unsigned int                        _capacity = 0;
-		tao_ogl_resources::ogl_buffer_usage _usage;
-		Buff								_oglBuffer;
-		std::function<unsigned int(unsigned int, unsigned int)> _resizePolicy;
-	public:
-		// Const getters
-		unsigned int Capacity()						const { return _capacity; }
-		tao_ogl_resources::ogl_buffer_usage Usage() const { return _usage; }
-
-		// Vbo getter (non const)
-		Buff& OglBuffer() { return _oglBuffer; }
-
-		ResizableOglBuffer(
-			tao_render_context::RenderContext& rc,
-			unsigned int capacity, 
-			tao_ogl_resources::ogl_buffer_usage usage,
-			const std::function<unsigned int(unsigned int, unsigned int)>& resizePolicy):
-
-			_capacity{ capacity },
-			_usage{ usage },
-			_oglBuffer{ CreateFunc(rc, _usage) },
-			_resizePolicy{resizePolicy}
-		{
-		}
-
-		void Resize(unsigned int capacity)
-		{
-			const auto newCapacity = _resizePolicy(_capacity, capacity);
-
-			if(_capacity!=newCapacity)
-			{
-				_capacity = newCapacity;
-				ResizeFunc(_oglBuffer, _capacity, _usage);
-			}
-		}
-	};
-
-	// Resizable VBO
-	/////////////////////////////////
-	inline tao_ogl_resources::OglVertexBuffer CreateEmptyVbo(tao_render_context::RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
-	{
-		return rc.CreateVertexBuffer(nullptr, 0, usg);
-	}
-	inline void ResizeVbo(tao_ogl_resources::OglVertexBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
-	{
-		buff.SetData(newCapacity, nullptr, usg);
-	}
-
-	typedef ResizableOglBuffer<tao_ogl_resources::OglVertexBuffer, CreateEmptyVbo, ResizeVbo> ResizableVbo;
-
-	// Resizable EBO
-	/////////////////////////////////
-	inline tao_ogl_resources::OglIndexBuffer  CreateEmptyEbo(tao_render_context::RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
-	{
-		auto ebo = rc.CreateIndexBuffer();
-		ebo.SetData(0, nullptr, usg);
-		return ebo;
-	}
-	inline void ResizeEbo(tao_ogl_resources::OglIndexBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
-	{
-		buff.SetData(newCapacity, nullptr, usg);
-	}
-
-	typedef ResizableOglBuffer<tao_ogl_resources::OglIndexBuffer, CreateEmptyEbo, ResizeEbo> ResizableEbo;
-
-	// Resizable SSBO
-	/////////////////////////////////
-	inline tao_ogl_resources::OglShaderStorageBuffer  CreateEmptySsbo(tao_render_context::RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
-	{
-		auto ssbo = rc.CreateShaderStorageBuffer();
-		ssbo.SetData(0, nullptr, usg);
-		return ssbo;
-	}
-	inline void	ResizeSsbo(tao_ogl_resources::OglShaderStorageBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
-	{
-		buff.SetData(newCapacity, nullptr, usg);
-	}
-
-	typedef ResizableOglBuffer<tao_ogl_resources::OglShaderStorageBuffer, CreateEmptySsbo, ResizeSsbo> ResizableSsbo;
-
 	struct gizmo_id
 	{
 		friend class GizmosRenderer;
@@ -292,11 +203,11 @@ namespace tao_gizmos
 			
 		// graphics data -----------------
 		unsigned int _vertexCount = 0;
-		ResizableVbo								   _vbo;
-		ResizableSsbo								   _ssboInstanceColor;
-		ResizableSsbo								   _ssboInstanceTransform;
-		ResizableSsbo								   _ssboInstanceVisibility;
-		ResizableSsbo								   _ssboInstanceSelectability;
+		tao_render_context::ResizableVbo			   _vbo;
+        tao_render_context::ResizableSsbo			   _ssboInstanceColor;
+        tao_render_context::ResizableSsbo			   _ssboInstanceTransform;
+        tao_render_context::ResizableSsbo			   _ssboInstanceVisibility;
+        tao_render_context::ResizableSsbo			   _ssboInstanceSelectability;
 		tao_ogl_resources::OglVertexAttribArray        _vao;
 		std::optional<tao_ogl_resources::OglTexture2D> _symbolAtlas;
 		
@@ -377,11 +288,11 @@ namespace tao_gizmos
 		// graphics data
 		// -----------------------------
 		unsigned int _vertexCount = 0;
-		ResizableVbo								   _vbo;
-		ResizableSsbo								   _ssboInstanceColor;
-		ResizableSsbo								   _ssboInstanceTransform;
-		ResizableSsbo								   _ssboInstanceVisibility;
-		ResizableSsbo								   _ssboInstanceSelectability;
+		tao_render_context::ResizableVbo			   _vbo;
+		tao_render_context::ResizableSsbo			   _ssboInstanceColor;
+		tao_render_context::ResizableSsbo			   _ssboInstanceTransform;
+		tao_render_context::ResizableSsbo			   _ssboInstanceVisibility;
+		tao_render_context::ResizableSsbo			   _ssboInstanceSelectability;
 		tao_ogl_resources::OglVertexAttribArray        _vao;
 		std::optional<tao_ogl_resources::OglTexture2D> _patternTexture;
 
@@ -416,11 +327,11 @@ namespace tao_gizmos
 		unsigned int		   _vertexCount = 0;
 		std::vector<glm::vec3> _vertices;        
 
-		ResizableVbo									_vboVertices;     
-		ResizableSsbo									_ssboInstanceColor;
-		ResizableSsbo									_ssboInstanceTransform;
-		ResizableSsbo								    _ssboInstanceVisibility;
-		ResizableSsbo								    _ssboInstanceSelectability;
+		tao_render_context::ResizableVbo				_vboVertices;
+		tao_render_context::ResizableSsbo				_ssboInstanceColor;
+		tao_render_context::ResizableSsbo				_ssboInstanceTransform;
+		tao_render_context::ResizableSsbo			    _ssboInstanceVisibility;
+		tao_render_context::ResizableSsbo			    _ssboInstanceSelectability;
 		tao_ogl_resources::OglVertexAttribArray			_vao;
 		std::optional<tao_ogl_resources::OglTexture2D>  _patternTexture;
 
@@ -522,12 +433,12 @@ namespace tao_gizmos
 		std::vector<int>  _triangles;
 		
 
-		ResizableVbo							    _vboVertices;
-		ResizableEbo								_ebo;
-		ResizableSsbo								_ssboInstanceTransform;
-		ResizableSsbo								_ssboInstanceVisibility;
-		ResizableSsbo								_ssboInstanceSelectability;
-		ResizableSsbo								_ssboInstanceColorAndNrmMat;
+		tao_render_context::ResizableVbo		    _vboVertices;
+		tao_render_context::ResizableEbo			_ebo;
+		tao_render_context::ResizableSsbo			_ssboInstanceTransform;
+		tao_render_context::ResizableSsbo			_ssboInstanceVisibility;
+		tao_render_context::ResizableSsbo			_ssboInstanceSelectability;
+		tao_render_context::ResizableSsbo			_ssboInstanceColorAndNrmMat;
 		tao_ogl_resources::OglVertexAttribArray		_vao;
 
 		// this will be called by GizomsRenderer instances
@@ -623,8 +534,8 @@ namespace tao_gizmos
 		tao_ogl_resources::OglUniformBuffer _meshObjDataUbo;
 		tao_ogl_resources::OglUniformBuffer _frameDataUbo;
 
-		ResizableSsbo _lenghSumSsbo;
-		ResizableSsbo _selectionColorSsbo;
+		tao_render_context::ResizableSsbo _lenghSumSsbo;
+		tao_render_context::ResizableSsbo _selectionColorSsbo;
 
 		tao_ogl_resources::OglSampler _nearestSampler;
 		tao_ogl_resources::OglSampler _linearSampler;

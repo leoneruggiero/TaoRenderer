@@ -32,46 +32,33 @@ namespace tao_gizmos
 		}
 	}
 
-	unsigned int ResizeBuffer(unsigned int currVertCapacity, unsigned int newVertCount)
-	{
-		// initialize vbo size to the required count
-		if (currVertCapacity == 0)					return newVertCount;
-
-		// never shrink the size (heuristic)
-		else if (currVertCapacity >= newVertCount) return currVertCapacity;
-
-		// currVertSize < newVertCount -> increment size by the 
-		// smallest integer multiple of the current size (heuristic)
-		else 										return currVertCapacity * ((newVertCount / currVertCapacity) + 1);
-	}
-
 	 PointGizmo::PointGizmo(RenderContext& rc, const point_gizmo_descriptor& desc):
 		_vertexCount			{ static_cast<unsigned int>(desc.vertices.size())},
 		_vbo{rc, 0,
 			desc.usage_hint==gizmo_usage_hint::usage_static
 			? buf_usg_static_draw
 			: buf_usg_dynamic_draw
-			, ResizeBuffer },
+			, ResizeBufferPolicy },
 
 		_ssboInstanceColor{rc, 0,
 			desc.usage_hint == gizmo_usage_hint::usage_static
 			? buf_usg_static_draw
-			: buf_usg_dynamic_draw, ResizeBuffer},
+			: buf_usg_dynamic_draw, ResizeBufferPolicy},
 
-		_ssboInstanceTransform{ rc, 0,
+		_ssboInstanceTransform{rc, 0,
 			desc.zoom_invariant || desc.usage_hint == gizmo_usage_hint::usage_dynamic		// Zoom invariance means we must update
 			? buf_usg_dynamic_draw															// the transform list whenever the view/proj
-			: buf_usg_static_draw, ResizeBuffer },										// matrix changes -> `dynamic` hint.
+			: buf_usg_static_draw, ResizeBufferPolicy },										// matrix changes -> `dynamic` hint.
 																								
-		 _ssboInstanceVisibility	{ rc, 0,
+		 _ssboInstanceVisibility	{rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
 			? buf_usg_dynamic_draw
-			: buf_usg_static_draw, ResizeBuffer },
+			: buf_usg_static_draw, ResizeBufferPolicy },
 
-		_ssboInstanceSelectability { rc, 0,
+		_ssboInstanceSelectability {rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
 			? buf_usg_dynamic_draw
-			: buf_usg_static_draw, ResizeBuffer },
+			: buf_usg_static_draw, ResizeBufferPolicy },
 
 		_vao{rc.CreateVertexAttribArray()},
 		_pointSize(desc.point_half_size),
@@ -154,30 +141,30 @@ namespace tao_gizmos
 
 	 LineListGizmo::LineListGizmo(RenderContext& rc, const line_list_gizmo_descriptor& desc) :
 		 _vertexCount			{ static_cast<unsigned int>(desc.vertices.size())},
-		 _vbo					{ rc, 0,
+		 _vbo					{rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_static
 			? buf_usg_static_draw
-			: buf_usg_dynamic_draw, ResizeBuffer },
+			: buf_usg_dynamic_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceColor		{ rc, 0,
+		 _ssboInstanceColor		{rc, 0,
 			desc.usage_hint == gizmo_usage_hint::usage_static
 			? buf_usg_static_draw
-			: buf_usg_dynamic_draw, ResizeBuffer },
+			: buf_usg_dynamic_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceTransform	{ rc, 0,													// Zoom invariance means we must update
+		 _ssboInstanceTransform	{rc, 0,													// Zoom invariance means we must update
 			desc.zoom_invariant || desc.usage_hint == gizmo_usage_hint::usage_dynamic		// the transform list whenever the view/proj  
 			? ogl_buffer_usage::buf_usg_dynamic_draw										// matrix changes -> `dynamic` hint.
-		 	: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+		 	: ogl_buffer_usage::buf_usg_static_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceVisibility	{ rc, 0,
+		 _ssboInstanceVisibility	{rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
 			? buf_usg_dynamic_draw
-			: buf_usg_static_draw, ResizeBuffer },
+			: buf_usg_static_draw, ResizeBufferPolicy },
 
-		_ssboInstanceSelectability { rc, 0,
+		_ssboInstanceSelectability {rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
 			? buf_usg_dynamic_draw
-			: buf_usg_static_draw, ResizeBuffer },
+			: buf_usg_static_draw, ResizeBufferPolicy },
 
 		 _vao					{ rc.CreateVertexAttribArray() },
 		 _lineSize				{ desc.line_size    },
@@ -253,30 +240,30 @@ namespace tao_gizmos
 	 LineStripGizmo::LineStripGizmo(RenderContext& rc, const line_strip_gizmo_descriptor& desc) :
 		 _vertexCount			{ static_cast<unsigned int>(desc.vertices.size())},
 		 _vertices				(desc.vertices.size()), 
-		 _vboVertices			{ rc, 0,
+		 _vboVertices			{rc, 0,
 			desc.usage_hint == gizmo_usage_hint::usage_static
 			? buf_usg_static_draw
-			: buf_usg_dynamic_draw, ResizeBuffer },
+			: buf_usg_dynamic_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceColor		{ rc, 0,
+		 _ssboInstanceColor		{rc, 0,
 			desc.usage_hint == gizmo_usage_hint::usage_static
 			? buf_usg_static_draw
-			: buf_usg_dynamic_draw, ResizeBuffer },
+			: buf_usg_dynamic_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceTransform{ rc, 0,
+		 _ssboInstanceTransform{rc, 0,
 			desc.zoom_invariant || desc.usage_hint == gizmo_usage_hint::usage_dynamic
 		 	? ogl_buffer_usage::buf_usg_dynamic_draw
-			: ogl_buffer_usage::buf_usg_static_draw, ResizeBuffer },
+			: ogl_buffer_usage::buf_usg_static_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceVisibility	{ rc, 0,
+		 _ssboInstanceVisibility	{rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
 			? buf_usg_dynamic_draw
-			: buf_usg_static_draw, ResizeBuffer },
+			: buf_usg_static_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceSelectability { rc, 0,
+		 _ssboInstanceSelectability {rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
 			? buf_usg_dynamic_draw
-			: buf_usg_static_draw, ResizeBuffer },
+			: buf_usg_static_draw, ResizeBufferPolicy },
 
 		 _vao					{ rc.CreateVertexAttribArray() },
 		 _lineSize				{ desc.line_size },
@@ -397,35 +384,35 @@ namespace tao_gizmos
 		 _vertices		{  desc.vertices.size() },
 		 _triangles		{  *desc.triangles },
 
-		 _vboVertices				{ rc, 0,
+		 _vboVertices				{rc, 0,
 			 desc.usage_hint == gizmo_usage_hint::usage_static
 										? buf_usg_static_draw
-										: buf_usg_dynamic_draw, ResizeBuffer },
+										: buf_usg_dynamic_draw, ResizeBufferPolicy },
 
-		 _ebo						{ rc, 0,
+		 _ebo						{rc, 0,
 			desc.usage_hint == gizmo_usage_hint::usage_static
 										? buf_usg_static_draw
-										: buf_usg_dynamic_draw, ResizeBuffer },
+										: buf_usg_dynamic_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceTransform		{ rc, 0,
+		 _ssboInstanceTransform		{rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic || desc.zoom_invariant
 										? buf_usg_dynamic_draw
-										: buf_usg_static_draw, ResizeBuffer },
+										: buf_usg_static_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceVisibility	{ rc, 0,
+		 _ssboInstanceVisibility	{rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
 										? buf_usg_dynamic_draw
-										: buf_usg_static_draw, ResizeBuffer },
+										: buf_usg_static_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceSelectability { rc, 0,
+		 _ssboInstanceSelectability {rc, 0,
 		 	desc.usage_hint == gizmo_usage_hint::usage_dynamic 
 										? buf_usg_dynamic_draw
-										: buf_usg_static_draw, ResizeBuffer },
+										: buf_usg_static_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceColorAndNrmMat{ rc, 0,
+		 _ssboInstanceColorAndNrmMat{rc, 0,
 			desc.usage_hint == gizmo_usage_hint::usage_static
 										? buf_usg_static_draw
-										: buf_usg_dynamic_draw, ResizeBuffer },
+										: buf_usg_dynamic_draw, ResizeBufferPolicy },
 
 		 _vao{ rc.CreateVertexAttribArray() }
 	  {
@@ -619,8 +606,8 @@ namespace tao_gizmos
 		 _lineStripObjDataUbo(rc.CreateUniformBuffer()),
 		 _meshObjDataUbo     (rc.CreateUniformBuffer()),
 		 _frameDataUbo		 (rc.CreateUniformBuffer()),
-		 _lenghSumSsbo		 {rc, 0, buf_usg_dynamic_draw, ResizeBuffer },
-		 _selectionColorSsbo {rc, 0, buf_usg_dynamic_draw, ResizeBuffer },
+		 _lenghSumSsbo		 {rc, 0, buf_usg_dynamic_draw, ResizeBufferPolicy },
+		 _selectionColorSsbo {rc, 0, buf_usg_dynamic_draw, ResizeBufferPolicy },
 		  _selectionPBOs	 {},
 		 _nearestSampler	 (rc.CreateSampler()),
 		 _linearSampler		 (rc.CreateSampler()),

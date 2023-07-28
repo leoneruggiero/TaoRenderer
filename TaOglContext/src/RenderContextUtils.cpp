@@ -102,4 +102,57 @@ namespace tao_render_context
         shaderSource = outStr.str();
     }
 
+    // Resizable VBO
+    /////////////////////////////////
+    tao_ogl_resources::OglVertexBuffer CreateEmptyVbo(RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
+    {
+        return rc.CreateVertexBuffer(nullptr, 0, usg);
+    }
+    void ResizeVbo(tao_ogl_resources::OglVertexBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
+    {
+        buff.SetData(newCapacity, nullptr, usg);
+    }
+
+    // Resizable EBO
+    /////////////////////////////////
+    tao_ogl_resources::OglIndexBuffer  CreateEmptyEbo(RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
+    {
+        auto ebo = rc.CreateIndexBuffer();
+        ebo.SetData(0, nullptr, usg);
+        return ebo;
+    }
+
+    void ResizeEbo(tao_ogl_resources::OglIndexBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
+    {
+        buff.SetData(newCapacity, nullptr, usg);
+    }
+
+    // Resizable SSBO
+    /////////////////////////////////
+    tao_ogl_resources::OglShaderStorageBuffer  CreateEmptySsbo(RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
+    {
+        auto ssbo = rc.CreateShaderStorageBuffer();
+        ssbo.SetData(0, nullptr, usg);
+        return ssbo;
+    }
+
+    void	ResizeSsbo(tao_ogl_resources::OglShaderStorageBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
+    {
+        buff.SetData(newCapacity, nullptr, usg);
+    }
+
+    // Resizable UBO
+    /////////////////////////////////
+    tao_ogl_resources::OglUniformBuffer  CreateEmptyUbo(RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
+    {
+        auto ubo = rc.CreateUniformBuffer();
+        ubo.SetData(0, nullptr, usg);
+        return ubo;
+    }
+
+    void ResizeUbo(tao_ogl_resources::OglUniformBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
+    {
+        buff.SetData(newCapacity, nullptr, usg);
+    }
+
 }

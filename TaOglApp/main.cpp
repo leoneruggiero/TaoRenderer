@@ -976,6 +976,8 @@ int main()
 			auto delta = duration_cast<milliseconds>(timeNow - startTime).count();
 			//animation(delta);
 
+            pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y);
+
 			gizRdr.Render(viewMatrix, projMatrix, nearFar).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
 
 			float mouseX, mouseY;

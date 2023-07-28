@@ -1,13 +1,17 @@
 #pragma once
 
-#include "OglUtils.h"
+#include "Resources.h"
+#include "RenderContext.h"
+
 #include <vector>
 #include <string>
 #include <glm\glm.hpp>
 #include <stdexcept>
-
+#include <functional>
 namespace tao_render_context
 {
+    class RenderContext;
+
     class ShaderLoader
     {
     public:
@@ -105,5 +109,98 @@ namespace tao_render_context
         std::vector<DataPtrWithFormat> _dataArrays;
 
     };
+
+    template
+            <typename Buff,
+                    Buff CreateFunc(tao_render_context::RenderContext&, tao_ogl_resources::ogl_buffer_usage),
+                    void ResizeFunc(Buff&, unsigned int, tao_ogl_resources::ogl_buffer_usage)>
+    requires tao_ogl_resources::ogl_buffer<typename Buff::ogl_resource_type>
+    class ResizableOglBuffer
+    {
+
+    private:
+        unsigned int                        _capacity = 0;
+        tao_ogl_resources::ogl_buffer_usage _usage;
+        Buff								_oglBuffer;
+        std::function<unsigned int(unsigned int, unsigned int)> _resizePolicy;
+    public:
+        // Const getters
+        unsigned int Capacity()						const { return _capacity; }
+        tao_ogl_resources::ogl_buffer_usage Usage() const { return _usage; }
+
+        // Vbo getter (non const)
+        Buff& OglBuffer() { return _oglBuffer; }
+
+        ResizableOglBuffer(
+                tao_render_context::RenderContext& rc,
+                unsigned int capacity,
+                tao_ogl_resources::ogl_buffer_usage usage,
+                const std::function<unsigned int(unsigned int, unsigned int)>& resizePolicy):
+
+                _capacity{ capacity },
+                _usage{ usage },
+                _oglBuffer{ CreateFunc(rc, _usage) },
+                _resizePolicy{resizePolicy}
+        {
+        }
+
+        bool Resize(unsigned int capacity)
+        {
+            const auto newCapacity = _resizePolicy(_capacity, capacity);
+
+            bool resized = false;
+
+            if(_capacity!=newCapacity)
+            {
+                _capacity = newCapacity;
+                ResizeFunc(_oglBuffer, _capacity, _usage);
+                resized = true;
+            }
+
+            return resized;
+        }
+    };
+
+    unsigned int ResizeBufferPolicy(unsigned int currVertCapacity, unsigned int newVertCount)
+    {
+        // initialize vbo size to the required count
+        if (currVertCapacity == 0)					return newVertCount;
+
+            // never shrink the size (heuristic)
+        else if (currVertCapacity >= newVertCount) return currVertCapacity;
+
+            // currVertSize < newVertCount -> increment size by the
+            // smallest integer multiple of the current size (heuristic)
+        else 										return currVertCapacity * ((newVertCount / currVertCapacity) + 1);
+    }
+
+    // Resizable VBO
+    /////////////////////////////////
+    tao_ogl_resources::OglVertexBuffer CreateEmptyVbo(RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg);
+    void ResizeVbo(tao_ogl_resources::OglVertexBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg);
+
+    typedef ResizableOglBuffer<tao_ogl_resources::OglVertexBuffer, CreateEmptyVbo, ResizeVbo> ResizableVbo;
+
+    // Resizable EBO
+    /////////////////////////////////
+    tao_ogl_resources::OglIndexBuffer  CreateEmptyEbo(RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg);
+    void ResizeEbo(tao_ogl_resources::OglIndexBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg);
+
+    typedef ResizableOglBuffer<tao_ogl_resources::OglIndexBuffer, CreateEmptyEbo, ResizeEbo> ResizableEbo;
+
+    // Resizable SSBO
+    /////////////////////////////////
+    tao_ogl_resources::OglShaderStorageBuffer  CreateEmptySsbo(RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg);
+    void	ResizeSsbo(tao_ogl_resources::OglShaderStorageBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg);
+
+    typedef ResizableOglBuffer<tao_ogl_resources::OglShaderStorageBuffer, CreateEmptySsbo, ResizeSsbo> ResizableSsbo;
+
+    // Resizable UBO
+    /////////////////////////////////
+    tao_ogl_resources::OglUniformBuffer  CreateEmptyUbo(RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg);
+    void	ResizeUbo(tao_ogl_resources::OglUniformBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg);
+
+    typedef ResizableOglBuffer<tao_ogl_resources::OglUniformBuffer, CreateEmptyUbo, ResizeUbo> ResizableUbo;
+
 
 }

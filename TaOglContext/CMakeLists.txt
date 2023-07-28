@@ -16,7 +16,8 @@ set(MY_SOURCE
 	"src/RenderContext.cpp"
 	"src/Resources.cpp"
 	"src/Instrumentation.cpp"
-	"src/glad.c" src/RenderContextUtils.cpp)
+	"src/glad.c"
+	"src/RenderContextUtils.cpp")
 	
 add_library(${LIB_NAME} STATIC ${MY_SOURCE})
 	
