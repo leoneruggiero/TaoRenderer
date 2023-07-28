@@ -32,91 +32,6 @@ namespace tao_gizmos
 		}
 	}
 
-	class BufferDataPacker
-	{
-		struct DataPtrWithFormat
-		{
-			unsigned int   elementSize;
-			unsigned int   elementsCount;
-			const unsigned char* dataPtr;
-		};
-		std::vector<DataPtrWithFormat> dataArrays;
-
-	public:
-		BufferDataPacker() :
-			dataArrays(0)
-		{
-		}
-
-		template<glm::length_t L, typename T>
-		BufferDataPacker& AddDataArray(const std::vector<glm::vec<L, T>>& data)
-		{
-			DataPtrWithFormat dataPtr
-			{
-				.elementSize	= sizeof(T) * L,
-				.elementsCount	= static_cast<unsigned int>(data.size()),
-				.dataPtr		= reinterpret_cast<const unsigned char*>(data.data())
-			};
-
-			dataArrays.push_back(dataPtr);
-			return *this;
-		}
-
-		template<glm::length_t C, glm::length_t R, typename T>
-		BufferDataPacker& AddDataArray(const std::vector<glm::mat<C, R, T>>& data)
-		{
-			DataPtrWithFormat dataPtr
-			{
-				.elementSize	= sizeof(T) * C * R,
-				.elementsCount	= static_cast<unsigned int>(data.size()),
-				.dataPtr		= reinterpret_cast<const unsigned char*>(data.data())
-			};
-
-			dataArrays.push_back(dataPtr);
-			return *this;
-		}
-
-		std::vector<unsigned char> InterleavedBuffer() const
-		{
-			// early exit if empty
-			if (dataArrays.empty()) return std::vector<unsigned char>{};
-
-			// check all the arrays to be
-			// the same length
-			const unsigned int elementCount = dataArrays[0].elementsCount;
-			unsigned int cumulatedElementSize = 0;
-			for(const auto& d : dataArrays)
-			{
-				if (d.elementsCount != elementCount) 
-					throw std::runtime_error("BufferDataPacker: Invalid input. Interleaving requies all the arrays to be the same length.");
-
-				cumulatedElementSize +=  d.elementSize;
-			}
-
-			std::vector<unsigned char> interleaved(elementCount * cumulatedElementSize);
-
-			for (int i = 0; i < elementCount; i++)
-			{
-				unsigned int accum = 0;
-				for (int j = 0; j < dataArrays.size(); j++)
-				{
-					memcpy
-					(
-						interleaved.data() + cumulatedElementSize * i + accum,
-						dataArrays[j].dataPtr + i * dataArrays[j].elementSize,
-						dataArrays[j].elementSize
-					);
-
-					accum += dataArrays[j].elementSize;
-
-				}
-			}
-
-			return interleaved;
-		}
-	};
-
-
 	unsigned int ResizeBuffer(unsigned int currVertCapacity, unsigned int newVertCount)
 	{
 		// initialize vbo size to the required count
@@ -550,6 +465,8 @@ namespace tao_gizmos
 		// --------------------------------------------
 		 _ebo.Resize(_triangles.size() * sizeof(int));
 		 _ebo.OglBuffer().SetSubData(0, _triangles.size() * sizeof(int) , _triangles.data());
+
+         _vao.SetIndexBuffer(_ebo.OglBuffer());
 
 	 }
 

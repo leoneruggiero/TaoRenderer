@@ -503,7 +503,7 @@ namespace tao_gizmos
 	struct mesh_gizmo_descriptor
 	{
 		std::vector<MeshGizmoVertex>&    vertices;
-		std::vector<unsigned int>*		 triangles = nullptr;
+		std::vector<int>*		         triangles = nullptr;
 		bool							 zoom_invariant       = false;
 		float							 zoom_invariant_scale = 0.0f;
 		gizmo_usage_hint				 usage_hint = gizmo_usage_hint::usage_static;
@@ -519,7 +519,7 @@ namespace tao_gizmos
 		// graphics data
 		// --------------------------------------------------------
 		std::vector<glm::vec3>	   _vertices;
-		std::vector<unsigned int>  _triangles;
+		std::vector<int>  _triangles;
 		
 
 		ResizableVbo							    _vboVertices;

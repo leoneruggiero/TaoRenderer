@@ -119,6 +119,7 @@ namespace tao_render_context
 
         void DrawArrays           (ogl_primitive_type mode, GLint first, GLsizei count);
         void DrawArraysInstanced  (ogl_primitive_type mode, GLint first, GLsizei count, GLsizei instanceCount);
+        void DrawElements         (ogl_primitive_type mode, GLsizei count, ogl_indices_type type, const void* indices);
         void DrawElementsInstanced(ogl_primitive_type mode, GLsizei count, ogl_indices_type type, const void* offset, GLsizei instanceCount);
 
         [[nodiscard]] OglVertexShader   CreateVertexShader();
@@ -138,7 +139,7 @@ namespace tao_render_context
         [[nodiscard]] OglVertexBuffer CreateVertexBuffer(const void* data, int size, ogl_buffer_usage usage = ogl_buffer_usage::buf_usg_static_draw);
 
         [[nodiscard]] OglVertexAttribArray CreateVertexAttribArray();
-    	[[nodiscard]] OglVertexAttribArray CreateVertexAttribArray(const vector<pair<shared_ptr<OglVertexBuffer>, vertex_buffer_layout_desc>> vertexDataSrc);
+    	[[nodiscard]] OglVertexAttribArray CreateVertexAttribArray(const vector<pair<OglVertexBuffer&, vertex_buffer_layout_desc>> vertexDataSrc);
 
         [[nodiscard]] OglTexture2D  CreateTexture2D();
 

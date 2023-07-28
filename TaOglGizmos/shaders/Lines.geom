@@ -1,7 +1,7 @@
 #version 430 core
 #define GIZMOS_LINES
-//! #include "./UboDefs.glsl"
-//! #include "./Helper.glsl"
+//! #include "UboDefs.glsl"
+//! #include "Helper.glsl"
 
 layout(lines) in;
 layout(triangle_strip, max_vertices = 4) out;

@@ -1,6 +1,6 @@
 #version 430 core
 #define GIZMOS_LINES
-//! #include "./UboDefs.glsl"
+//! #include "UboDefs.glsl"
 
 layout(location = 0) in vec3  v_position;
 layout(location = 1) in vec4  v_color;

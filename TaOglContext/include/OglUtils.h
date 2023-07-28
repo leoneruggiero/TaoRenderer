@@ -628,4 +628,20 @@ namespace tao_ogl_resources
 		wait_sync_res_condition_satisfied = GL_CONDITION_SATISFIED ,
 		wait_sync_res_failed = GL_WAIT_FAILED,
 	};
+
+    struct vertex_attribute_desc
+    {
+        int index;
+        int element_count;
+        int offset;
+        int stride;
+        ogl_vertex_attrib_type element_type;
+
+    };
+
+    struct vertex_buffer_layout_desc
+    {
+        int attrib_count;
+        vertex_attribute_desc* attrib_descriptors;
+    };
 }

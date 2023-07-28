@@ -130,6 +130,11 @@ namespace tao_render_context
 		GL_CALL(glDrawArraysInstanced(mode, first,  count, instanceCount));
 	}
 
+    void RenderContext::DrawElements(tao_render_context::ogl_primitive_type mode, GLsizei count,tao_ogl_resources::ogl_indices_type type, const void *indices)
+    {
+        GL_CALL(glDrawElements(mode, count, type, indices));
+    }
+
 	void RenderContext::DrawElementsInstanced(ogl_primitive_type mode, GLsizei count, ogl_indices_type type, const void* offset, GLsizei instanceCount)
 	{
 		GL_CALL(glDrawElementsInstanced( mode, count, type, offset, instanceCount));
@@ -233,7 +238,7 @@ namespace tao_render_context
 	{
 		return OglVertexAttribArray{ OglResource<vertex_attrib_array>{} };
 	}
-	OglVertexAttribArray RenderContext::CreateVertexAttribArray(const vector<pair<shared_ptr<OglVertexBuffer>, vertex_buffer_layout_desc>> vertexDataSrc)
+	OglVertexAttribArray RenderContext::CreateVertexAttribArray(const vector<pair<OglVertexBuffer&, vertex_buffer_layout_desc>> vertexDataSrc)
 	{
 		auto vao = OglVertexAttribArray{OglResource<vertex_attrib_array>{}};
 
@@ -244,7 +249,7 @@ namespace tao_render_context
 		{
 			const vertex_attribute_desc* atDsc = &vertexDataSrc[vbo].second.attrib_descriptors[att];
 			vao.EnableVertexAttrib(atDsc->index); 
-			vao.SetVertexAttribPointer(*vertexDataSrc[vbo].first, atDsc->index, atDsc->element_count, atDsc->element_type, false,atDsc->stride , reinterpret_cast<const void*>(atDsc->offset));
+			vao.SetVertexAttribPointer(vertexDataSrc[vbo].first, atDsc->index, atDsc->element_count, atDsc->element_type, false,atDsc->stride , reinterpret_cast<const void*>(atDsc->offset));
 			// attributes are enabled but never disabled,
 			// see https://community.khronos.org/t/should-i-disable-a-vertex-attrib-array-if-a-program-doesnt-use-it/109656/4
 		}

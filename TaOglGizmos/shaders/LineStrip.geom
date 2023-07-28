@@ -1,7 +1,7 @@
 #version 430 core
 #define GIZMOS_LINE_STRIP
-//! #include "./UboDefs.glsl"
-//! #include "./Helper.glsl"
+//! #include "UboDefs.glsl"
+//! #include "Helper.glsl"
 
 layout(lines_adjacency) in;
 layout(triangle_strip, max_vertices = 12) out;

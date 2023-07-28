@@ -1,6 +1,6 @@
 #version 430 core
 #define GIZMOS_LINES    
-//! #include "./UboDefs.glsl"
+//! #include "UboDefs.glsl"
 
 in GS_OUT
 {

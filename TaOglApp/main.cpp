@@ -11,7 +11,8 @@
 #include "RenderContext.h"
 #include "GizmosRenderer.h"
 #include "GizmosHelper.h"
-#include "../../TestApp_OpenGL/TestApp_OpenGL/stb_image.h"
+#include "PbrRenderer.h"
+#include "../../TestApp_OpenGL/TestApp_OpenGL/stb_image.h" // TODO: WTF??
 
 using namespace std;
 using namespace glm;
@@ -20,6 +21,7 @@ using namespace tao_ogl_resources;
 using namespace tao_render_context;
 using namespace tao_gizmos;
 using namespace tao_input;
+using namespace tao_pbr;
 
 
 static vec4 Gradient(float t, vec4 start, vec4 mid, vec4 end)
@@ -502,7 +504,7 @@ void CreateArrowTriad(
 	vector   <glm::vec3>& positions,
 	vector   <glm::vec3>& normals,
 	vector   <glm::vec4>& colors,
-	vector<unsigned int>& triangles)
+	vector<int>& triangles)
 {
 	tao_geometry::Mesh x = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
 	tao_geometry::Mesh y = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
@@ -515,7 +517,7 @@ void CreateArrowTriad(
 	positions = vector   <glm::vec3>(x.NumVertices() + y.NumVertices() + z.NumVertices());
 	normals = vector   <glm::vec3>(x.NumVertices() + y.NumVertices() + z.NumVertices());
 	colors = vector   <glm::vec4>(x.NumVertices() + y.NumVertices() + z.NumVertices());
-	triangles = vector<unsigned int>(x.NumIndices() + y.NumIndices() + z.NumIndices());
+	triangles = vector<int>(x.NumIndices() + y.NumIndices() + z.NumIndices());
 
 	// Positions
 	// ------------------------------------
@@ -544,8 +546,8 @@ void CreateArrowTriad(
 
 	// offset triangles (merge meshes)
 	auto xTri = x.GetIndices();
-	auto yTri = y.GetIndices(); std::for_each(yTri.begin(), yTri.end(), [xVertCount](unsigned int& i) {i += xVertCount; });
-	auto zTri = z.GetIndices(); std::for_each(zTri.begin(), zTri.end(), [xVertCount, yVertCount](unsigned int& i) {i += xVertCount + yVertCount; });
+	auto yTri = y.GetIndices(); std::for_each(yTri.begin(), yTri.end(), [xVertCount](int& i) {i += xVertCount; });
+	auto zTri = z.GetIndices(); std::for_each(zTri.begin(), zTri.end(), [xVertCount, yVertCount](int& i) {i += xVertCount + yVertCount; });
 
 	std::copy(xTri.begin(), xTri.end(), triangles.begin());
 	std::copy(yTri.begin(), yTri.end(), triangles.begin() + xTri.size());
@@ -565,7 +567,7 @@ void InitArrowTriad3D(tao_gizmos::GizmosRenderer& gizRdr, const tao_gizmos::Rend
 	vector<glm::vec3> cubeMeshNrm;
 	vector<glm::vec2> cubeMeshTex;
 	vector<glm::vec4> cubeMeshCol;
-	vector<unsigned int> cubeMeshTris;
+	vector<int> cubeMeshTris;
 
 	CreateArrowTriad(cubeMeshPos, cubeMeshNrm, cubeMeshCol, cubeMeshTris);
 
@@ -606,7 +608,7 @@ void InitArrowTriad3DVC(tao_gizmos::GizmosRenderer& gizRdr, const tao_gizmos::Re
 	vector<glm::vec3> cubeMeshNrm;
 	vector<glm::vec2> cubeMeshTex;
 	vector<glm::vec4> cubeMeshCol;
-	vector<unsigned int> cubeMeshTris;
+	vector<int> cubeMeshTris;
 
 	CreateArrowTriad(cubeMeshPos, cubeMeshNrm, cubeMeshCol, cubeMeshTris);
 
@@ -828,11 +830,37 @@ int main()
 
 		RenderContext rc{ windowWidth, windowHeight };
 		rc.GetFramebufferSize(fboWidth, fboHeight);
+
+        // GizmosRenderer
 		GizmosRenderer gizRdr{ rc, fboWidth, fboHeight };
 
+        // View Cube Gizmos Renderer
 		int fboWidthVC  = 256;
 		int fboHeightVC = 256;
 		GizmosRenderer gizRdrVC{ rc, fboWidthVC, fboHeightVC };
+
+        // Pbr Renderer
+        PbrRenderer pbrRdr{rc, fboWidth, fboHeight};
+
+        // *** TEST ***
+        // -------------------
+        auto sphere = tao_geometry::Mesh::Sphere(1.0f, 32);
+        tao_pbr::Mesh m{
+            sphere.GetPositions(),
+            sphere.GetNormals(),
+            sphere.GetTextureCoordinates(),
+            sphere.GetIndices()
+        };
+
+        auto meshKey = pbrRdr.AddMesh(m);
+        auto matKey = pbrRdr.AddMaterial(PbrMaterial{0.6f, 0.0f, glm::vec3(1.0f, 0.3f, 0.0f)});
+        auto meshRdrKer = pbrRdr.AddMeshRenderer(MeshRenderer(glm::mat4(1.0f), meshKey, matKey));
+
+
+        // -------------------
+
+
+
 
 		mouse_input_data mouseRotateData;
 		mouse_input_data mouseZoomData;

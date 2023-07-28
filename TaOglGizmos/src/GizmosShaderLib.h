@@ -47,39 +47,6 @@ namespace tao_gizmos
         static constexpr const char* MESH_FRAG_SRC       = "Mesh.frag";
         static constexpr const char* EXC_PREAMBLE        = "GizmosShaderLibrary: ";
 
-        static string FileNotFoundExceptionMsg(const char* filePath)
-        {
-            return string{}
-                .append(EXC_PREAMBLE)
-                .append("Unable to find file: ")
-                .append(filePath);
-        }
-        static string GenericExceptionMsg()
-        {
-            return string{}
-                .append(EXC_PREAMBLE)
-                .append("A generic error has occurred.");
-        }
-        static regex IncludeDirectiveRgx()
-        {
-            //! #include ".../.../.../fileName.glsl"
-            return regex{ string{}
-            .append(R"(^)")
-            .append(INCLUDE_DIRECTIVE)
-            .append(R"(\s+"(.+/)*(\w+.glsl)\")")
-            };
-        }
-        static regex GlslVersionRgx()
-        {
-            // #version ...
-            return regex{ string{}
-            .append(R"(^\s*#version)")
-            };
-        }
-        static string PreProcessShaderSource(const char* sourceFilePath);
-        static void   DefineConditional     (string& shaderSource, const vector<string>& definitions);
-        static void   LoadShaderSource      (gizmos_shader_type shaderType, gizmos_shader_modifier modifier, const char* shaderSrcDir, string* vertSrc, string* geomSrc, string* fragSrc );
-
     public:
         [[nodiscard]] static OglShaderProgram CreateShaderProgram(RenderContext& rc, gizmos_shader_type shaderType, gizmos_shader_modifier modifier, const char* shaderSrcDir);
     };

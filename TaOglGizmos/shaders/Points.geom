@@ -1,6 +1,6 @@
 #version 430 core
 #define GIZMOS_POINTS
-//! #include "./UboDefs.glsl"
+//! #include "UboDefs.glsl"
 
 layout(points) in;
 layout(triangle_strip, max_vertices = 4) out;

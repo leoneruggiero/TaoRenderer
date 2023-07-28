@@ -1,7 +1,7 @@
 #version 430 core
 
 #define GIZMOS_MESH
-//! #include "./UboDefs.glsl"
+//! #include "UboDefs.glsl"
 
 in VS_OUT
 {

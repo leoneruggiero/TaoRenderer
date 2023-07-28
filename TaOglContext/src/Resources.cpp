@@ -159,7 +159,7 @@ namespace tao_ogl_resources
         UnBind();
     }
     
-	void OglVertexAttribArray::SetIndexBuffer(OglIndexBuffer indexBuffer)
+	void OglVertexAttribArray::SetIndexBuffer(OglIndexBuffer& indexBuffer)
 	{
         Bind();
         indexBuffer.Bind();
@@ -170,6 +170,7 @@ namespace tao_ogl_resources
     /// Uniform Buffer
     ///////////////////
     void OglUniformBuffer::Bind(GLuint index) { GL_CALL(glBindBufferBase(GL_UNIFORM_BUFFER, index, _ogl_obj.ID())); }
+    void OglUniformBuffer::BindRange(GLuint index, GLintptr offset, GLsizeiptr size) { GL_CALL(glBindBufferRange(GL_UNIFORM_BUFFER, index, _ogl_obj.ID(), offset, size)); }
     void OglUniformBuffer::SetData(GLsizeiptr size, const void* data, ogl_buffer_usage usage) { namedBufferData(_ogl_obj.ID(), size, data, usage); }
     void OglUniformBuffer::SetSubData(GLintptr offset, GLsizeiptr size, const void* data) { namedBufferSubData(_ogl_obj.ID(), offset, size, data); }
     

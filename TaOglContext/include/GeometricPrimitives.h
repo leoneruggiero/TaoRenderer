@@ -22,7 +22,7 @@ namespace tao_geometry
 
         std::vector<glm::vec2> _textureCoordinates;
 
-        std::vector<unsigned int> _indices;
+        std::vector<int> _indices;
 
         void ComputeTangentsAndBitangents()
         {
@@ -80,7 +80,7 @@ namespace tao_geometry
         }
 
     public:
-        Mesh(const std::vector<glm::vec3>& verts, const std::vector<glm::vec3>& normals, const std::vector<unsigned int>& tris)
+        Mesh(const std::vector<glm::vec3>& verts, const std::vector<glm::vec3>& normals, const std::vector<int>& tris)
         {
             int numVerts = verts.size();
             int numNormals = normals.size();
@@ -97,7 +97,7 @@ namespace tao_geometry
             _indices = tris;
         }
 
-        Mesh(const std::vector<glm::vec3>& verts, const std::vector<glm::vec3>& normals, const std::vector<unsigned int>& tris, const std::vector<glm::vec2>& TextureCoordinates)
+        Mesh(const std::vector<glm::vec3>& verts, const std::vector<glm::vec3>& normals, const std::vector<int>& tris, const std::vector<glm::vec2>& TextureCoordinates)
             : Mesh(verts, normals, tris)
         {
             int numVerts = verts.size();
@@ -111,7 +111,7 @@ namespace tao_geometry
             ComputeTangentsAndBitangents();
         }
 
-        Mesh(const std::vector<glm::vec3>& verts, const std::vector<glm::vec3>& normals, const std::vector<unsigned int>& tris,
+        Mesh(const std::vector<glm::vec3>& verts, const std::vector<glm::vec3>& normals, const std::vector<int>& tris,
             const std::vector<glm::vec2>& textureCoordinates, const std::vector<glm::vec3>& tangents)
             : Mesh(verts, normals, tris, textureCoordinates)
         {
@@ -124,7 +124,7 @@ namespace tao_geometry
         std::vector<glm::vec3> GetTangents()            const { return std::vector<glm::vec3>(_tangents); };
         std::vector<glm::vec3> GetBitangents()          const { return std::vector<glm::vec3>(_bitangents); };
         std::vector<glm::vec2> GetTextureCoordinates()  const { return std::vector<glm::vec2>(_textureCoordinates); };
-        std::vector<unsigned int> GetIndices()          const { return std::vector<unsigned int>(_indices); };
+        std::vector<int> GetIndices()          const { return std::vector<int>(_indices); };
         int NumVertices() { return _vertices.size(); }
         int NumNormals()  { return _normals .size(); }
         int NumIndices()  { return _indices .size(); }
@@ -134,7 +134,7 @@ namespace tao_geometry
             std::vector<glm::vec3> vertices = std::vector<glm::vec3>();
             std::vector<glm::vec3> normals = std::vector<glm::vec3>();
             std::vector<glm::vec2> textureCoordinates = std::vector<glm::vec2>();
-            std::vector<unsigned int> triangles = std::vector<unsigned int>();
+            std::vector<int> triangles = std::vector<int>();
 
             int stacks = subdivisions / 2;
 
@@ -357,7 +357,7 @@ namespace tao_geometry
                 normals{ std::begin(boxNormals), std::end(boxNormals) };
             std::vector<glm::vec2>
                 TextureCoordinates{ std::begin(boxTextureCoordinates), std::end(boxTextureCoordinates) };
-            std::vector<unsigned int>
+            std::vector<int>
                 triangles{ std::begin(boxTris), std::end(boxTris) };
 
 
@@ -369,7 +369,7 @@ namespace tao_geometry
             std::vector<glm::vec3> vertices = std::vector<glm::vec3>();
             std::vector<glm::vec3> normals = std::vector<glm::vec3>();
             std::vector<glm::vec2> textureCoordinates = std::vector<glm::vec2>();
-            std::vector<unsigned int> triangles = std::vector<unsigned int>();
+            std::vector<int> triangles = std::vector<int>();
 
             float dAngle = glm::pi<float>() * 2 / subdivisions;
 
@@ -499,8 +499,8 @@ namespace tao_geometry
             std::vector<glm::vec3> cylNormals = cyl.GetNormals();
             std::vector<glm::vec3> coneNormals = cone.GetNormals();
 
-            std::vector<unsigned int> cylIndices = cyl.GetIndices();
-            std::vector<unsigned int> coneIndices = cone.GetIndices();
+            std::vector<int> cylIndices = cyl.GetIndices();
+            std::vector<int> coneIndices = cone.GetIndices();
 
             std::vector<glm::vec3> arrowVertices;
             arrowVertices.insert(arrowVertices.end(), cylVertices.begin(), cylVertices.end());
@@ -510,7 +510,7 @@ namespace tao_geometry
             arrowNormals.insert(arrowNormals.end(), cylNormals.begin(), cylNormals.end());
             arrowNormals.insert(arrowNormals.end(), coneNormals.begin(), coneNormals.end());
 
-            std::vector<unsigned int> arrowIndices;
+            std::vector<int> arrowIndices;
             arrowIndices.insert(arrowIndices.end(), cylIndices.begin(), cylIndices.end());
             arrowIndices.insert(arrowIndices.end(), coneIndices.begin(), coneIndices.end());
             int k = cylVertices.size();

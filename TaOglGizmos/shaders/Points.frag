@@ -1,6 +1,6 @@
 #version 430 core
 #define GIZMOS_POINTS    
-//! #include "./UboDefs.glsl"
+//! #include "UboDefs.glsl"
 
 in GS_OUT
 {

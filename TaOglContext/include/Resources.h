@@ -368,7 +368,7 @@ namespace tao_ogl_resources
 		void EnableVertexAttrib(GLuint index);
 		void DisableVertexAttrib(GLuint index);
 		void SetVertexAttribPointer(OglVertexBuffer& vertexBuffer, GLuint index, GLint size, ogl_vertex_attrib_type type, GLboolean normalized, GLsizei stride, const void* pointer, GLuint divisor=0);
-		void SetIndexBuffer(OglIndexBuffer indexBuffer);
+		void SetIndexBuffer(OglIndexBuffer& indexBuffer);
 
     private:
         OglResource<ogl_resource_type> _ogl_obj;
@@ -385,6 +385,7 @@ namespace tao_ogl_resources
 	public:
         typedef uniform_buffer ogl_resource_type;
         void Bind(GLuint index);
+        void BindRange(GLuint index, GLintptr offset, GLsizeiptr size);
 		void SetData(GLsizeiptr size, const void* data, ogl_buffer_usage usage);
 		void SetSubData(GLintptr offset, GLsizeiptr size, const void* data);
 
