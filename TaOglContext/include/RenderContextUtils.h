@@ -2,7 +2,6 @@
 
 #include "Resources.h"
 #include "RenderContext.h"
-
 #include <vector>
 #include <string>
 #include <glm\glm.hpp>
@@ -161,18 +160,7 @@ namespace tao_render_context
         }
     };
 
-    unsigned int ResizeBufferPolicy(unsigned int currVertCapacity, unsigned int newVertCount)
-    {
-        // initialize vbo size to the required count
-        if (currVertCapacity == 0)					return newVertCount;
-
-            // never shrink the size (heuristic)
-        else if (currVertCapacity >= newVertCount) return currVertCapacity;
-
-            // currVertSize < newVertCount -> increment size by the
-            // smallest integer multiple of the current size (heuristic)
-        else 										return currVertCapacity * ((newVertCount / currVertCapacity) + 1);
-    }
+    unsigned int ResizeBufferPolicy(unsigned int currVertCapacity, unsigned int newVertCount);
 
     // Resizable VBO
     /////////////////////////////////

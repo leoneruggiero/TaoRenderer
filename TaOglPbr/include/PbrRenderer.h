@@ -319,6 +319,7 @@ namespace tao_pbr
         {
             InitGBuffer(_windowWidth, _windowHeight);
             InitShaders();
+            InitStaticShaderBuffers();
 
         }
 
@@ -362,7 +363,8 @@ namespace tao_pbr
             // Write transform and material to their buffers.
             // Resize and copy back old data if necessary.
             int rdrCount = _meshRenderers.vector().size();
-            if( _shaderBuffers.transformUbo.Resize(rdrCount))
+            int trDataBlkSize = sizeof(transform_gl_data_block);
+            if( _shaderBuffers.transformUbo.Resize(rdrCount*trDataBlkSize))
             {
                 std::vector<transform_gl_data_block> transformData(_meshRenderers.vector().size());
                 std::vector<transform_gl_data_block> materialData(_meshRenderers.vector().size());
@@ -372,7 +374,7 @@ namespace tao_pbr
                     auto model = _meshRenderers.vector()[i].transformation.transformation();
                     auto normal = glm::inverse(glm::transpose(model)); // TODO: are you sure???
 
-                    transformData.push_back(transform_gl_data_block
+                    transformData[i]=(transform_gl_data_block
                        {
                            .modelMatrix = model,
                            .normalMatrix = normal
@@ -381,7 +383,7 @@ namespace tao_pbr
                     // TODO: materials
 
                 }
-                _shaderBuffers.transformUbo.OglBuffer().SetSubData(0, rdrCount*sizeof(transform_gl_data_block), transformData.data());
+                _shaderBuffers.transformUbo.OglBuffer().SetSubData(0, rdrCount*trDataBlkSize, transformData.data());
             }
             else
             {
@@ -392,7 +394,7 @@ namespace tao_pbr
                     .modelMatrix = model,
                     .normalMatrix = normal
                 };
-                _shaderBuffers.transformUbo.OglBuffer().SetSubData(key.Index*sizeof(transform_gl_data_block), sizeof(transform_gl_data_block), &data);
+                _shaderBuffers.transformUbo.OglBuffer().SetSubData(key.Index*trDataBlkSize, trDataBlkSize, &data);
             }
 
             return key;
@@ -405,9 +407,9 @@ namespace tao_pbr
         static constexpr const char* GPASS_VERT_SOURCE = "GPass.vert";
         static constexpr const char* GPASS_FRAG_SOURCE = "GPass.frag";
 
-        static constexpr const int GPASS_UBO_BINDING_TRANSFORM  = 0;
-        static constexpr const int GPASS_UBO_BINDING_MATERIAL   = 1;
-        static constexpr const int GPASS_UBO_BINDING_CAMERA     = 2;
+        static constexpr const int GPASS_UBO_BINDING_TRANSFORM  = 2;
+        static constexpr const int GPASS_UBO_BINDING_MATERIAL   = 3;
+        static constexpr const int GPASS_UBO_BINDING_CAMERA     = 1;
 
         static constexpr tao_ogl_resources::ogl_depth_state DEFAULT_DEPTH_STATE  =
                 tao_ogl_resources::ogl_depth_state
@@ -509,6 +511,7 @@ namespace tao_pbr
 
         void InitGBuffer(int width, int height);
         void InitShaders();
+        void InitStaticShaderBuffers();
 
         GenKey<MeshGraphicsData> CreateGraphicsData(Mesh& mesh);
         GenKey<ImageTextureGraphicsData> CreateGraphicsData(ImageTexture& image);

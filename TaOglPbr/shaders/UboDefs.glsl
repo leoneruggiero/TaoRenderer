@@ -45,15 +45,19 @@ struct PointLight
 #define SPLITS 4
 #endif
 
-layout (std140) uniform blk_PerObjectData
+layout (std140, binding = 2) uniform blk_PerObjectTransform
 {
     uniform mat4        o_modelMat;     // 64 byte
     uniform mat4        o_normalMat;    // 64 byte
-    uniform Material    o_material;     // 64 byte  
-                                        // TOTAL => 192 byte
+                                        // TOTAL => 128 byte
 };
-    
-layout (std140) uniform blk_ViewData
+
+layout (std140, binding = 3) uniform blk_PerObjectMaterial
+{
+    uniform Material    o_material;     // 64 byte
+};
+
+layout (std140, binding = 1) uniform blk_ViewData
 {
     uniform mat4    f_viewMat;          // 64  byte
     uniform mat4    f_projMat;          // 64  byte
@@ -62,7 +66,7 @@ layout (std140) uniform blk_ViewData
                                         // TOTAL => 136
 };
 
-layout (std140) uniform blk_PerFrameData
+layout (std140, binding = 0) uniform blk_PerFrameData
 {
     uniform mat4             f_lightSpaceMatrix_directional[SPLITS];       // 256 byte
     uniform mat4             f_lightSpaceMatrixInv_directional[SPLITS];    // 256 byte

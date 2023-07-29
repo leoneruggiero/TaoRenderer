@@ -21,6 +21,17 @@ namespace tao_pbr
         _gBuffer.gBuff.AttachTexture(static_cast<ogl_framebuffer_attachment>(fbo_attachment_color0 + 1), _gBuffer.texColor1, 0);
         _gBuffer.gBuff.AttachTexture(static_cast<ogl_framebuffer_attachment>(fbo_attachment_color0 + 2), _gBuffer.texColor2, 0);
         _gBuffer.gBuff.AttachTexture(static_cast<ogl_framebuffer_attachment>(fbo_attachment_color0 + 3), _gBuffer.texColor3, 0);
+
+
+        const ogl_framebuffer_read_draw_buffs drawBuffs[]
+                {
+                static_cast<ogl_framebuffer_read_draw_buffs>(fbo_read_draw_buff_color0+0),
+                static_cast<ogl_framebuffer_read_draw_buffs>(fbo_read_draw_buff_color0+1),
+                static_cast<ogl_framebuffer_read_draw_buffs>(fbo_read_draw_buff_color0+2),
+                static_cast<ogl_framebuffer_read_draw_buffs>(fbo_read_draw_buff_color0+3)
+                };
+
+        _gBuffer.gBuff.SetDrawBuffers(4, drawBuffs);
     }
 
     void PbrRenderer::InitShaders()
@@ -29,6 +40,11 @@ namespace tao_pbr
                 tao_render_context::ShaderLoader::LoadShader(GPASS_VERT_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR).c_str(),
                 tao_render_context::ShaderLoader::LoadShader(GPASS_FRAG_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR).c_str()
         );
+    }
+
+    void PbrRenderer::InitStaticShaderBuffers()
+    {
+        _shaderBuffers.cameraUbo.SetData(sizeof(camera_gl_data_block), nullptr, buf_usg_dynamic_draw);
     }
 
     GenKey<MeshGraphicsData>  PbrRenderer::CreateGraphicsData(Mesh& mesh)

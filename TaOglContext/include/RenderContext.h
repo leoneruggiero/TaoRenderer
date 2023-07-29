@@ -4,7 +4,7 @@
 #include <sstream>
 #include <string>
 #include "Resources.h"
-#include "RenderContextUtils.h"
+//#include "RenderContextUtils.h"
 #include "Input.h"
 #include <GLFW/glfw3.h>
 #include <memory>

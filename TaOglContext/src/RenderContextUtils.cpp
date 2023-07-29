@@ -104,7 +104,7 @@ namespace tao_render_context
 
     // Resizable VBO
     /////////////////////////////////
-    tao_ogl_resources::OglVertexBuffer CreateEmptyVbo(RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
+    tao_ogl_resources::OglVertexBuffer CreateEmptyVbo(tao_render_context::RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)
     {
         return rc.CreateVertexBuffer(nullptr, 0, usg);
     }
@@ -153,6 +153,18 @@ namespace tao_render_context
     void ResizeUbo(tao_ogl_resources::OglUniformBuffer& buff, unsigned int newCapacity, tao_ogl_resources::ogl_buffer_usage usg)
     {
         buff.SetData(newCapacity, nullptr, usg);
+    }
+
+    unsigned int ResizeBufferPolicy(unsigned int currVertCapacity, unsigned int newVertCount) {
+        // initialize vbo size to the required count
+        if (currVertCapacity == 0)					return newVertCount;
+
+            // never shrink the size (heuristic)
+        else if (currVertCapacity >= newVertCount) return currVertCapacity;
+
+            // currVertSize < newVertCount -> increment size by the
+            // smallest integer multiple of the current size (heuristic)
+        else 										return currVertCapacity * ((newVertCount / currVertCapacity) + 1);
     }
 
 }
