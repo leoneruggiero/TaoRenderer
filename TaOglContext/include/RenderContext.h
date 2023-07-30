@@ -1,4 +1,10 @@
 #pragma once
+
+#define GFX_DEBUG
+#ifdef  GFX_DEBUG
+    #define GFX_DEBUG_OUTPUT_ENABLED
+#endif
+
 #include <iostream>
 #include <vector>
 #include <sstream>
@@ -8,6 +14,7 @@
 #include "Input.h"
 #include <GLFW/glfw3.h>
 #include <memory>
+#include <functional>
 
 namespace tao_render_context
 {
@@ -27,6 +34,8 @@ namespace tao_render_context
         GLFWwindow* _glf_window;
         unique_ptr<MouseInput>  _mouseInput;
 
+        int _uniformBufferOffsetAlignment;
+
         static void SetInputOptions(GLFWwindow* window)
         {
             // TODO: do we really need it?
@@ -35,6 +44,32 @@ namespace tao_render_context
             //if (glfwRawMouseMotionSupported()) glfwSetInputMode(window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
             //else                                throw exception("Raw mouse input is not available.");
         }
+
+#ifdef GFX_DEBUG_OUTPUT_ENABLED
+
+        std::ostream & _debugOutputStream = std::cout;
+
+        void glDebugOutput(GLenum source,
+                                    GLenum type,
+                                    unsigned int id,
+                                    GLenum severity,
+                                    GLsizei length,
+                                    const char *message,
+                                    const void *userParam) const;
+
+        void InitDebugOutput(GLFWwindow* window);
+
+        static void ConfigureDebugOutput(ogl_debug_output_filter filter)
+        {
+            // TODO: configure level and severity
+            glDebugMessageControl(filter.source,
+                                  filter.type,
+                                  filter.severity,
+                                  0, nullptr, GL_TRUE);
+        }
+#endif
+
+        void InitGlInfo();
 
     public:
         RenderContext(int windowWidth, int windowHeight, const char* windowName = "Unnamed Window") :
@@ -45,8 +80,10 @@ namespace tao_render_context
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, CONTEXT_VER_MAJOR);
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, CONTEXT_VER_MINOR);
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-            // Window initialization
+#ifdef GFX_DEBUG_OUTPUT_ENABLED
+            glfwWindowHint(GLFW_OPENGL_DEBUG_CONTEXT, true);
+#endif
+            /// Window initialization
             //////////////////////////////
             _glf_window = glfwCreateWindow(windowWidth, windowHeight, windowName, nullptr, nullptr);
             if (_glf_window == nullptr)
@@ -60,18 +97,18 @@ namespace tao_render_context
             // disable v-sync
             glfwSwapInterval(0);
 
-            // Mouse input initialization
+            /// Mouse input initialization
             ///////////////////////////////
             _mouseInput = make_unique<MouseInput>(_glf_window);
             SetInputOptions(_glf_window);
 
 
-            // GLAD loading
+            /// GLAD loading
             //////////////////////////////
             if (!gladLoadGLLoader(reinterpret_cast<GLADloadproc>(glfwGetProcAddress)))
                 throw std::runtime_error("RenderContext failed to load GL.");
 
-            // Ogl version check
+            /// Ogl version check
         	//////////////////////////////
             const char* versionString = reinterpret_cast<const char*>(glGetString(GL_VERSION));
             // version string is MAJ.MIN.(release, optional)
@@ -87,6 +124,18 @@ namespace tao_render_context
                 throw std::runtime_error(wrongVersionMessage.str().c_str());
 
             }
+
+            /// Init useful Ogl info
+            ///////////////////////////////
+            InitGlInfo();
+
+#ifdef GFX_DEBUG_OUTPUT_ENABLED
+            /// Debug output
+            ///////////////////////////////
+            InitDebugOutput(_glf_window);
+            ConfigureDebugOutput(ogl_debug_output_filter_severe);
+#endif
+
         }
         ~RenderContext()
         {
@@ -160,6 +209,8 @@ namespace tao_render_context
     	[[nodiscard]] OglPixelPackBuffer CreatePixelPackBuffer();
 
         [[nodiscard]] OglFence CreateFence();
+
+        int UniformBufferOffsetAlignment() const {return _uniformBufferOffsetAlignment;};
     };
 }
 

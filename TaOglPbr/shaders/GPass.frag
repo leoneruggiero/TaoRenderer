@@ -1,6 +1,9 @@
 #version 430 core
-    
+
+#define GBUFF_WRITE
+
 //! #include "UboDefs.glsl"
+//! #include "GPassHelper.glsl"
 
 in VS_OUT
 {
@@ -10,30 +13,12 @@ in VS_OUT
     mat3 TBN;
 }fs_in;
 
-layout (location = 0) out vec4 gBuff0;
-layout (location = 1) out vec4 gBuff1;
-layout (location = 2) out vec4 gBuff2; 
-layout (location = 3) out vec4 gBuff3;
-layout (location = 4) out vec4 gBuff4;
-
-
 uniform sampler2D t_Albedo;
 uniform sampler2D t_Emission;
 uniform sampler2D t_Normals;
 uniform sampler2D t_Metalness;
 uniform sampler2D t_Roughness;
 uniform sampler2D t_Occlusion;
-  
-
-void WriteGBuff(vec3 albedo, vec3 emission, vec3 position, vec3 normal, float roughness, float metalness, float occlusion)
-{
-    // TODO: wasting a lot of space...
-    gBuff0 = vec4(albedo, 0.0);
-    gBuff1 = vec4(emission, 0.0);
-    gBuff2 = vec4(roughness, metalness, occlusion, 0.0);
-    gBuff3 = vec4(position, 1.0);
-    gBuff4 = vec4(normal, 0.0);
-}
 
 vec3 GetAlbedo()
 {

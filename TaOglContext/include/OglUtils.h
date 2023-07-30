@@ -17,12 +17,26 @@ public:
 	GLenum gl_error_code;
 	explicit GlException(GLenum error):gl_error_code(error)
 	{
-		_message = "OpenGL API error(" + std::to_string(gl_error_code) + ")";
+		_message = "OpenGL API error: " + ResolveGlErrorCode(error);
 	}
 	[[nodiscard]] const char* what() const noexcept override { return _message.c_str(); }
 
 private:
 	std::string _message;
+
+    static constexpr std::string ResolveGlErrorCode(GLenum error)
+    {
+        std::string msg{};
+        switch(error)
+        {
+            case(GL_INVALID_ENUM)       : msg = std::string{"INVALID ENUM"};        break;
+            case(GL_INVALID_VALUE)      : msg = std::string{"INVALID VALUE"};       break;
+            case(GL_INVALID_OPERATION)  : msg = std::string{"INVALID OPERATION"};   break;
+            default                     : msg = std::string{};                          break;
+        }
+
+        return msg.append("(").append(std::to_string(error)).append(")");
+    }
 };
 
 namespace  tao_render_context
@@ -643,5 +657,56 @@ namespace tao_ogl_resources
     {
         int attrib_count;
         vertex_attribute_desc* attrib_descriptors;
+    };
+
+    enum ogl_debug_output_severity
+    {
+        dbg_out_severity_low        = GL_DEBUG_SEVERITY_LOW,
+        dbg_out_severity_medium     = GL_DEBUG_SEVERITY_MEDIUM,
+        dbg_out_severity_high       = GL_DEBUG_SEVERITY_HIGH,
+        dbg_out_severity_dontcare   = GL_DONT_CARE
+    };
+
+    enum ogl_debug_output_type
+    {
+        dbg_out_type_error                  = GL_DEBUG_TYPE_ERROR,
+        dbg_out_type_deprecated_behavior    = GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR,
+        dbg_out_type_undefined_behavior     = GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR,
+        dbg_out_type_portability            = GL_DEBUG_TYPE_PORTABILITY,
+        dbg_out_type_performance            = GL_DEBUG_TYPE_PERFORMANCE,
+        dbg_out_type_other                  = GL_DEBUG_TYPE_OTHER,
+        dbg_out_type_dontcare               = GL_DONT_CARE
+    };
+
+    enum ogl_debug_output_source
+    {
+        dbg_out_src_api             = GL_DEBUG_SOURCE_API,
+        dbg_out_src_window_system   = GL_DEBUG_SOURCE_WINDOW_SYSTEM,
+        dbg_out_src_shader_compiler = GL_DEBUG_SOURCE_SHADER_COMPILER,
+        dbg_out_src_third_party     = GL_DEBUG_SOURCE_THIRD_PARTY,
+        dbg_out_src_application     = GL_DEBUG_SOURCE_APPLICATION,
+        dbg_out_src_other           = GL_DEBUG_SOURCE_OTHER,
+        dbg_out_src_dontcare        = GL_DONT_CARE,
+    };
+
+    struct ogl_debug_output_filter
+    {
+        ogl_debug_output_severity severity = dbg_out_severity_dontcare;
+        ogl_debug_output_source   source   = dbg_out_src_dontcare;
+        ogl_debug_output_type     type     = dbg_out_type_dontcare;
+    };
+
+    constexpr ogl_debug_output_filter ogl_debug_output_filter_errors_only
+    {
+        .severity =  dbg_out_severity_dontcare,
+        .source = dbg_out_src_dontcare,
+        .type = dbg_out_type_error,
+    };
+
+    constexpr ogl_debug_output_filter ogl_debug_output_filter_severe
+    {
+            .severity = static_cast<ogl_debug_output_severity>(dbg_out_severity_medium | dbg_out_severity_high),
+            .source = dbg_out_src_dontcare,
+            .type = dbg_out_type_error,
     };
 }

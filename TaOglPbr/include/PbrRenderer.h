@@ -5,11 +5,8 @@
 
 #include <list>
 #include <optional>
-#include "glm/vec2.hpp"
-#include "glm/vec3.hpp"
-#include "glm/vec4.hpp"
-#include "glm/mat3x3.hpp"
-#include "glm/mat3x2.hpp"
+#include "glm/glm.hpp"
+#include <glm/ext/matrix_transform.hpp>
 
 namespace tao_pbr
 {
@@ -251,10 +248,14 @@ namespace tao_pbr
         float _roughness;
         float _metalness;
         glm::vec3 _diffuse;
+        glm::vec3 _emission;
         std::optional<GenKey<ImageTexture>> _diffuseTex;
+        std::optional<GenKey<ImageTexture>> _emissionTex;
         std::optional<GenKey<ImageTexture>> _normalMap;
         std::optional<GenKey<ImageTexture>> _roughnessMap;
         std::optional<GenKey<ImageTexture>> _metalnessMap;
+        std::optional<GenKey<ImageTexture>> _occlusionMap;
+
 
         static bool CheckKey(const std::optional<GenKey<ImageTexture>>& key, const GenKeyVector<ImageTexture>& vector)
         {
@@ -273,6 +274,10 @@ namespace tao_pbr
         }
 
         inline const glm::mat4& transformation() const {return _transformation;}
+        void Translate(const glm::vec3& v)
+        {
+            _transformation  = glm::translate(_transformation, v);
+        }
 
     private:
         glm::mat4 _transformation;
@@ -302,9 +307,15 @@ namespace tao_pbr
                         .texDepth{_renderContext->CreateTexture2D()},
                         .gBuff{_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
                 },
+                _outBuffer
+                {
+                        .texColor{_renderContext->CreateTexture2D()},
+                        .buff{_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
+                },
                 _shaders
                 {
-                        .gPass{_renderContext->CreateShaderProgram()}
+                        .gPass{_renderContext->CreateShaderProgram()},
+                        .lightPass{_renderContext->CreateShaderProgram()}
                 },
                 _shaderBuffers
                 {
@@ -312,100 +323,56 @@ namespace tao_pbr
                         .transformUbo   {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy},
                         .materialUbo    {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy}
                 },
+                _fsQuad
+                {
+                        .vbo{_renderContext->CreateVertexBuffer()},
+                        .ebo{_renderContext->CreateIndexBuffer()},
+                        .vao{_renderContext->CreateVertexAttribArray()}
+                },
                 _meshes(),
                 _textures(),
                 _materials(),
                 _meshRenderers()
         {
             InitGBuffer(_windowWidth, _windowHeight);
+            InitOutputBuffer(_windowWidth, _windowHeight);
+            InitFsQuad();
             InitShaders();
             InitStaticShaderBuffers();
 
+            int glOffAlignment = _renderContext->UniformBufferOffsetAlignment();
+            int trBlkSize = sizeof(transform_gl_data_block);
+            int mtBlkSize = sizeof(material_gl_data_block);
+            _transformDataBlockAlignment = trBlkSize/glOffAlignment + (trBlkSize%glOffAlignment) ? glOffAlignment : 0;
+            _materialDataBlockAlignment = mtBlkSize/glOffAlignment + (mtBlkSize%glOffAlignment) ? glOffAlignment : 0;
         }
 
-        GenKey<Mesh> AddMesh(Mesh& mesh)
-        {
-            auto key = _meshes.insert(mesh);
+        GenKey<Mesh> AddMesh(Mesh& mesh);
+        GenKey<ImageTexture> AddImageTexture(ImageTexture& texture);
+        GenKey<PbrMaterial> AddMaterial(const PbrMaterial& material);
+        GenKey<MeshRenderer> AddMeshRenderer(const MeshRenderer& meshRenderer);
 
-            _meshes.at(key)._graphicsData = CreateGraphicsData(mesh);
+        void ReloadShaders();
 
-            return key;
-        }
-
-        GenKey<ImageTexture> AddImageTexture(ImageTexture& texture)
-        {
-            auto key = _textures.insert(texture);
-
-            _textures.at(key)._graphicsData = CreateGraphicsData(texture);
-
-            return key;
-        }
-
-        GenKey<PbrMaterial> AddMaterial(const PbrMaterial& material)
-        {
-            if(!PbrMaterial::CheckKey(material._diffuseTex, _textures))     throw std::runtime_error("Invalid texture key for `Diffuse` texture.");
-            if(!PbrMaterial::CheckKey(material._metalnessMap, _textures))   throw std::runtime_error("Invalid texture key for `Metalness` texture.");
-            if(!PbrMaterial::CheckKey(material._normalMap, _textures))      throw std::runtime_error("Invalid texture key for `Normal` texture.");
-            if(!PbrMaterial::CheckKey(material._roughnessMap, _textures))   throw std::runtime_error("Invalid texture key for `Roughness` texture.");
-
-            auto key = _materials.insert(material);
-
-            return key;
-        }
-
-        GenKey<MeshRenderer> AddMeshRenderer(const MeshRenderer& meshRenderer)
-        {
-            if(!_meshes.keyValid(meshRenderer.mesh))        throw std::runtime_error("Invalid `mesh` key.");
-            if(!_materials.keyValid(meshRenderer.material)) throw std::runtime_error("Invalid `material` key.");
-
-            auto key = _meshRenderers.insert(meshRenderer);
-
-            // Write transform and material to their buffers.
-            // Resize and copy back old data if necessary.
-            int rdrCount = _meshRenderers.vector().size();
-            int trDataBlkSize = sizeof(transform_gl_data_block);
-            if( _shaderBuffers.transformUbo.Resize(rdrCount*trDataBlkSize))
-            {
-                std::vector<transform_gl_data_block> transformData(_meshRenderers.vector().size());
-                std::vector<transform_gl_data_block> materialData(_meshRenderers.vector().size());
-
-                for(int i=0;i<rdrCount;i++)
-                {
-                    auto model = _meshRenderers.vector()[i].transformation.transformation();
-                    auto normal = glm::inverse(glm::transpose(model)); // TODO: are you sure???
-
-                    transformData[i]=(transform_gl_data_block
-                       {
-                           .modelMatrix = model,
-                           .normalMatrix = normal
-                       });
-
-                    // TODO: materials
-
-                }
-                _shaderBuffers.transformUbo.OglBuffer().SetSubData(0, rdrCount*trDataBlkSize, transformData.data());
-            }
-            else
-            {
-                auto model = _meshRenderers.at(key).transformation.transformation();
-                auto normal = glm::inverse(glm::transpose(model)); // TODO: are you sure???
-                transform_gl_data_block data
-                {
-                    .modelMatrix = model,
-                    .normalMatrix = normal
-                };
-                _shaderBuffers.transformUbo.OglBuffer().SetSubData(key.Index*trDataBlkSize, trDataBlkSize, &data);
-            }
-
-            return key;
-        }
-
-        void Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far);
+        const tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>&
+            Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far);
 
     private:
 
         static constexpr const char* GPASS_VERT_SOURCE = "GPass.vert";
         static constexpr const char* GPASS_FRAG_SOURCE = "GPass.frag";
+        static constexpr const char* LIGHTPASS_VERT_SOURCE = "LightPass.vert";
+        static constexpr const char* LIGHTPASS_FRAG_SOURCE = "LightPass.frag";
+
+        static constexpr const char* LIGHTPASS_NAME_GBUFF0  = "gBuff0";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF1  = "gBuff1";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF2  = "gBuff2";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF3  = "gBuff3";
+
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF0  = 0;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF1  = 1;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF2  = 2;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF3  = 3;
 
         static constexpr const int GPASS_UBO_BINDING_TRANSFORM  = 2;
         static constexpr const int GPASS_UBO_BINDING_MATERIAL   = 3;
@@ -420,6 +387,12 @@ namespace tao_pbr
                     .depth_range_near = 0.0f,
                     .depth_range_far = 1.0f
                 };
+
+        static constexpr tao_ogl_resources::ogl_depth_state DEPTH_STATE_OFF  =
+                tao_ogl_resources::ogl_depth_state
+                        {
+                                .depth_test_enable = false,
+                        };
 
         static constexpr tao_ogl_resources::ogl_blend_state DEFAULT_BLEND_STATE =
                 tao_ogl_resources::ogl_blend_state
@@ -451,9 +424,23 @@ namespace tao_pbr
             tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D> gBuff;
         };
 
+        struct OutputFramebuffer
+        {
+            tao_ogl_resources::OglTexture2D texColor;
+            tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D> buff;
+        };
+
         struct Shaders
         {
             tao_ogl_resources::OglShaderProgram gPass;
+            tao_ogl_resources::OglShaderProgram lightPass;
+        };
+
+        struct NdcQuad
+        {
+            tao_ogl_resources::OglVertexBuffer vbo;
+            tao_ogl_resources::OglIndexBuffer ebo;
+            tao_ogl_resources::OglVertexAttribArray vao;
         };
 
         struct camera_gl_data_block
@@ -464,16 +451,18 @@ namespace tao_pbr
             float far;
         };
 
+        int _transformDataBlockAlignment;
         struct transform_gl_data_block
         {
             glm::mat4 modelMatrix;
             glm::mat4 normalMatrix;
         };
 
+        int _materialDataBlockAlignment;
         struct material_gl_data_block
         {
             glm::vec4 diffuse;
-            glm::mat4 emission;
+            glm::vec4 emission;
             float roughness;
             float metalness;
 
@@ -496,8 +485,12 @@ namespace tao_pbr
         tao_render_context::RenderContext* _renderContext;
 
         GBuffer _gBuffer;
+        OutputFramebuffer _outBuffer;
+
         Shaders _shaders;
         ShaderBuffers _shaderBuffers;
+
+        NdcQuad _fsQuad;
 
         GenKeyVector<Mesh>          _meshes;
         GenKeyVector<MeshGraphicsData> _meshesGraphicsData;
@@ -510,9 +503,14 @@ namespace tao_pbr
 
 
         void InitGBuffer(int width, int height);
+        void InitOutputBuffer(int width, int height);
+        void InitFsQuad();
         void InitShaders();
         void InitStaticShaderBuffers();
-
+        void WriteTransfromToShaderBuffer(const MeshRenderer& mesh);
+        void WriteTransfromToShaderBuffer(const std::vector<MeshRenderer>& meshes);
+        void WriteMaterialToShaderBuffer(const MeshRenderer& mesh);
+        void WriteMaterialToShaderBuffer(const std::vector<MeshRenderer>& meshes);
         GenKey<MeshGraphicsData> CreateGraphicsData(Mesh& mesh);
         GenKey<ImageTextureGraphicsData> CreateGraphicsData(ImageTexture& image);
 

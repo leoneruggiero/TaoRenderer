@@ -845,16 +845,43 @@ int main()
         // *** TEST ***
         // -------------------
         auto sphere = tao_geometry::Mesh::Sphere(1.0f, 32);
-        tao_pbr::Mesh m{
+        tao_pbr::Mesh sphereMesh{
             sphere.GetPositions(),
             sphere.GetNormals(),
             sphere.GetTextureCoordinates(),
             sphere.GetIndices()
         };
+        auto cube = tao_geometry::Mesh::Box(2.0f, 2.0f, 2.0f);
+        tao_pbr::Mesh cubeMesh{
+                cube.GetPositions(),
+                cube.GetNormals(),
+                cube.GetTextureCoordinates(),
+                cube.GetIndices()
+        };
 
-        auto meshKey = pbrRdr.AddMesh(m);
-        auto matKey = pbrRdr.AddMaterial(PbrMaterial{0.6f, 0.0f, glm::vec3(1.0f, 0.3f, 0.0f)});
-        auto meshRdrKer = pbrRdr.AddMeshRenderer(MeshRenderer(glm::mat4(1.0f), meshKey, matKey));
+        auto sphereMeshKey = pbrRdr.AddMesh(sphereMesh);
+        auto cubeMeshKey = pbrRdr.AddMesh(cubeMesh);
+        auto blueMat = pbrRdr.AddMaterial(PbrMaterial{0.6f, 0.0f, glm::vec3(0.0f, 0.3f, 1.0f)});
+        auto redMat = pbrRdr.AddMaterial(PbrMaterial{0.6f, 0.0f, glm::vec3(1.0f, 0.3f, 0.0f)});
+        auto orangeMat = pbrRdr.AddMaterial(PbrMaterial{0.6f, 0.0f, glm::vec3(0.9f, 0.6f, 0.0f)});
+
+        MeshRenderer mr0 = MeshRenderer(glm::mat4(1.0f), sphereMeshKey, blueMat);
+        MeshRenderer mr1 = MeshRenderer(glm::mat4(1.0f), cubeMeshKey, redMat);
+        MeshRenderer mr2 = MeshRenderer(glm::mat4(1.0f), sphereMeshKey, redMat);
+        MeshRenderer mr3 = MeshRenderer(glm::mat4(1.0f), cubeMeshKey, blueMat);
+        MeshRenderer mr4 = MeshRenderer(glm::mat4(1.0f), sphereMeshKey, orangeMat);
+
+        mr0.transformation.Translate({-1.0f, 0.0f, 2.0f});
+        mr1.transformation.Translate({0.2f, -1.0f, 0.5f});
+        mr2.transformation.Translate({3.2f, 2.2f, 1.3f});
+        mr3.transformation.Translate({2.0f, -0.5f, 0.0f});
+        mr4.transformation.Translate({0.0f, -1.0f, -3.0f});
+
+        auto meshRdrKey0 = pbrRdr.AddMeshRenderer(mr0);
+        auto meshRdrKey1 = pbrRdr.AddMeshRenderer(mr1);
+        auto meshRdrKey2 = pbrRdr.AddMeshRenderer(mr2);
+        auto meshRdrKey3 = pbrRdr.AddMeshRenderer(mr3);
+        auto meshRdrKey4 = pbrRdr.AddMeshRenderer(mr4);
 
 
         // -------------------
@@ -976,9 +1003,10 @@ int main()
 			auto delta = duration_cast<milliseconds>(timeNow - startTime).count();
 			//animation(delta);
 
-            pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y);
+            pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y)
+                .CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
 
-			gizRdr.Render(viewMatrix, projMatrix, nearFar).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
+			gizRdr.Render(viewMatrix, projMatrix, nearFar); /*.CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);*/
 
 			float mouseX, mouseY;
 			mouseRawPosition.Position(mouseX, mouseY);

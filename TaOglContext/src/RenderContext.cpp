@@ -5,6 +5,114 @@ namespace tao_render_context
 
 	// ReSharper disable CppMemberFunctionMayBeStatic
 
+#ifdef GFX_DEBUG_OUTPUT_ENABLED
+    class CallBack
+    {
+    public:
+        static std::function<void(GLenum, GLenum, unsigned int, GLenum, GLsizei, const char*, const void*)> DebugOutputCallback;
+        static void APIENTRY StaticCallback(GLenum source,
+                                            GLenum type,
+                                            unsigned int id,
+                                            GLenum severity,
+                                            GLsizei length,
+                                            const char *message,
+                                            const void *userParam)
+        {
+            DebugOutputCallback(source, type, id, severity, length, message, userParam);
+        }
+    };
+
+    std::function<void(GLenum, GLenum, unsigned int, GLenum, GLsizei, const char*, const void*)> CallBack::DebugOutputCallback;
+
+    /// from: https://learnopengl.com/In-Practice/Debugging
+    ///////////////////////////////////////////////////////
+    void RenderContext::glDebugOutput(GLenum source,
+                       GLenum type,
+                       unsigned int id,
+                       GLenum severity,
+                       GLsizei length,
+                       const char *message,
+                       const void *userParam) const
+    {
+        // ignore non-significant error/warning codes
+        if(id == 131169 || id == 131185 || id == 131218 || id == 131204) return;
+
+
+        const char* srcStr;
+        const char* typeStr;
+        const char* svrStr;
+
+        switch (source)
+        {
+            case GL_DEBUG_SOURCE_API:             srcStr = "Source: API"; break;
+            case GL_DEBUG_SOURCE_WINDOW_SYSTEM:   srcStr = "Source: Window System"; break;
+            case GL_DEBUG_SOURCE_SHADER_COMPILER: srcStr = "Source: Shader Compiler"; break;
+            case GL_DEBUG_SOURCE_THIRD_PARTY:     srcStr = "Source: Third Party"; break;
+            case GL_DEBUG_SOURCE_APPLICATION:     srcStr = "Source: Application"; break;
+            case GL_DEBUG_SOURCE_OTHER:           srcStr = "Source: Other"; break;
+        }
+
+        switch (type)
+        {
+            case GL_DEBUG_TYPE_ERROR:               typeStr = "Type: Error"; break;
+            case GL_DEBUG_TYPE_DEPRECATED_BEHAVIOR: typeStr = "Type: Deprecated Behaviour"; break;
+            case GL_DEBUG_TYPE_UNDEFINED_BEHAVIOR:  typeStr = "Type: Undefined Behaviour"; break;
+            case GL_DEBUG_TYPE_PORTABILITY:         typeStr = "Type: Portability"; break;
+            case GL_DEBUG_TYPE_PERFORMANCE:         typeStr = "Type: Performance"; break;
+            case GL_DEBUG_TYPE_MARKER:              typeStr = "Type: Marker"; break;
+            case GL_DEBUG_TYPE_PUSH_GROUP:          typeStr = "Type: Push Group"; break;
+            case GL_DEBUG_TYPE_POP_GROUP:           typeStr = "Type: Pop Group"; break;
+            case GL_DEBUG_TYPE_OTHER:               typeStr = "Type: Other"; break;
+        }
+
+        switch (severity)
+        {
+            case GL_DEBUG_SEVERITY_HIGH:         svrStr = "Severity: high"; break;
+            case GL_DEBUG_SEVERITY_MEDIUM:       svrStr = "Severity: medium"; break;
+            case GL_DEBUG_SEVERITY_LOW:          svrStr = "Severity: low"; break;
+            case GL_DEBUG_SEVERITY_NOTIFICATION: svrStr = "Severity: notification"; break;
+        }
+
+        _debugOutputStream <<
+                           "[" << srcStr<< " | " << typeStr << " | " << svrStr <<"] "<< message << std::endl;
+    }
+
+    void RenderContext::InitDebugOutput(GLFWwindow *window)
+    {
+        int flags;
+        glGetIntegerv(GL_CONTEXT_FLAGS, &flags);
+        if (!(flags & GL_CONTEXT_FLAG_DEBUG_BIT))
+            throw runtime_error("RenderContext initialization failed: debug context not available.");
+
+        /// Meh...eh...
+        //////////////////////////
+
+        CallBack::DebugOutputCallback = std::bind(&RenderContext::glDebugOutput, this,
+                                                  placeholders::_1,
+                                                  placeholders::_2,
+                                                  placeholders::_3,
+                                                  placeholders::_4,
+                                                  placeholders::_5,
+                                                  placeholders::_6,
+                                                  placeholders::_7);
+
+        /////////////////////////
+
+        glEnable(GL_DEBUG_OUTPUT);
+        glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+        glDebugMessageCallback(CallBack::StaticCallback, nullptr);
+
+    }
+#endif
+
+    void RenderContext::InitGlInfo()
+    {
+        int res;
+        GL_CALL(glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &res));
+
+        _uniformBufferOffsetAlignment = res;
+    }
+
 	void RenderContext::ClearColor(float red, float green, float blue, float alpha)
 	{
 		GL_CALL(glClearColor(red, green, blue, alpha));

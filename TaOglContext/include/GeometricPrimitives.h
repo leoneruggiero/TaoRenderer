@@ -28,11 +28,9 @@ namespace tao_geometry
         {
             if (_indices.empty() || _textureCoordinates.empty()) throw std::runtime_error("Cannot compute tangents without triangles and texture coordinates.");
 
-
             std::vector<glm::vec3>
                 tangents = std::vector<glm::vec3>(_indices.size()),
                 bitangents = std::vector<glm::vec3>(_indices.size());
-
 
             for (int i = 0; i < _indices.size(); i += 3)
             {
@@ -196,12 +194,12 @@ namespace tao_geometry
             {
                 //bottom
                 glm::vec3(0 ,0, 0),
-                glm::vec3(width ,0, 0),
                 glm::vec3(width ,height, 0),
+                glm::vec3(width ,0, 0),
 
                 glm::vec3(0 ,0, 0),
-                glm::vec3(width ,height, 0),
                 glm::vec3(0 ,height, 0),
+                glm::vec3(width ,height, 0),
 
                 //front
                 glm::vec3(0 ,0, 0),
@@ -223,21 +221,21 @@ namespace tao_geometry
 
                 //back
                 glm::vec3(0 ,height, 0),
-                glm::vec3(width ,height, 0),
                 glm::vec3(width ,height, depth),
+                glm::vec3(width ,height, 0),
 
                 glm::vec3(0 ,height, 0),
-                glm::vec3(width ,height, depth),
                 glm::vec3(0 ,height, depth),
+                glm::vec3(width ,height, depth),
 
                 //left
                 glm::vec3(0 ,0, 0),
-                glm::vec3(0 ,height, 0),
                 glm::vec3(0 ,height, depth),
+                glm::vec3(0 ,height, 0),
 
                 glm::vec3(0 ,0, 0),
-                glm::vec3(0 ,height, depth),
                 glm::vec3(0 ,0, depth),
+                glm::vec3(0 ,height, depth),
 
                 //top
                 glm::vec3(0 ,0, depth),

@@ -47,6 +47,20 @@ namespace tao_render_context
             return *this;
         }
 
+        template<typename T>
+        BufferDataPacker &AddDataArray(const std::vector<T> &data)
+        {
+            DataPtrWithFormat dataPtr
+                    {
+                            .elementSize    = sizeof(T),
+                            .elementsCount    = static_cast<unsigned int>(data.size()),
+                            .dataPtr        = reinterpret_cast<const unsigned char *>(data.data())
+                    };
+
+            _dataArrays.push_back(dataPtr);
+            return *this;
+        }
+
         template<glm::length_t C, glm::length_t R, typename T>
         BufferDataPacker &AddDataArray(const std::vector<glm::mat<C, R, T>> &data)
         {
@@ -61,7 +75,7 @@ namespace tao_render_context
             return *this;
         }
 
-        [[nodiscard]] std::vector<unsigned char> InterleavedBuffer() const
+        [[nodiscard]] std::vector<unsigned char> InterleavedBuffer(int alignment  = 1) const
         {
             // early exit if empty
             if (_dataArrays.empty()) return std::vector<unsigned char>{};
@@ -76,6 +90,11 @@ namespace tao_render_context
                             "BufferDataPacker: Invalid input. Interleaving requires all the arrays to be the same length.");
 
                 cumulatedElementSize += d.elementSize;
+            }
+
+            if(alignment>1)
+            {
+                cumulatedElementSize = cumulatedElementSize/alignment + (cumulatedElementSize % alignment) ? alignment : 0;
             }
 
             std::vector<unsigned char> interleaved(elementCount * cumulatedElementSize);
