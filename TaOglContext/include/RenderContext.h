@@ -171,6 +171,8 @@ namespace tao_render_context
         void DrawElements         (ogl_primitive_type mode, GLsizei count, ogl_indices_type type, const void* indices);
         void DrawElementsInstanced(ogl_primitive_type mode, GLsizei count, ogl_indices_type type, const void* offset, GLsizei instanceCount);
 
+        void DispatchCompute      (GLuint num_groups_x, GLuint num_groups_y, GLuint num_groups_z);
+
         [[nodiscard]] OglVertexShader   CreateVertexShader();
         [[nodiscard]] OglVertexShader   CreateVertexShader(const char* source);
 
@@ -180,7 +182,11 @@ namespace tao_render_context
         [[nodiscard]] OglGeometryShader CreateGeometryShader();
         [[nodiscard]] OglGeometryShader CreateGeometryShader(const char* source);
 
+        [[nodiscard]] OglComputeShader CreateComputeShader();
+        [[nodiscard]] OglComputeShader CreateComputeShader(const char* source);
+
         [[nodiscard]] OglShaderProgram CreateShaderProgram();
+        [[nodiscard]] OglShaderProgram CreateShaderProgram(const char* computeSource);
         [[nodiscard]] OglShaderProgram CreateShaderProgram(const char* vertSource, const char* fragSource);
         [[nodiscard]] OglShaderProgram CreateShaderProgram(const char* vertSource, const char* geomSource, const char* fragSource);
 
@@ -190,9 +196,9 @@ namespace tao_render_context
         [[nodiscard]] OglVertexAttribArray CreateVertexAttribArray();
     	[[nodiscard]] OglVertexAttribArray CreateVertexAttribArray(const vector<pair<OglVertexBuffer&, vertex_buffer_layout_desc>> vertexDataSrc);
 
-        [[nodiscard]] OglTexture2D  CreateTexture2D();
-
-        [[nodiscard]] OglTexture2DMultisample  CreateTexture2DMultisample();
+        [[nodiscard]] OglTexture2D              CreateTexture2D();
+        [[nodiscard]] OglTextureCube            CreateTextureCube();
+        [[nodiscard]] OglTexture2DMultisample   CreateTexture2DMultisample();
 
         [[nodiscard]] OglSampler CreateSampler();
         [[nodiscard]] OglSampler CreateSampler(ogl_sampler_params params);

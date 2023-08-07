@@ -53,7 +53,8 @@ namespace tao_pbr
 
     void PbrRenderer::InitShaders()
     {
-        // Compile and create programs
+        // Geometry and Light - Pass shaders
+        // ------------------------------------
         auto gPassShader = _renderContext->CreateShaderProgram(
                 ShaderLoader::LoadShader(GPASS_VERT_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR).c_str(),
                 ShaderLoader::LoadShader(GPASS_FRAG_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR).c_str()
@@ -71,10 +72,18 @@ namespace tao_pbr
         lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF2, LIGHTPASS_TEX_BINDING_GBUFF2);
         lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF3, LIGHTPASS_TEX_BINDING_GBUFF3);
 
+
+        // Compute Shaders
+        // --------------------------------------
+        auto processEnvShader = _renderContext->CreateShaderProgram(
+                ShaderLoader::LoadShader(PROCESS_ENV_COMPUTE_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR).c_str()
+                );
+
         // if CreateShaderProgram() throws the
         // current shader is not affected.
-        _shaders.gPass      = std::move(gPassShader);
-        _shaders.lightPass  = std::move(lightPassShader);
+        _shaders.gPass                      = std::move(gPassShader);
+        _shaders.lightPass                  = std::move(lightPassShader);
+        _computeShaders.processEnvironment  = std::move(processEnvShader);
     }
 
     void PbrRenderer::InitFsQuad()
@@ -383,5 +392,42 @@ namespace tao_pbr
         OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
 
         return _outBuffer.buff;
+    }
+
+    PbrRenderer::EnvironmentTextures PbrRenderer::CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env, unsigned int outputResolution)
+    {
+        EnvironmentTextures res
+        {
+            .envCube{_renderContext->CreateTextureCube()},
+            .irradianceCube{_renderContext->CreateTextureCube()}
+        };
+
+        // Initialize each face level 0
+        for(ogl_texture_cube_target face = tex_tar_cube_map_negative_x; face <=tex_tar_cube_map_negative_z; face = static_cast<ogl_texture_cube_target>(face+1))
+        {
+            res.envCube         .TexImage(face, 0, tex_int_for_rgba16f, outputResolution, outputResolution, 0,  tex_for_rgba, tex_typ_float, nullptr);
+            res.irradianceCube  .TexImage(face, 0, tex_int_for_rgba16f, outputResolution, outputResolution, 0,  tex_for_rgba, tex_typ_float, nullptr);
+        }
+
+        /* tex unit 0 */ env                 .BindToTextureUnit(tex_unit_0);
+        /* img unit 0 */ res.envCube         .BindToImageUnit(0, 0, true, 0, image_access_rw, image_format_rgba16f);
+        /* img unit 1 */ res.irradianceCube  .BindToImageUnit(1, 0, true, 0, image_access_write, image_format_rgba16f);
+
+        _computeShaders.processEnvironment.UseProgram();
+        _computeShaders.processEnvironment.SetUniform(PROCESS_ENV_IN_TEX_NAME       , 0);
+        _computeShaders.processEnvironment.SetUniform(PROCESS_ENV_OUT_ENV_TEX_NAME  , 0);
+        _computeShaders.processEnvironment.SetUniform(PROCESS_ENV_OUT_IRR_TEX_NAME  , 1);
+
+        // TODO: profile!!! is it better to batch in bigger groups?
+        _renderContext->DispatchCompute(outputResolution, outputResolution, 6 /* one for each cube face */);
+
+        // TODO: renderContext->MemotyBarrier(...params...) !!! lazy
+        GL_CALL(glMemoryBarrier(GL_ALL_BARRIER_BITS));
+
+        env                 .UnBindToTextureUnit(tex_unit_0);
+        res.envCube         .UnBindToImageUnit(0);
+        res.irradianceCube  .UnBindToImageUnit(1);
+
+
     }
 }

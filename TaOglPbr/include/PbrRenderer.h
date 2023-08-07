@@ -323,6 +323,10 @@ namespace tao_pbr
                         .transformUbo   {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy},
                         .materialUbo    {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy}
                 },
+                _computeShaders
+                {
+                        .processEnvironment{_renderContext->CreateShaderProgram()}
+                },
                 _fsQuad
                 {
                         .vbo{_renderContext->CreateVertexBuffer()},
@@ -377,6 +381,12 @@ namespace tao_pbr
         static constexpr const int GPASS_UBO_BINDING_TRANSFORM  = 2;
         static constexpr const int GPASS_UBO_BINDING_MATERIAL   = 3;
         static constexpr const int GPASS_UBO_BINDING_CAMERA     = 1;
+
+        static constexpr const char* PROCESS_ENV_COMPUTE_SOURCE      = "ProcessEnvironment.comp";
+        static constexpr const char* PROCESS_ENV_IN_TEX_NAME         = "envTex";
+        static constexpr const char* PROCESS_ENV_OUT_ENV_TEX_NAME    = "envCube";
+        static constexpr const char* PROCESS_ENV_OUT_IRR_TEX_NAME    = "irradianceCube";
+
 
         static constexpr tao_ogl_resources::ogl_depth_state DEFAULT_DEPTH_STATE  =
                 tao_ogl_resources::ogl_depth_state
@@ -436,11 +446,22 @@ namespace tao_pbr
             tao_ogl_resources::OglShaderProgram lightPass;
         };
 
+        struct ComputeShaders
+        {
+            tao_ogl_resources::OglShaderProgram processEnvironment;
+        };
+
         struct NdcQuad
         {
             tao_ogl_resources::OglVertexBuffer vbo;
             tao_ogl_resources::OglIndexBuffer ebo;
             tao_ogl_resources::OglVertexAttribArray vao;
+        };
+
+        struct EnvironmentTextures
+        {
+            tao_ogl_resources::OglTextureCube envCube;
+            tao_ogl_resources::OglTextureCube irradianceCube;
         };
 
         struct camera_gl_data_block
@@ -490,6 +511,8 @@ namespace tao_pbr
         Shaders _shaders;
         ShaderBuffers _shaderBuffers;
 
+        ComputeShaders _computeShaders;
+
         NdcQuad _fsQuad;
 
         GenKeyVector<Mesh>          _meshes;
@@ -513,6 +536,9 @@ namespace tao_pbr
         void WriteMaterialToShaderBuffer(const std::vector<MeshRenderer>& meshes);
         GenKey<MeshGraphicsData> CreateGraphicsData(Mesh& mesh);
         GenKey<ImageTextureGraphicsData> CreateGraphicsData(ImageTexture& image);
+
+    public: // TODO: should not be public!!!
+        [[nodiscard]] EnvironmentTextures CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env, unsigned int outputResolution);
 
     };
 

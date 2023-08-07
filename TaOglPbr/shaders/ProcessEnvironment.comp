@@ -1,0 +1,57 @@
+#version 430 core
+
+// input texture
+// --------------
+uniform sampler2D envTex;
+
+// output textures
+// -----------------------------------------------------
+layout (rgba16f)    uniform  coherent  imageCube  envCube;
+                    uniform  writeonly imageCube  irradianceCube;
+
+layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+
+#define CUBE_FACE_POSITIVE_X 0
+#define CUBE_FACE_NEGATIVE_X 1
+#define CUBE_FACE_POSITIVE_Y 2
+#define CUBE_FACE_NEGATIVE_Y 3
+#define CUBE_FACE_POSITIVE_Z 4
+#define CUBE_FACE_NEGATIVE_Z 5
+
+#define INV_ATAN  vec2(0.1591, 0.3183)
+vec2 SampleSphericalMap(vec3 v)
+{
+    vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
+    uv *= INV_ATAN;
+    uv += 0.5;
+    return uv;
+}
+
+
+// --- !!! IMPORTANT !!! -------------------------------
+// Read this (cubemaps are strange):
+// https://www.khronos.org/opengl/wiki/Cubemap_Texture
+// -----------------------------------------------------
+void main()
+{
+    ivec2 envCubeSize = imageSize(envCube);
+    ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+
+    // the cube is centered at <0,0,0> and has edge len of 2.
+    vec3 dir = vec3(coord.xy/envCubeSize.xy, 0.0)*2.0-1.0;
+
+    if      (coord.z == CUBE_FACE_POSITIVE_X) dir = vec3( 1.0, dir.y,  dir.x);
+    else if (coord.z == CUBE_FACE_NEGATIVE_X) dir = vec3(-1.0, dir.y, -dir.x);
+    else if (coord.z == CUBE_FACE_POSITIVE_Y) dir = vec3( dir.x, 1.0,  dir.y);
+    else if (coord.z == CUBE_FACE_NEGATIVE_Y) dir = vec3( dir.x,-1.0, -dir.y);
+    else if (coord.z == CUBE_FACE_POSITIVE_Z) dir = vec3(-dir.x,  dir.y, 1.0);
+    else if (coord.z == CUBE_FACE_NEGATIVE_Z) dir = vec3( dir.x,  dir.y,-1.0);
+
+    dir = normalize(dir);
+
+    // from: https://learnopengl.com/PBR/IBL/Diffuse-irradiance
+    imageStore(envCube, coord, texture(envTex, SampleSphericalMap(dir)));
+
+    // --- BARRIER ----
+
+}

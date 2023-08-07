@@ -10,6 +10,8 @@ namespace tao_ogl_resources
     void   fragment_shader::Destroy(GLuint id) { GL_CALL(glDeleteShader(id)); }
     GLuint geometry_shader::Create() { GLuint id = 0; GL_CALL(id = glCreateShader(GL_GEOMETRY_SHADER)); return id; }
     void   geometry_shader::Destroy(GLuint id) { GL_CALL(glDeleteShader(id)); }
+    GLuint compute_shader::Create() { GLuint id = 0; GL_CALL(id = glCreateShader(GL_COMPUTE_SHADER)); return id; }
+    void   compute_shader::Destroy(GLuint id) { GL_CALL(glDeleteShader(id)); }
     GLuint shader_program::Create() { GLuint id = 0; GL_CALL(id = glCreateProgram()); return id; }
     void   shader_program::Destroy(GLuint id) { GL_CALL(glDeleteProgram(id)); }
     GLuint vertex_buffer_object::Create() { GLuint id = 0; GL_CALL(glCreateBuffers(1, &id)); return id; }
@@ -59,9 +61,11 @@ namespace tao_ogl_resources
         }
     }
 
-    void OglVertexShader::Compile(const char* source) { compileShader(_ogl_obj, source); }
-    void OglGeometryShader::Compile(const char* source) { compileShader(_ogl_obj, source); }
-    void OglFragmentShader::Compile(const char* source) { compileShader(_ogl_obj, source); }
+    void OglVertexShader    ::Compile(const char* source) { compileShader(_ogl_obj, source); }
+    void OglGeometryShader  ::Compile(const char* source) { compileShader(_ogl_obj, source); }
+    void OglFragmentShader  ::Compile(const char* source) { compileShader(_ogl_obj, source); }
+    void OglComputeShader   ::Compile(const char* source) { compileShader(_ogl_obj, source); }
+
     void OglShaderProgram::LinkProgram()
     {
 	    GL_CALL(glLinkProgram(_ogl_obj.ID()));
@@ -208,6 +212,17 @@ namespace tao_ogl_resources
         GL_CALL(glActiveTexture(unit));
 	    GL_CALL(glBindTexture(target, 0));
     }
+
+    static void bindToImageUnit(GLuint unit, GLuint texture, GLint level, GLboolean layered, GLint layer, ogl_image_access access, ogl_image_format format)
+    {
+        GL_CALL(glBindImageTexture(unit, texture, level, layered, layer, access, format));
+    }
+
+    static void unBindToImageUnit(GLuint unit)
+    {
+        GL_CALL(glBindImageTexture(unit, 0, 0, true, 0, ogl_image_access::image_access_rw, ogl_image_format::image_format_rgba32f));
+    }
+
     static void texImage1D(GLuint texture, GLenum target, GLint level, ogl_texture_internal_format internalFormat,
         GLsizei width, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
@@ -266,7 +281,14 @@ namespace tao_ogl_resources
     void OglTexture1D::UnBind()                                     { unBind(GL_TEXTURE_1D); }
     void OglTexture1D::BindToTextureUnit(ogl_texture_unit unit)     { bindToTextureUnit(GL_TEXTURE_1D, _ogl_obj.ID(), unit); }
     void OglTexture1D::UnBindToTextureUnit(ogl_texture_unit unit)   { unBindToTextureUnit(GL_TEXTURE_1D, unit); }
-
+    void OglTexture1D::BindToImageUnit(GLuint unit, GLint level, tao_ogl_resources::ogl_image_access access,tao_ogl_resources::ogl_image_format format)
+    {
+        bindToImageUnit(unit, _ogl_obj.ID(), 0, false, 0, access, format);
+    }
+    void OglTexture1D::UnBindToImageUnit(GLuint unit)
+    {
+        unBindToImageUnit(unit);
+    }
     void OglTexture1D::TexImage(GLint level, ogl_texture_internal_format internalFormat, GLsizei width, GLsizei height,
         GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
@@ -283,7 +305,14 @@ namespace tao_ogl_resources
     void OglTexture2D::UnBind()                                     { unBind(GL_TEXTURE_2D); }
     void OglTexture2D::BindToTextureUnit(ogl_texture_unit unit)     { bindToTextureUnit(GL_TEXTURE_2D, _ogl_obj.ID(), unit); }
     void OglTexture2D::UnBindToTextureUnit(ogl_texture_unit unit)   { unBindToTextureUnit(GL_TEXTURE_2D, unit); }
-
+    void OglTexture2D::BindToImageUnit(GLuint unit, GLint level, tao_ogl_resources::ogl_image_access access,tao_ogl_resources::ogl_image_format format)
+    {
+        bindToImageUnit(unit, _ogl_obj.ID(), 0, false, 0, access, format);
+    }
+    void OglTexture2D::UnBindToImageUnit(GLuint unit)
+    {
+        unBindToImageUnit(unit);
+    }
     void OglTexture2D::TexImage(GLint level, ogl_texture_internal_format internalFormat,
         GLsizei width, GLsizei height, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
@@ -303,6 +332,14 @@ namespace tao_ogl_resources
     void OglTexture2DMultisample::UnBind() { unBind(GL_TEXTURE_2D_MULTISAMPLE); }
     void OglTexture2DMultisample::BindToTextureUnit(ogl_texture_unit unit) { bindToTextureUnit(GL_TEXTURE_2D_MULTISAMPLE, _ogl_obj.ID(), unit); }
     void OglTexture2DMultisample::UnBindToTextureUnit(ogl_texture_unit unit) { unBindToTextureUnit(GL_TEXTURE_2D_MULTISAMPLE, unit); }
+    void OglTexture2DMultisample::BindToImageUnit(GLuint unit, GLint level, tao_ogl_resources::ogl_image_access access,tao_ogl_resources::ogl_image_format format)
+    {
+        bindToImageUnit(unit, _ogl_obj.ID(), 0, false, 0, access, format);
+    }
+    void OglTexture2DMultisample::UnBindToImageUnit(GLuint unit)
+    {
+        unBindToImageUnit(unit);
+    }
 
     void OglTexture2DMultisample::TexImage(GLsizei samples, ogl_texture_internal_format internalFormat,
         GLsizei width, GLsizei height, GLboolean fixedSampleLocation)
@@ -318,11 +355,21 @@ namespace tao_ogl_resources
     void OglTextureCube::UnBind()                                     { unBind(GL_TEXTURE_CUBE_MAP); }
     void OglTextureCube::BindToTextureUnit(ogl_texture_unit unit)     { bindToTextureUnit(GL_TEXTURE_CUBE_MAP, _ogl_obj.ID(), unit); }
     void OglTextureCube::UnBindToTextureUnit(ogl_texture_unit unit)   { unBindToTextureUnit(GL_TEXTURE_CUBE_MAP, unit); }
+    void OglTextureCube::BindToImageUnit(GLuint unit, GLint level, GLboolean  layered, GLint layer, tao_ogl_resources::ogl_image_access access,tao_ogl_resources::ogl_image_format format)
+    {
+        bindToImageUnit(unit, _ogl_obj.ID(), 0, layered, layer, access, format);
+    }
+    void OglTextureCube::UnBindToImageUnit(GLuint unit)
+    {
+        unBindToImageUnit(unit);
+    }
 
     void OglTextureCube::TexImage(ogl_texture_cube_target target, GLint level, ogl_texture_internal_format internalFormat, 
         GLsizei width, GLsizei height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data)
     {
-        texImage2D(_ogl_obj.ID(), target, level, internalFormat, width, height, border, format, type, data);
+        Bind();
+        GL_CALL(glTexImage2D(target, level, internalFormat, width, height, border, format, type, data));
+        UnBind();
     }
     void OglTextureCube::GenerateMipmap() { generateMipmap(_ogl_obj.ID()); }
     void OglTextureCube::SetDepthStencilMode(ogl_texture_depth_stencil_tex_mode mode) { setDepthStencilTextureMode(_ogl_obj.ID(), mode); }

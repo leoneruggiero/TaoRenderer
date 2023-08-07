@@ -248,6 +248,11 @@ namespace tao_render_context
 		GL_CALL(glDrawElementsInstanced( mode, count, type, offset, instanceCount));
 	}
 
+    void RenderContext::DispatchCompute(GLuint num_groups_x, GLuint num_groups_y, GLuint num_groups_z)
+    {
+        GL_CALL(glDispatchCompute(num_groups_x, num_groups_y, num_groups_z));
+    }
+
 	OglVertexShader RenderContext::CreateVertexShader()	
 	{
 		return OglVertexShader{ OglResource<vertex_shader>{} };
@@ -278,10 +283,37 @@ namespace tao_render_context
 		g.Compile(source);
 		return g;
 	}
+
+    OglComputeShader RenderContext::CreateComputeShader()
+    {
+        return OglComputeShader{ OglResource<compute_shader>{} };
+    }
+    OglComputeShader RenderContext::CreateComputeShader(const char* source)
+    {
+        auto g = OglComputeShader{ OglResource<compute_shader>{} };
+        g.Compile(source);
+        return g;
+    }
+
 	OglShaderProgram RenderContext::CreateShaderProgram() 
 	{
 		return OglShaderProgram{ OglResource<shader_program>{} };
 	}
+
+    OglShaderProgram RenderContext::CreateShaderProgram(const char* computeSource)
+    {
+        if (!computeSource) throw std::runtime_error("CreateShaderProgram: `computeSource` is null.");
+
+        auto p = OglShaderProgram{ OglResource<shader_program>{} };
+        auto c = OglComputeShader{ OglResource<compute_shader>() };
+
+        c.Compile(computeSource);
+        p.AttachShader(c);
+        p.LinkProgram();
+
+        return p;
+    }
+
 	OglShaderProgram RenderContext::CreateShaderProgram(const char* vertSource, const char* geomSource, const char* fragSource) 
 	{
 		if (!vertSource || !fragSource)
@@ -394,6 +426,11 @@ namespace tao_render_context
 	{
 		return OglTexture2D{ OglResource<texture_2D>{} };
 	}
+
+    OglTextureCube RenderContext::CreateTextureCube()
+    {
+        return OglTextureCube{ OglResource<texture_cube>{} };
+    }
 
 	OglTexture2DMultisample RenderContext::CreateTexture2DMultisample()
 	{

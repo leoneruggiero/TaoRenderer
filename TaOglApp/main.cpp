@@ -448,7 +448,7 @@ void InitArrowTriad2D(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayers& l
 	vector<LineGizmoVertex> axisVertsY{};
 	vector<LineGizmoVertex> axisVertsZ{};
 
-	// X Axis
+	/// X Axis
 	///////////////////////////////////
 	axisVertsX.push_back(LineGizmoVertex{}.Position({ 0.0f	 , 0.0f, 0.0f }).Color(whi));
 	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen, 0.0f, 0.0f }).Color(red));
@@ -463,7 +463,7 @@ void InitArrowTriad2D(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayers& l
 	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen			 , 0.0f, -arrowWidth * 0.5f }).Color({ red }));
 	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen + arrowDepth, 0.0f, 0.0f }).Color({ red }));
 
-	// Y Axis
+	/// Y Axis
 	///////////////////////////////////
 	glm::mat4 rot = glm::rotate(glm::mat4{ 1.0f }, glm::pi<float>() * 0.5f, glm::vec3{ 0.0f, 0.0f, 1.0f });
 	for (int i = 0; i < axisVertsX.size(); i++)
@@ -844,6 +844,31 @@ int main()
 
         // *** TEST ***
         // -------------------
+
+        stbi_set_flip_vertically_on_load(true);
+        int width, height, nrComponents;
+        float *data = stbi_loadf("C:/Users/Admin/Downloads/je_gray_park_1k.hdr", &width, &height, &nrComponents, 0);
+        if (data)
+        {
+            rc.SwapBuffers();
+
+            OglTexture2D envTex = rc.CreateTexture2D();
+            envTex.TexImage(0, tex_int_for_rgba32f, width, height, tex_for_rgb, tex_typ_float, data);
+
+            pbrRdr.CreateEnvironmentTextures(envTex, 512);
+
+
+            rc.SwapBuffers();
+
+            stbi_image_free(data);
+        }
+        else
+        {
+            std::cout << "Failed to load HDR image." << std::endl;
+        }
+
+
+
         auto sphere = tao_geometry::Mesh::Sphere(1.0f, 32);
         tao_pbr::Mesh sphereMesh{
             sphere.GetPositions(),
@@ -882,12 +907,7 @@ int main()
         auto meshRdrKey2 = pbrRdr.AddMeshRenderer(mr2);
         auto meshRdrKey3 = pbrRdr.AddMeshRenderer(mr3);
         auto meshRdrKey4 = pbrRdr.AddMeshRenderer(mr4);
-
-
         // -------------------
-
-
-
 
 		mouse_input_data mouseRotateData;
 		mouse_input_data mouseZoomData;
@@ -1003,10 +1023,10 @@ int main()
 			auto delta = duration_cast<milliseconds>(timeNow - startTime).count();
 			//animation(delta);
 
-            pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y)
-                .CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
+            //pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y)
+            //    .CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
 
-			gizRdr.Render(viewMatrix, projMatrix, nearFar); /*.CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);*/
+			gizRdr.Render(viewMatrix, projMatrix, nearFar).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
 
 			float mouseX, mouseY;
 			mouseRawPosition.Position(mouseX, mouseY);

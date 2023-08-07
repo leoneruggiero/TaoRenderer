@@ -116,6 +116,19 @@ namespace tao_ogl_resources
 		tex_unit_15 = GL_TEXTURE16,
 	};
 
+    enum ogl_image_access
+    {
+        image_access_read = GL_READ_ONLY,
+        image_access_write = GL_WRITE_ONLY,
+        image_access_rw    = GL_READ_WRITE,
+    };
+
+    enum ogl_image_format
+    {
+        image_format_rgba32f = GL_RGBA32F,
+        image_format_rgba16f = GL_RGBA16F
+    };
+
 	enum ogl_texture_cube_target
 	{
 		tex_tar_cube_map_positive_x = GL_TEXTURE_CUBE_MAP_POSITIVE_X,

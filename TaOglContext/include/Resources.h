@@ -36,6 +36,12 @@ namespace tao_ogl_resources
 		static void Destroy(GLuint);
 		static constexpr const char* to_string = "geometry shader";
 	};
+    struct compute_shader
+    {
+        static GLuint Create();
+        static void Destroy(GLuint);
+        static constexpr const char* to_string = "compute shader";
+    };
 	struct shader_program
 	{
 		static GLuint Create();
@@ -126,6 +132,7 @@ namespace tao_ogl_resources
 		std::is_same_v<T, vertex_shader>			||
 		std::is_same_v<T, fragment_shader>			||
 		std::is_same_v<T, geometry_shader>			||
+        std::is_same_v<T, compute_shader>			||
 		std::is_same_v<T, shader_program>			||
 		std::is_same_v<T, vertex_buffer_object>		||
 		std::is_same_v<T, vertex_attrib_array>		||
@@ -145,7 +152,8 @@ namespace tao_ogl_resources
 	concept ogl_shader =
 		std::is_same_v<T, vertex_shader>	||
 		std::is_same_v<T, fragment_shader>	||
-		std::is_same_v<T, geometry_shader>;
+		std::is_same_v<T, geometry_shader>  ||
+        std::is_same_v<T, compute_shader>;
 
 	template<typename T>
 	concept ogl_buffer =
@@ -272,6 +280,21 @@ namespace tao_ogl_resources
         OglResource<geometry_shader> _ogl_obj;
         OglGeometryShader(OglResource<geometry_shader>&& shader) :_ogl_obj(std::move(shader)) {}
 	};
+
+    /// Compute Shader
+    //////////////////////////////////////
+    class OglComputeShader
+    {
+        friend class tao_render_context::RenderContext;
+        friend class OglShaderProgram;
+    public:
+        typedef compute_shader ogl_resource_type;
+        void Compile(const char* source);
+
+    private:
+        OglResource<compute_shader> _ogl_obj;
+        OglComputeShader(OglResource<compute_shader>&& shader) :_ogl_obj(std::move(shader)) {}
+    };
 
 	/// Shader Program
 	//////////////////////////////////////
@@ -463,6 +486,8 @@ namespace tao_ogl_resources
 		static void UnBind();
 		void BindToTextureUnit  (ogl_texture_unit unit);
 		static void UnBindToTextureUnit(ogl_texture_unit unit);
+        void BindToImageUnit  (GLuint unit, GLint level, ogl_image_access access, ogl_image_format format);
+        static void UnBindToImageUnit(GLuint unit);
 		void TexImage(GLint level, ogl_texture_internal_format internalFormat, GLsizei width, GLsizei height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data);
 		void GenerateMipmap();
 		void SetFilterParams(ogl_tex_filter_params params);
@@ -487,6 +512,8 @@ namespace tao_ogl_resources
 		static void UnBind();
 		void BindToTextureUnit(ogl_texture_unit unit);
 		static void UnBindToTextureUnit(ogl_texture_unit unit);
+        void BindToImageUnit  (GLuint unit, GLint level, ogl_image_access access, ogl_image_format format);
+        static void UnBindToImageUnit(GLuint unit);
 		void TexImage(GLint level, ogl_texture_internal_format internalFormat, GLsizei width, GLsizei height, ogl_texture_format format, ogl_texture_data_type type, const void* data);
 		void GenerateMipmap();
 		void SetDepthStencilMode(ogl_texture_depth_stencil_tex_mode mode);
@@ -516,6 +543,8 @@ namespace tao_ogl_resources
 		static void UnBind();
 		void BindToTextureUnit(ogl_texture_unit unit);
 		static void UnBindToTextureUnit(ogl_texture_unit unit);
+        void BindToImageUnit  (GLuint unit, GLint level, ogl_image_access access, ogl_image_format format);
+        static void UnBindToImageUnit(GLuint unit);
 		void TexImage(GLsizei samples, ogl_texture_internal_format internalFormat, GLsizei width, GLsizei height, GLboolean fixedSampleLocation);
 
     private:
@@ -537,6 +566,8 @@ namespace tao_ogl_resources
 		static void UnBind();
 		void BindToTextureUnit(ogl_texture_unit unit);
 		static void UnBindToTextureUnit(ogl_texture_unit unit);
+        void BindToImageUnit  (GLuint unit, GLint level, GLboolean  layered, GLint layer, ogl_image_access access, ogl_image_format format);
+        static void UnBindToImageUnit(GLuint unit);
 		void TexImage(ogl_texture_cube_target target, GLint level, ogl_texture_internal_format internalFormat, GLsizei width, GLsizei height, GLint border, ogl_texture_format format, ogl_texture_data_type type, const void* data);
 		void GenerateMipmap();
 		void SetDepthStencilMode(ogl_texture_depth_stencil_tex_mode mode);
