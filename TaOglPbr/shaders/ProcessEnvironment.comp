@@ -1,15 +1,6 @@
 #version 430 core
 
-// input texture
-// --------------
-uniform sampler2D envTex;
-
-// output textures
-// -----------------------------------------------------
-layout (rgba16f)    uniform  coherent  imageCube  envCube;
-                    uniform  writeonly imageCube  irradianceCube;
-
-layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
+//! #include "PbrHelper.glsl"
 
 #define CUBE_FACE_POSITIVE_X 0
 #define CUBE_FACE_NEGATIVE_X 1
@@ -19,6 +10,8 @@ layout (local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 #define CUBE_FACE_NEGATIVE_Z 5
 
 #define INV_ATAN  vec2(0.1591, 0.3183)
+
+// from: https://learnopengl.com/PBR/IBL/Diffuse-irradiance
 vec2 SampleSphericalMap(vec3 v)
 {
     vec2 uv = vec2(atan(v.z, v.x), asin(v.y));
@@ -27,31 +20,131 @@ vec2 SampleSphericalMap(vec3 v)
     return uv;
 }
 
+vec3 CubeTexelCoordToDir(ivec3 texelCoord, ivec2 textureSize)
+{
+    // --- !!! IMPORTANT !!! -------------------------------
+    // Read this:
+    // https://www.khronos.org/opengl/wiki/Cubemap_Texture
 
-// --- !!! IMPORTANT !!! -------------------------------
-// Read this (cubemaps are strange):
-// https://www.khronos.org/opengl/wiki/Cubemap_Texture
-// -----------------------------------------------------
+    // the cube is centered at <0,0,0> and has edge len of 2.
+    vec3 dir = vec3(texelCoord.xy/vec2(textureSize.xy), 0.0)*2.0-1.0;
+
+    if      (texelCoord.z == CUBE_FACE_POSITIVE_X) dir = vec3( 1.0, -dir.y,-dir.x);
+    else if (texelCoord.z == CUBE_FACE_NEGATIVE_X) dir = vec3(-1.0, -dir.y, dir.x);
+    else if (texelCoord.z == CUBE_FACE_POSITIVE_Y) dir = vec3( dir.x, 1.0,  dir.y);
+    else if (texelCoord.z == CUBE_FACE_NEGATIVE_Y) dir = vec3( dir.x,-1.0, -dir.y);
+    else if (texelCoord.z == CUBE_FACE_POSITIVE_Z) dir = vec3( dir.x,-dir.y, 1.0);
+    else if (texelCoord.z == CUBE_FACE_NEGATIVE_Z) dir = vec3(-dir.x,-dir.y,-1.0);
+
+    return normalize(dir);
+}
+
+#ifdef GEN_ENVIRONMENT_CUBE
+
+uniform sampler2D envTex;                                   // input : HDR environment 2D texture
+layout (rgba16f)    uniform writeonly imageCube  envCube;   // output: HDR environmtne cube map
+#endif
+
+#ifdef GEN_IRRADIANCE_CUBE
+
+uniform samplerCube envCube;                                        // input : HDR environemt cube map
+layout (rgba16f)    uniform writeonly imageCube  irradianceCube;    // output: HDR irradiance cube map
+#endif
+
+#ifdef GEN_PREFILTERED_ENV_CUBE
+
+uniform samplerCube envCube;                                         // input : HDR environemt cube map
+layout (rgba16f)    uniform writeonly imageCube  prefilteredEnvCube; // output: HDR prefiltered environment cube map
+#endif
+
+#ifdef GEN_ENVIRONMENT_BRDF_LUT
+layout (rg16f)      uniform writeonly image2D  envBRDFLut; // output: split sum brdf lut
+#endif
+
+layout (local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+#ifdef GEN_ENVIRONMENT_CUBE
 void main()
 {
     ivec2 envCubeSize = imageSize(envCube);
     ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+    vec3  dir   = CubeTexelCoordToDir(coord, imageSize(envCube));
 
-    // the cube is centered at <0,0,0> and has edge len of 2.
-    vec3 dir = vec3(coord.xy/envCubeSize.xy, 0.0)*2.0-1.0;
-
-    if      (coord.z == CUBE_FACE_POSITIVE_X) dir = vec3( 1.0, dir.y,  dir.x);
-    else if (coord.z == CUBE_FACE_NEGATIVE_X) dir = vec3(-1.0, dir.y, -dir.x);
-    else if (coord.z == CUBE_FACE_POSITIVE_Y) dir = vec3( dir.x, 1.0,  dir.y);
-    else if (coord.z == CUBE_FACE_NEGATIVE_Y) dir = vec3( dir.x,-1.0, -dir.y);
-    else if (coord.z == CUBE_FACE_POSITIVE_Z) dir = vec3(-dir.x,  dir.y, 1.0);
-    else if (coord.z == CUBE_FACE_NEGATIVE_Z) dir = vec3( dir.x,  dir.y,-1.0);
-
-    dir = normalize(dir);
-
-    // from: https://learnopengl.com/PBR/IBL/Diffuse-irradiance
     imageStore(envCube, coord, texture(envTex, SampleSphericalMap(dir)));
-
-    // --- BARRIER ----
-
 }
+#endif
+
+#ifdef GEN_IRRADIANCE_CUBE
+void main()
+{
+    ivec2 irrCubeSize = imageSize(irradianceCube);
+    ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+    vec3  dir   = CubeTexelCoordToDir(coord, irrCubeSize);
+
+    // creating a reference frame so that `dir` is `up`
+    vec3 right, up, forward;
+
+    float maxCoord = max(max(abs(dir.x), abs(dir.y)), abs(dir.z));
+         if (maxCoord == abs(dir.x)) forward = vec3(0.0, 1.0, 0.0);
+    else if (maxCoord == abs(dir.y)) forward = vec3(0.0, 0.0, 1.0);
+    else if (maxCoord == abs(dir.z)) forward = vec3(0.0, 1.0, 0.0);
+
+    up          = dir;
+    right       = normalize(cross(forward, up));
+    forward     = cross(up, right);
+
+    const float da = 0.025;
+
+    vec4 sum = vec4(0.0);
+    float iter = 0.0;
+
+    for(float th = da; th <= PI_2; th+=da)
+    {
+        float sinTh = sin(th);
+        float cosTh = cos(th);
+
+        for (float phi =0.0; phi < 2.0*PI; phi+=da)
+        {
+            vec3 smpDir =
+                sinTh*cos(phi)  * right  +
+                cosTh           * up     +
+                sinTh*sin(phi)  * forward;
+
+            sum+= vec4(ClampHDRValue(texture(envCube, smpDir).rgb, 10.0), 0.0)
+                    * sinTh  // sphere integration area adjustment
+                    * cosTh; // cosine-weighted sampling (incoming light)
+            iter+=1.0;
+        }
+    }
+
+    imageStore(irradianceCube, coord, sum * PI/iter );
+}
+#endif
+
+#ifdef GEN_PREFILTERED_ENV_CUBE
+
+uniform float u_roughness;
+
+void main()
+{
+    ivec2 cubeSize = imageSize(prefilteredEnvCube);
+    ivec3 coord = ivec3(gl_GlobalInvocationID.xyz);
+    vec3  dir   = CubeTexelCoordToDir(coord, cubeSize);
+
+    imageStore(prefilteredEnvCube, coord, vec4(PrefilterEnvMap(envCube, u_roughness, dir), 1.0));
+}
+#endif
+
+#ifdef GEN_ENVIRONMENT_BRDF_LUT
+
+void main()
+{
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
+    vec2  uv    = vec2(coord+0.5)/imageSize(envBRDFLut).xy;
+
+    vec2 res = IntegrateBRDF(uv.y, uv.x);
+
+    imageStore(envBRDFLut, coord, vec4(res, 0.0, 0.0));
+}
+
+#endif

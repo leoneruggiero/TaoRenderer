@@ -105,12 +105,19 @@ namespace tao_render_context
     }
 #endif
 
+
+
     void RenderContext::InitGlInfo()
     {
         int res;
         GL_CALL(glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &res));
 
         _uniformBufferOffsetAlignment = res;
+    }
+
+    void RenderContext::SetupGl()
+    {
+        GL_CALL(glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS));
     }
 
 	void RenderContext::ClearColor(float red, float green, float blue, float alpha)

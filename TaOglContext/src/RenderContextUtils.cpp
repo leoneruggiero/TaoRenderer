@@ -78,7 +78,7 @@ namespace tao_render_context
     }
 
 
-    void ShaderLoader::DefineConditional(std::string &shaderSource, const std::vector<std::string> &definitions)
+    std::string ShaderLoader::DefineConditional(const std::string &shaderSource, const std::vector<std::string> &definitions)
     {
         std::string line{};
         std::stringstream inStr{shaderSource};
@@ -99,7 +99,7 @@ namespace tao_render_context
         } else
             throw std::runtime_error{"Cannot define conditional symbols. The shader is ill-formed."};
 
-        shaderSource = outStr.str();
+        return outStr.str();
     }
 
     // Resizable VBO

@@ -70,6 +70,7 @@ namespace tao_render_context
 #endif
 
         void InitGlInfo();
+        void SetupGl();
 
     public:
         RenderContext(int windowWidth, int windowHeight, const char* windowName = "Unnamed Window") :
@@ -128,6 +129,10 @@ namespace tao_render_context
             /// Init useful Ogl info
             ///////////////////////////////
             InitGlInfo();
+
+            /// Additional Ogl Setup
+            //////////////////////////////
+            SetupGl();
 
 #ifdef GFX_DEBUG_OUTPUT_ENABLED
             /// Debug output

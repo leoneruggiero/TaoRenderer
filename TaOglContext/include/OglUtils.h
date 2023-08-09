@@ -126,7 +126,8 @@ namespace tao_ogl_resources
     enum ogl_image_format
     {
         image_format_rgba32f = GL_RGBA32F,
-        image_format_rgba16f = GL_RGBA16F
+        image_format_rgba16f = GL_RGBA16F,
+        image_format_rg16f   = GL_RG16F,
     };
 
 	enum ogl_texture_cube_target
@@ -722,4 +723,11 @@ namespace tao_ogl_resources
             .source = dbg_out_src_dontcare,
             .type = dbg_out_type_error,
     };
+
+    constexpr ogl_debug_output_filter ogl_debug_output_filter_everything
+            {
+                    .severity = dbg_out_severity_dontcare,
+                    .source = dbg_out_src_dontcare,
+                    .type = dbg_out_type_dontcare,
+            };
 }

@@ -14,10 +14,8 @@ namespace tao_render_context
     class ShaderLoader
     {
     public:
-        static std::string
-        LoadShader(const char *shaderSourceFile, const char *shaderSourceDir, const char *shaderIncludeDir);
-
-        static void DefineConditional(std::string &shaderSource, const std::vector<std::string> &definitions);
+        static std::string LoadShader(const char *shaderSourceFile, const char *shaderSourceDir, const char *shaderIncludeDir);
+        static std::string DefineConditional(const std::string &shaderSource, const std::vector<std::string> &definitions);
 
     private:
         static constexpr const char *INCLUDE_DIRECTIVE = "//! #include";

@@ -844,31 +844,6 @@ int main()
 
         // *** TEST ***
         // -------------------
-
-        stbi_set_flip_vertically_on_load(true);
-        int width, height, nrComponents;
-        float *data = stbi_loadf("C:/Users/Admin/Downloads/je_gray_park_1k.hdr", &width, &height, &nrComponents, 0);
-        if (data)
-        {
-            rc.SwapBuffers();
-
-            OglTexture2D envTex = rc.CreateTexture2D();
-            envTex.TexImage(0, tex_int_for_rgba32f, width, height, tex_for_rgb, tex_typ_float, data);
-
-            pbrRdr.CreateEnvironmentTextures(envTex, 512);
-
-
-            rc.SwapBuffers();
-
-            stbi_image_free(data);
-        }
-        else
-        {
-            std::cout << "Failed to load HDR image." << std::endl;
-        }
-
-
-
         auto sphere = tao_geometry::Mesh::Sphere(1.0f, 32);
         tao_pbr::Mesh sphereMesh{
             sphere.GetPositions(),

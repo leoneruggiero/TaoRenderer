@@ -357,7 +357,7 @@ namespace tao_ogl_resources
     void OglTextureCube::UnBindToTextureUnit(ogl_texture_unit unit)   { unBindToTextureUnit(GL_TEXTURE_CUBE_MAP, unit); }
     void OglTextureCube::BindToImageUnit(GLuint unit, GLint level, GLboolean  layered, GLint layer, tao_ogl_resources::ogl_image_access access,tao_ogl_resources::ogl_image_format format)
     {
-        bindToImageUnit(unit, _ogl_obj.ID(), 0, layered, layer, access, format);
+        bindToImageUnit(unit, _ogl_obj.ID(), level, layered, layer, access, format);
     }
     void OglTextureCube::UnBindToImageUnit(GLuint unit)
     {

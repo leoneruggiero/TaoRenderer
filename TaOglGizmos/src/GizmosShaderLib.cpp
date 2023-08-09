@@ -32,9 +32,9 @@ namespace tao_gizmos
 
         if(modifier == gizmos_shader_modifier::selection)
         {
-            /* Not optional */  ShaderLoader::DefineConditional(vertSrc, { SELECTION_SYMBOL });
-            if (geomSrcFile)    ShaderLoader::DefineConditional(geomSrc, { SELECTION_SYMBOL });
-            /* Not optional */  ShaderLoader::DefineConditional(fragSrc, { SELECTION_SYMBOL });
+            /* Not optional */  vertSrc = ShaderLoader::DefineConditional(vertSrc, { SELECTION_SYMBOL });
+            if (geomSrcFile)    geomSrc = ShaderLoader::DefineConditional(geomSrc, { SELECTION_SYMBOL });
+            /* Not optional */  fragSrc = ShaderLoader::DefineConditional(fragSrc, { SELECTION_SYMBOL });
         }
 
         return

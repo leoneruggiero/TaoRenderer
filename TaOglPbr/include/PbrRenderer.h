@@ -298,6 +298,7 @@ namespace tao_pbr
                 _windowWidth  (windowWidth),
                 _windowHeight (windowHeight),
                 _renderContext(&rc),
+                _envBRDFLut{rc.CreateTexture2D()},
                 _gBuffer
                 {
                         .texColor0{_renderContext->CreateTexture2D()},
@@ -325,7 +326,10 @@ namespace tao_pbr
                 },
                 _computeShaders
                 {
-                        .processEnvironment{_renderContext->CreateShaderProgram()}
+                        .generateEnvironmentCube    {_renderContext->CreateShaderProgram()},
+                        .generateIrradianceCube     {_renderContext->CreateShaderProgram()},
+                        .generatePrefilteredEnvCube {_renderContext->CreateShaderProgram()},
+                        .generateEnvBRDFLut         {_renderContext->CreateShaderProgram()},
                 },
                 _fsQuad
                 {
@@ -335,6 +339,8 @@ namespace tao_pbr
                 },
                 _meshes(),
                 _textures(),
+                _pointSampler   {_renderContext->CreateSampler()},
+                _linearSampler  {_renderContext->CreateSampler()},
                 _materials(),
                 _meshRenderers()
         {
@@ -342,7 +348,9 @@ namespace tao_pbr
             InitOutputBuffer(_windowWidth, _windowHeight);
             InitFsQuad();
             InitShaders();
+            InitSamplers();
             InitStaticShaderBuffers();
+            InitEnvBRDFLut();
 
             int glOffAlignment = _renderContext->UniformBufferOffsetAlignment();
             int trBlkSize = sizeof(transform_gl_data_block);
@@ -383,10 +391,19 @@ namespace tao_pbr
         static constexpr const int GPASS_UBO_BINDING_CAMERA     = 1;
 
         static constexpr const char* PROCESS_ENV_COMPUTE_SOURCE      = "ProcessEnvironment.comp";
-        static constexpr const char* PROCESS_ENV_IN_TEX_NAME         = "envTex";
-        static constexpr const char* PROCESS_ENV_OUT_ENV_TEX_NAME    = "envCube";
-        static constexpr const char* PROCESS_ENV_OUT_IRR_TEX_NAME    = "irradianceCube";
-
+        static constexpr const char* GEN_ENV_SYMBOL                  = "GEN_ENVIRONMENT_CUBE";
+        static constexpr const char* GEN_IRR_SYMBOL                  = "GEN_IRRADIANCE_CUBE";
+        static constexpr const char* GEN_PRE_SYMBOL                  = "GEN_PREFILTERED_ENV_CUBE";
+        static constexpr const char* GEN_LUT_SYMBOL                  = "GEN_ENVIRONMENT_BRDF_LUT";
+        static constexpr const char* PROCESS_ENV_ENV2D_TEX_NAME      = "envTex";
+        static constexpr const char* PROCESS_ENV_ENVCUBE_TEX_NAME    = "envCube";
+        static constexpr const char* PROCESS_ENV_IRRCUBE_TEX_NAME    = "irradianceCube";
+        static constexpr const char* PROCESS_ENV_PRECUBE_TEX_NAME    = "prefilteredEnvCube";
+        static constexpr const char* PROCESS_ENV_ENVLUT_TEX_NAME     = "envBRDFLut";
+        static constexpr const char* PROCESS_ENV_ROUGHNESS_NAME      = "u_roughness";
+        static constexpr int         PROCESS_ENV_GROUP_SIZE_X        = 8;
+        static constexpr int         PROCESS_ENV_GROUP_SIZE_Y        = 8;
+        static constexpr int         PROCESS_ENV_GROUP_SIZE_Z        = 1;
 
         static constexpr tao_ogl_resources::ogl_depth_state DEFAULT_DEPTH_STATE  =
                 tao_ogl_resources::ogl_depth_state
@@ -448,7 +465,10 @@ namespace tao_pbr
 
         struct ComputeShaders
         {
-            tao_ogl_resources::OglShaderProgram processEnvironment;
+            tao_ogl_resources::OglShaderProgram generateEnvironmentCube;
+            tao_ogl_resources::OglShaderProgram generateIrradianceCube;
+            tao_ogl_resources::OglShaderProgram generatePrefilteredEnvCube;
+            tao_ogl_resources::OglShaderProgram generateEnvBRDFLut;
         };
 
         struct NdcQuad
@@ -460,9 +480,12 @@ namespace tao_pbr
 
         struct EnvironmentTextures
         {
-            tao_ogl_resources::OglTextureCube envCube;
-            tao_ogl_resources::OglTextureCube irradianceCube;
+            tao_ogl_resources::OglTextureCube envCube;              // environment map as cube map
+            tao_ogl_resources::OglTextureCube irradianceCube;       // irradiance cube map
+            tao_ogl_resources::OglTextureCube prefilteredEnvCube;   // incoming env irradiance map (split-sum approx)
         };
+
+        tao_ogl_resources::OglTexture2D   _envBRDFLut;              // env BRDF lut (split-sum approx)
 
         struct camera_gl_data_block
         {
@@ -521,6 +544,9 @@ namespace tao_pbr
         GenKeyVector<ImageTexture>  _textures;
         GenKeyVector<ImageTextureGraphicsData>  _texturesGraphicsData;
 
+        tao_ogl_resources::OglSampler _pointSampler;
+        tao_ogl_resources::OglSampler _linearSampler;
+
         GenKeyVector<PbrMaterial>   _materials;
         GenKeyVector<MeshRenderer>  _meshRenderers;
 
@@ -529,6 +555,8 @@ namespace tao_pbr
         void InitOutputBuffer(int width, int height);
         void InitFsQuad();
         void InitShaders();
+        void InitSamplers();
+        void InitEnvBRDFLut();
         void InitStaticShaderBuffers();
         void WriteTransfromToShaderBuffer(const MeshRenderer& mesh);
         void WriteTransfromToShaderBuffer(const std::vector<MeshRenderer>& meshes);
@@ -538,7 +566,7 @@ namespace tao_pbr
         GenKey<ImageTextureGraphicsData> CreateGraphicsData(ImageTexture& image);
 
     public: // TODO: should not be public!!!
-        [[nodiscard]] EnvironmentTextures CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env, unsigned int outputResolution);
+        [[nodiscard]] EnvironmentTextures CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env);
 
     };
 

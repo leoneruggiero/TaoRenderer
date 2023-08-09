@@ -16,13 +16,17 @@ namespace tao_pbr
         _gBuffer.texColor3.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
         _gBuffer.texDepth.TexImage(0, tex_int_for_depth_stencil, width, height, tex_for_depth, tex_typ_float, nullptr);
 
-        // TODO: https://www.khronos.org/opengl/wiki/Common_Mistakes#Creating_a_complete_texture
-        // -------------------------------------------------------------------------------------
-        _gBuffer.texColor0.SetFilterParams({tex_min_filter_nearest, tex_mag_filter_linear});
-        _gBuffer.texColor1.SetFilterParams({tex_min_filter_nearest, tex_mag_filter_linear});
-        _gBuffer.texColor2.SetFilterParams({tex_min_filter_nearest, tex_mag_filter_linear});
-        _gBuffer.texColor3.SetFilterParams({tex_min_filter_nearest, tex_mag_filter_linear});
-        // -------------------------------------------------------------------------------------
+        ogl_tex_filter_params pointFilter
+        {
+            .min_filter = tex_min_filter_nearest,
+            .mag_filter = tex_mag_filter_nearest
+        };
+
+        _gBuffer.texColor0.SetFilterParams(pointFilter);
+        _gBuffer.texColor1.SetFilterParams(pointFilter);
+        _gBuffer.texColor2.SetFilterParams(pointFilter);
+        _gBuffer.texColor3.SetFilterParams(pointFilter);
+        _gBuffer.texDepth .SetFilterParams(pointFilter);
 
         _gBuffer.gBuff.AttachTexture(fbo_attachment_depth_stencil, _gBuffer.texDepth, 0);
         _gBuffer.gBuff.AttachTexture(static_cast<ogl_framebuffer_attachment>(fbo_attachment_color0 + 0), _gBuffer.texColor0, 0);
@@ -42,6 +46,8 @@ namespace tao_pbr
         _gBuffer.gBuff.SetDrawBuffers(4, drawBuffs);
     }
 
+
+
     void PbrRenderer::InitOutputBuffer(int width, int height)
     {
         _outBuffer.texColor.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
@@ -49,6 +55,34 @@ namespace tao_pbr
 
         const ogl_framebuffer_read_draw_buffs drawBuffs = fbo_read_draw_buff_color0;
         _outBuffer.buff.SetDrawBuffers(1, &drawBuffs);
+    }
+
+    void PbrRenderer::InitSamplers()
+    {
+        ogl_sampler_compare_params noCompare
+        {
+            .compare_mode = sampler_cmp_mode_none,
+            .compare_func = sampler_cmp_func_never
+        };
+        ogl_sampler_wrap_params clamp
+        {
+            .wrap_s = sampler_wrap_clamp_to_edge,
+            .wrap_t = sampler_wrap_clamp_to_edge,
+            .wrap_r = sampler_wrap_clamp_to_edge,
+        };
+        ogl_sampler_filter_params pointFilter
+        {
+            .min_filter = sampler_min_filter_nearest,
+            .mag_filter = sampler_mag_filter_nearest
+        };
+        ogl_sampler_filter_params linearFilter
+        {
+                .min_filter = sampler_min_filter_linear,
+                .mag_filter = sampler_mag_filter_linear
+        };
+
+        _pointSampler.SetParams(ogl_sampler_params{.filter_params = pointFilter, .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
+        _linearSampler.SetParams(ogl_sampler_params{.filter_params = linearFilter, .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
     }
 
     void PbrRenderer::InitShaders()
@@ -75,15 +109,21 @@ namespace tao_pbr
 
         // Compute Shaders
         // --------------------------------------
-        auto processEnvShader = _renderContext->CreateShaderProgram(
-                ShaderLoader::LoadShader(PROCESS_ENV_COMPUTE_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR).c_str()
-                );
+        auto source = ShaderLoader::LoadShader(PROCESS_ENV_COMPUTE_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR);
+
+        auto genEnv = _renderContext->CreateShaderProgram(ShaderLoader::DefineConditional(source, {GEN_ENV_SYMBOL}).c_str());
+        auto genIrr = _renderContext->CreateShaderProgram(ShaderLoader::DefineConditional(source, {GEN_IRR_SYMBOL}).c_str());
+        auto genPre = _renderContext->CreateShaderProgram(ShaderLoader::DefineConditional(source, {GEN_PRE_SYMBOL}).c_str());
+        auto genLut = _renderContext->CreateShaderProgram(ShaderLoader::DefineConditional(source, {GEN_LUT_SYMBOL}).c_str());
 
         // if CreateShaderProgram() throws the
         // current shader is not affected.
-        _shaders.gPass                      = std::move(gPassShader);
-        _shaders.lightPass                  = std::move(lightPassShader);
-        _computeShaders.processEnvironment  = std::move(processEnvShader);
+        _shaders.gPass                              = std::move(gPassShader);
+        _shaders.lightPass                          = std::move(lightPassShader);
+        _computeShaders.generateEnvironmentCube     = std::move(genEnv);
+        _computeShaders.generateIrradianceCube      = std::move(genIrr);
+        _computeShaders.generatePrefilteredEnvCube  = std::move(genPre);
+        _computeShaders.generateEnvBRDFLut          = std::move(genLut);
     }
 
     void PbrRenderer::InitFsQuad()
@@ -386,6 +426,11 @@ namespace tao_pbr
         _gBuffer.texColor2.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF2));
         _gBuffer.texColor3.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF3));
 
+        _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF0));
+        _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF1));
+        _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF2));
+        _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF3));
+
         _fsQuad.vao.Bind();
         _renderContext->DrawElements(pmt_type_triangles, 6, idx_typ_unsigned_int, nullptr);
 
@@ -394,40 +439,150 @@ namespace tao_pbr
         return _outBuffer.buff;
     }
 
-    PbrRenderer::EnvironmentTextures PbrRenderer::CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env, unsigned int outputResolution)
+
+    void ComputeShaderNumGroups(int countX, int countY, int countZ, int groupSizeX, int groupSizeY, int groupSizeZ, int& numGroupsX, int& numGroupsY, int& numGroupsZ)
     {
+        numGroupsX = countX/groupSizeX + (countX%groupSizeX > 0);
+        numGroupsY = countY/groupSizeY + (countY%groupSizeY > 0);
+        numGroupsZ = countZ/groupSizeZ + (countZ%groupSizeZ > 0);
+    }
+
+    void PbrRenderer::InitEnvBRDFLut()
+    {
+        constexpr int kLutRes = 512;
+
+        _envBRDFLut.TexImage(0, tex_int_for_rg16f, kLutRes, kLutRes, tex_for_rg, tex_typ_float, nullptr);
+
+        // a sampler obj will be used, this is only to make it complete (default min filter is mipmap linear)
+        _envBRDFLut.SetFilterParams(ogl_tex_filter_params{.min_filter = tex_min_filter_linear, .mag_filter = tex_mag_filter_linear});
+        _envBRDFLut.BindToImageUnit(0,0, image_access_write, image_format_rg16f );
+
+        _computeShaders.generateEnvBRDFLut.UseProgram();
+        _computeShaders.generateEnvBRDFLut.SetUniform(PROCESS_ENV_ENVLUT_TEX_NAME, 0);
+
+        int numGrpX, numGrpY, numGrpZ;
+        ComputeShaderNumGroups(
+                kLutRes, kLutRes, 1,
+                PROCESS_ENV_GROUP_SIZE_X, PROCESS_ENV_GROUP_SIZE_Y, PROCESS_ENV_GROUP_SIZE_Z,
+                numGrpX, numGrpY, numGrpZ
+                );
+
+        _renderContext->DispatchCompute(numGrpX, numGrpY, numGrpY);
+
+        // TODO: renderContext->MemoryBarrier(...params...) !!! lazy
+        GL_CALL(glMemoryBarrier(GL_ALL_BARRIER_BITS));
+
+        _envBRDFLut.UnBindToImageUnit(0);
+    }
+
+    PbrRenderer::EnvironmentTextures PbrRenderer::CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env)
+    {
+        constexpr int kEnvRes = 512;
+        constexpr int kIrrRes = 64;
+        constexpr int kPreRes = 128;
+
         EnvironmentTextures res
         {
             .envCube{_renderContext->CreateTextureCube()},
-            .irradianceCube{_renderContext->CreateTextureCube()}
+            .irradianceCube{_renderContext->CreateTextureCube()},
+            .prefilteredEnvCube{_renderContext->CreateTextureCube()}
         };
 
         // Initialize each face level 0
-        for(ogl_texture_cube_target face = tex_tar_cube_map_negative_x; face <=tex_tar_cube_map_negative_z; face = static_cast<ogl_texture_cube_target>(face+1))
+        for(ogl_texture_cube_target face = tex_tar_cube_map_positive_x; face <=tex_tar_cube_map_negative_z; face = static_cast<ogl_texture_cube_target>(face+1))
         {
-            res.envCube         .TexImage(face, 0, tex_int_for_rgba16f, outputResolution, outputResolution, 0,  tex_for_rgba, tex_typ_float, nullptr);
-            res.irradianceCube  .TexImage(face, 0, tex_int_for_rgba16f, outputResolution, outputResolution, 0,  tex_for_rgba, tex_typ_float, nullptr);
+            res.envCube             .TexImage(face, 0, tex_int_for_rgba16f, kEnvRes, kEnvRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
+            res.irradianceCube      .TexImage(face, 0, tex_int_for_rgba16f, kIrrRes, kIrrRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
+            res.prefilteredEnvCube  .TexImage(face, 0, tex_int_for_rgba16f, kPreRes, kPreRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
         }
 
+        res.prefilteredEnvCube.GenerateMipmap();
+
+        // --- !!! IMPORTANT !!! ---------------------------------------------------------------------------
+        // Mh....apparently (with my current NVidia drivers) writes via ImageStore on a texture that is
+        // 'texture incomplete` has no effect. The debug layer didn't say anything. Only NSight graphics
+        // detected the issue. Is this by OGL specs???
+        // -------------------------------------------------------------------------------------------------
+        res.envCube             .SetFilterParams(ogl_tex_filter_params{.min_filter = tex_min_filter_nearest, .mag_filter = tex_mag_filter_nearest});
+        res.irradianceCube      .SetFilterParams(ogl_tex_filter_params{.min_filter = tex_min_filter_nearest, .mag_filter = tex_mag_filter_nearest});
+        res.prefilteredEnvCube  .SetFilterParams(ogl_tex_filter_params{.min_filter = tex_min_filter_linear_mip_linear, .mag_filter = tex_mag_filter_linear});
+
+        _linearSampler.BindToTextureUnit(tex_unit_0);
+
+        // Generate ENVIRONMENT cube map
+        // ------------------------------------------------------------------------------------------------------
         /* tex unit 0 */ env                 .BindToTextureUnit(tex_unit_0);
-        /* img unit 0 */ res.envCube         .BindToImageUnit(0, 0, true, 0, image_access_rw, image_format_rgba16f);
-        /* img unit 1 */ res.irradianceCube  .BindToImageUnit(1, 0, true, 0, image_access_write, image_format_rgba16f);
+        /* img unit 0 */ res.envCube         .BindToImageUnit(0, 0, true, 0, image_access_write, image_format_rgba16f);
 
-        _computeShaders.processEnvironment.UseProgram();
-        _computeShaders.processEnvironment.SetUniform(PROCESS_ENV_IN_TEX_NAME       , 0);
-        _computeShaders.processEnvironment.SetUniform(PROCESS_ENV_OUT_ENV_TEX_NAME  , 0);
-        _computeShaders.processEnvironment.SetUniform(PROCESS_ENV_OUT_IRR_TEX_NAME  , 1);
+        _computeShaders.generateEnvironmentCube.UseProgram();
+        _computeShaders.generateEnvironmentCube.SetUniform(PROCESS_ENV_ENV2D_TEX_NAME  , 0);
+        _computeShaders.generateEnvironmentCube.SetUniform(PROCESS_ENV_ENVCUBE_TEX_NAME, 0);
 
-        // TODO: profile!!! is it better to batch in bigger groups?
-        _renderContext->DispatchCompute(outputResolution, outputResolution, 6 /* one for each cube face */);
+        int grpCntX, grpCntY, grpCntZ;
+        ComputeShaderNumGroups(
+                kEnvRes, kEnvRes, 6/*cube map faces*/,
+                PROCESS_ENV_GROUP_SIZE_X, PROCESS_ENV_GROUP_SIZE_Y, PROCESS_ENV_GROUP_SIZE_Z,
+                grpCntX, grpCntY, grpCntZ
+                );
 
-        // TODO: renderContext->MemotyBarrier(...params...) !!! lazy
+        _renderContext->DispatchCompute(grpCntX, grpCntY, grpCntZ);
+
+        // TODO: renderContext->MemoryBarrier(...params...) !!! lazy
         GL_CALL(glMemoryBarrier(GL_ALL_BARRIER_BITS));
 
         env                 .UnBindToTextureUnit(tex_unit_0);
         res.envCube         .UnBindToImageUnit(0);
-        res.irradianceCube  .UnBindToImageUnit(1);
 
+        // Generate IRRADIANCE cube map
+        // ------------------------------------------------------------------------------------------------------
+        /* tex unit 0 */ res.envCube         .BindToTextureUnit(tex_unit_0); // linear sampler should be bound!!!
+        /* img unit 0 */ res.irradianceCube  .BindToImageUnit(0, 0, true, 0, image_access_write, image_format_rgba16f);
+
+        _computeShaders.generateIrradianceCube.UseProgram();
+        _computeShaders.generateIrradianceCube.SetUniform(PROCESS_ENV_ENVCUBE_TEX_NAME  , 0);
+        _computeShaders.generateIrradianceCube.SetUniform(PROCESS_ENV_IRRCUBE_TEX_NAME, 0);
+
+        ComputeShaderNumGroups(
+                kIrrRes, kIrrRes, 6/*cube map faces*/,
+                PROCESS_ENV_GROUP_SIZE_X, PROCESS_ENV_GROUP_SIZE_Y, PROCESS_ENV_GROUP_SIZE_Z,
+                grpCntX, grpCntY, grpCntZ
+        );
+        _renderContext->DispatchCompute(grpCntX, grpCntY, grpCntZ);
+
+        // TODO: renderContext->MemoryBarrier(...params...) !!! lazy
+        GL_CALL(glMemoryBarrier(GL_ALL_BARRIER_BITS));
+
+        res.envCube         .UnBindToTextureUnit(tex_unit_0);
+        res.irradianceCube  .UnBindToImageUnit(0);
+
+        // Generate PREFILTERED ENVIRONMENT cube map
+        // ------------------------------------------------------------------------------------------------------
+        _computeShaders.generatePrefilteredEnvCube.UseProgram();
+        _computeShaders.generatePrefilteredEnvCube.SetUniform(PROCESS_ENV_ENVCUBE_TEX_NAME, 0);
+        _computeShaders.generatePrefilteredEnvCube.SetUniform(PROCESS_ENV_PRECUBE_TEX_NAME, 0);
+
+        const int totalMips = log2(kPreRes)-1;
+        for(int mip=0, resolution = kPreRes; resolution>=4; resolution = resolution>>1, mip++ )
+        {
+            _computeShaders.generatePrefilteredEnvCube.SetUniform(PROCESS_ENV_ROUGHNESS_NAME, mip/(max(1.0f, totalMips-1.0f)));
+
+            /* img unit 0 */ res.prefilteredEnvCube.BindToImageUnit(0, mip, true, 0, image_access_write,image_format_rgba16f);
+            /* tex unit 0 */ res.envCube           .BindToTextureUnit(tex_unit_0); // linear sampler should be bound!!!
+
+            ComputeShaderNumGroups(
+                    resolution, resolution, 6/*cube map faces*/,
+                    PROCESS_ENV_GROUP_SIZE_X, PROCESS_ENV_GROUP_SIZE_Y, PROCESS_ENV_GROUP_SIZE_Z,
+                    grpCntX, grpCntY, grpCntZ
+            );
+
+            _renderContext->DispatchCompute(grpCntX, grpCntY, grpCntZ);
+            res.prefilteredEnvCube  .UnBindToImageUnit(0);
+        }
+
+        // TODO: renderContext->MemoryBarrier(...params...) !!! lazy
+        GL_CALL(glMemoryBarrier(GL_ALL_BARRIER_BITS));
+
+        res.envCube             .UnBindToTextureUnit(tex_unit_0);
 
     }
 }
