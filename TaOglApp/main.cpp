@@ -14,6 +14,10 @@
 #include "PbrRenderer.h"
 #include "../../TestApp_OpenGL/TestApp_OpenGL/stb_image.h" // TODO: WTF??
 
+#include "ImGui/imgui.h"
+#include "ImGui/imgui_impl_glfw.h"
+#include "ImGui/imgui_impl_opengl3.h"
+
 using namespace std;
 using namespace glm;
 using namespace std::chrono;
@@ -819,6 +823,64 @@ void InitGizmosVC(GizmosRenderer& gr)
 	//InitArrowTriad3DVC(gr, layers.opaqueLayer);
 }
 
+// ImGui helper functions straight from the docs
+// ----------------------------------------------
+void InitImGui(GLFWwindow* window)
+{
+    // Setup Dear ImGui context
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+    //io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;       // IF using Docking Branch
+
+    // Setup Platform/Renderer backends
+    ImGui_ImplGlfw_InitForOpenGL(window, true);   // Second param install_callback=true will install GLFW callbacks and chain to existing ones.
+    ImGui_ImplOpenGL3_Init();
+}
+
+void StartImGuiFrame(PbrRenderer& pbrRenderer /* TODO */)
+{
+    // (Your code calls glfwPollEvents())
+    // ...
+    // Start the Dear ImGui frame
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGlfw_NewFrame();
+    ImGui::NewFrame();
+    // ImGui::ShowDemoWindow(); // Show demo window! :)
+
+    if(ImGui::Button("Reload shaders"))
+    {
+        // TODO: a lot of todos....
+        try
+        {
+            pbrRenderer.ReloadShaders();
+        }
+        catch(std::exception& e)
+        {
+            std::cout<<e.what()<<std::endl;
+        }
+    }
+}
+
+void EndImGuiFrame()
+{
+    // Rendering
+    // (Your code clears your framebuffer, renders your other stuff etc.)
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    // (Your code calls glfwSwapBuffers() etc.)
+}
+
+void ImGuiShutdown()
+{
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+}
+// ----------------------------------------------
+
 int main()
 {
 	try
@@ -830,6 +892,8 @@ int main()
 
 		RenderContext rc{ windowWidth, windowHeight };
 		rc.GetFramebufferSize(fboWidth, fboHeight);
+
+        InitImGui(rc.GetWindow());
 
         // GizmosRenderer
 		GizmosRenderer gizRdr{ rc, fboWidth, fboHeight };
@@ -953,9 +1017,14 @@ int main()
 
 		gizRdr.SetSelectionCallback(onSelection);
 
+
 		while (!rc.ShouldClose())
 		{
-			// zoom and rotation
+            rc.PollEvents();
+
+            StartImGuiFrame(pbrRdr);
+
+            // zoom and rotation
 			// ----------------------------------------------------------------------
 			float newX = 0.0f;
 			float newY = 0.0f;
@@ -1011,6 +1080,10 @@ int main()
 			mat4 viewMatrixVC = glm::lookAt(normalize(eyePos - eyeTrg)*3.5f, vec3{ 0.0f }, vec3{0.0, 0.0, 1.0});
 			mat4 projMatrixVC = glm::perspective(radians<float>(60), static_cast<float>(fboWidthVC) / fboHeightVC, 0.1f, 5.0f);
 
+            // View Cube drawing seems to conflict with ImGui,
+            // so I had to place it here (ImGui is hidden by the VC however)
+            EndImGuiFrame();
+
 			gizRdrVC.Render(viewMatrixVC, projMatrixVC, vec2{0.1f, 3.0f})
 				.CopyTo(
 					nullptr,
@@ -1021,16 +1094,17 @@ int main()
 					fbo_copy_mask_color_bit, fbo_copy_filter_nearest
 				);
 
-		
-			rc.SwapBuffers();
-			rc.PollEvents();
 
+			rc.SwapBuffers();
 		}
+
+        ImGuiShutdown();
 	}
 	catch (const exception& e)
 	{
 		cout << e.what() << endl;
 	}
+
 }
 
 

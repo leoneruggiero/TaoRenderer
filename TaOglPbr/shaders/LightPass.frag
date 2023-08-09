@@ -21,5 +21,5 @@ void main()
     ReadGBuff(fragCoord, albedo, emission, posWorld, nrmWorld, roughness, metalness, occlusion);
 
     vec4 col = vec4(albedo, 1.0);
-    FragColor = col;
+    FragColor =  col;
 }

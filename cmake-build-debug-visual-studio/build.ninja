@@ -322,6 +322,62 @@ build TaOglApp\CMakeFiles\TaOglApp.dir\main.cpp.obj: CXX_COMPILER__TaOglApp_Debu
   TARGET_COMPILE_PDB = TaOglApp\CMakeFiles\TaOglApp.dir\
   TARGET_PDB = TaOglApp\TaOglApp.pdb
 
+build TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui.cpp.obj: CXX_COMPILER__TaOglApp_Debug C$:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglApp\ImGui\imgui.cpp || cmake_object_order_depends_target_TaOglApp
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglContext\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglGizmos\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglPbr\include
+  OBJECT_DIR = TaOglApp\CMakeFiles\TaOglApp.dir
+  OBJECT_FILE_DIR = TaOglApp\CMakeFiles\TaOglApp.dir\ImGui
+  TARGET_COMPILE_PDB = TaOglApp\CMakeFiles\TaOglApp.dir\
+  TARGET_PDB = TaOglApp\TaOglApp.pdb
+
+build TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_demo.cpp.obj: CXX_COMPILER__TaOglApp_Debug C$:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglApp\ImGui\imgui_demo.cpp || cmake_object_order_depends_target_TaOglApp
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglContext\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglGizmos\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglPbr\include
+  OBJECT_DIR = TaOglApp\CMakeFiles\TaOglApp.dir
+  OBJECT_FILE_DIR = TaOglApp\CMakeFiles\TaOglApp.dir\ImGui
+  TARGET_COMPILE_PDB = TaOglApp\CMakeFiles\TaOglApp.dir\
+  TARGET_PDB = TaOglApp\TaOglApp.pdb
+
+build TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_draw.cpp.obj: CXX_COMPILER__TaOglApp_Debug C$:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglApp\ImGui\imgui_draw.cpp || cmake_object_order_depends_target_TaOglApp
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglContext\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglGizmos\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglPbr\include
+  OBJECT_DIR = TaOglApp\CMakeFiles\TaOglApp.dir
+  OBJECT_FILE_DIR = TaOglApp\CMakeFiles\TaOglApp.dir\ImGui
+  TARGET_COMPILE_PDB = TaOglApp\CMakeFiles\TaOglApp.dir\
+  TARGET_PDB = TaOglApp\TaOglApp.pdb
+
+build TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_impl_glfw.cpp.obj: CXX_COMPILER__TaOglApp_Debug C$:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglApp\ImGui\imgui_impl_glfw.cpp || cmake_object_order_depends_target_TaOglApp
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglContext\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglGizmos\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglPbr\include
+  OBJECT_DIR = TaOglApp\CMakeFiles\TaOglApp.dir
+  OBJECT_FILE_DIR = TaOglApp\CMakeFiles\TaOglApp.dir\ImGui
+  TARGET_COMPILE_PDB = TaOglApp\CMakeFiles\TaOglApp.dir\
+  TARGET_PDB = TaOglApp\TaOglApp.pdb
+
+build TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_impl_opengl3.cpp.obj: CXX_COMPILER__TaOglApp_Debug C$:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglApp\ImGui\imgui_impl_opengl3.cpp || cmake_object_order_depends_target_TaOglApp
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglContext\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglGizmos\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglPbr\include
+  OBJECT_DIR = TaOglApp\CMakeFiles\TaOglApp.dir
+  OBJECT_FILE_DIR = TaOglApp\CMakeFiles\TaOglApp.dir\ImGui
+  TARGET_COMPILE_PDB = TaOglApp\CMakeFiles\TaOglApp.dir\
+  TARGET_PDB = TaOglApp\TaOglApp.pdb
+
+build TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_tables.cpp.obj: CXX_COMPILER__TaOglApp_Debug C$:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglApp\ImGui\imgui_tables.cpp || cmake_object_order_depends_target_TaOglApp
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglContext\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglGizmos\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglPbr\include
+  OBJECT_DIR = TaOglApp\CMakeFiles\TaOglApp.dir
+  OBJECT_FILE_DIR = TaOglApp\CMakeFiles\TaOglApp.dir\ImGui
+  TARGET_COMPILE_PDB = TaOglApp\CMakeFiles\TaOglApp.dir\
+  TARGET_PDB = TaOglApp\TaOglApp.pdb
+
+build TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_widgets.cpp.obj: CXX_COMPILER__TaOglApp_Debug C$:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglApp\ImGui\imgui_widgets.cpp || cmake_object_order_depends_target_TaOglApp
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglContext\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglGizmos\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglPbr\include
+  OBJECT_DIR = TaOglApp\CMakeFiles\TaOglApp.dir
+  OBJECT_FILE_DIR = TaOglApp\CMakeFiles\TaOglApp.dir\ImGui
+  TARGET_COMPILE_PDB = TaOglApp\CMakeFiles\TaOglApp.dir\
+  TARGET_PDB = TaOglApp\TaOglApp.pdb
+
 
 # =============================================================================
 # Link build statements for EXECUTABLE target TaOglApp
@@ -330,7 +386,7 @@ build TaOglApp\CMakeFiles\TaOglApp.dir\main.cpp.obj: CXX_COMPILER__TaOglApp_Debu
 #############################################
 # Link the executable TaOglApp\TaOglApp.exe
 
-build TaOglApp\TaOglApp.exe: CXX_EXECUTABLE_LINKER__TaOglApp_Debug TaOglApp\CMakeFiles\TaOglApp.dir\main.cpp.obj | TaOglContext\TaOglContext.lib TaOglGizmos\TaOglGizmos.lib TaOglPbr\TaOglPbr.lib TaOglContext\TaOglContext.lib || TaOglContext\TaOglContext.lib TaOglGizmos\TaOglGizmos.lib TaOglPbr\TaOglPbr.lib
+build TaOglApp\TaOglApp.exe: CXX_EXECUTABLE_LINKER__TaOglApp_Debug TaOglApp\CMakeFiles\TaOglApp.dir\main.cpp.obj TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui.cpp.obj TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_demo.cpp.obj TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_draw.cpp.obj TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_impl_glfw.cpp.obj TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_impl_opengl3.cpp.obj TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_tables.cpp.obj TaOglApp\CMakeFiles\TaOglApp.dir\ImGui\imgui_widgets.cpp.obj | TaOglContext\TaOglContext.lib TaOglGizmos\TaOglGizmos.lib TaOglPbr\TaOglPbr.lib TaOglContext\TaOglContext.lib || TaOglContext\TaOglContext.lib TaOglGizmos\TaOglGizmos.lib TaOglPbr\TaOglPbr.lib
   FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1
   LINK_FLAGS = /machine:x64 /debug /INCREMENTAL /subsystem:console
   LINK_LIBRARIES = TaOglContext\TaOglContext.lib  TaOglGizmos\TaOglGizmos.lib  TaOglPbr\TaOglPbr.lib  TaOglContext\TaOglContext.lib  glfw3.lib  opengl32.lib  kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib

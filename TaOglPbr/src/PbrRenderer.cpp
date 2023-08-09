@@ -580,5 +580,6 @@ namespace tao_pbr
 
         _renderContext->MemoryBarrier(static_cast<ogl_barrier_bit>(texture_fetch_barrier_bit | shader_image_access_barrier_bit));
 
+        return res;
     }
 }

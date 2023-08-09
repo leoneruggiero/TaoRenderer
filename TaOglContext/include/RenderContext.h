@@ -147,6 +147,7 @@ namespace tao_render_context
 	        glfwTerminate();
         }
 
+        GLFWwindow* GetWindow()                           const  { return _glf_window;}
         void GetFramebufferSize(int& width, int& height)  const  { glfwGetFramebufferSize(_glf_window, &width, &height); }
         void MakeCurrent()                                       { glfwMakeContextCurrent(_glf_window); }
         bool ShouldClose()                                const  { return glfwWindowShouldClose(_glf_window) != 0; }
