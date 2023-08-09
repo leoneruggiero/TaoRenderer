@@ -998,15 +998,15 @@ int main()
 			auto delta = duration_cast<milliseconds>(timeNow - startTime).count();
 			//animation(delta);
 
-            //pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y)
-            //    .CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
+            pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y)
+                .CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
 
-			gizRdr.Render(viewMatrix, projMatrix, nearFar).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
+			// gizRdr.Render(viewMatrix, projMatrix, nearFar).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
 
 			float mouseX, mouseY;
 			mouseRawPosition.Position(mouseX, mouseY);
 
-			gizRdr.GetGizmoUnderCursor(mouseX, mouseY, viewMatrix, projMatrix, nearFar);
+			// gizRdr.GetGizmoUnderCursor(mouseX, mouseY, viewMatrix, projMatrix, nearFar);
 
 			mat4 viewMatrixVC = glm::lookAt(normalize(eyePos - eyeTrg)*3.5f, vec3{ 0.0f }, vec3{0.0, 0.0, 1.0});
 			mat4 projMatrixVC = glm::perspective(radians<float>(60), static_cast<float>(fboWidthVC) / fboHeightVC, 0.1f, 5.0f);

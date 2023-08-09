@@ -730,4 +730,25 @@ namespace tao_ogl_resources
                     .source = dbg_out_src_dontcare,
                     .type = dbg_out_type_dontcare,
             };
+
+
+    enum ogl_barrier_bit
+    {
+        vertex_atttrib_barrier_bit      = GL_VERTEX_ATTRIB_ARRAY_BARRIER_BIT,
+        element_array_barrier_bit       =  GL_ELEMENT_ARRAY_BARRIER_BIT,
+        uniform_barrier_bit             = GL_UNIFORM_BARRIER_BIT,
+        texture_fetch_barrier_bit       = GL_TEXTURE_FETCH_BARRIER_BIT,
+        shader_image_access_barrier_bit = GL_SHADER_IMAGE_ACCESS_BARRIER_BIT,
+        command_barrier_bit             = GL_COMMAND_BARRIER_BIT,
+        pixel_buffer_barrier_bit        = GL_PIXEL_BUFFER_BARRIER_BIT,
+        texture_update_barrier_bit      = GL_TEXTURE_UPDATE_BARRIER_BIT,
+        buffer_update_barrier_bit       = GL_BUFFER_UPDATE_BARRIER_BIT,
+        client_mapped_buffer_barrier_bit= GL_CLIENT_MAPPED_BUFFER_BARRIER_BIT,
+        framebuffer_barrier_bit         = GL_FRAMEBUFFER_BARRIER_BIT,
+        transform_feedback_barrier_bit  = GL_TRANSFORM_FEEDBACK_BARRIER_BIT,
+        atomic_count_barrier_bit        = GL_ATOMIC_COUNTER_BARRIER_BIT,
+        shader_storage_barrier_bit      = GL_SHADER_STORAGE_BARRIER_BIT,
+        query_buffer_barrier_bit        = GL_QUERY_BUFFER_BARRIER_BIT,
+        all_barrier_bit                 = GL_ALL_BARRIER_BITS
+    };
 }

@@ -234,6 +234,10 @@ namespace tao_render_context
 		glReadnPixels(x, y, width, height, format, type, bufSize, data);
 	}
 
+    void RenderContext::MemoryBarrier(tao_ogl_resources::ogl_barrier_bit barriers)
+    {
+        GL_CALL(glMemoryBarrier(barriers));
+    }
 
 	void RenderContext::DrawArrays(ogl_primitive_type mode, GLint first, GLsizei count)
 	{

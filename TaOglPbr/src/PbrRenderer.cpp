@@ -469,10 +469,9 @@ namespace tao_pbr
 
         _renderContext->DispatchCompute(numGrpX, numGrpY, numGrpY);
 
-        // TODO: renderContext->MemoryBarrier(...params...) !!! lazy
-        GL_CALL(glMemoryBarrier(GL_ALL_BARRIER_BITS));
-
         _envBRDFLut.UnBindToImageUnit(0);
+
+        _renderContext->MemoryBarrier(static_cast<ogl_barrier_bit>(texture_fetch_barrier_bit | shader_image_access_barrier_bit));
     }
 
     PbrRenderer::EnvironmentTextures PbrRenderer::CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env)
@@ -527,11 +526,10 @@ namespace tao_pbr
 
         _renderContext->DispatchCompute(grpCntX, grpCntY, grpCntZ);
 
-        // TODO: renderContext->MemoryBarrier(...params...) !!! lazy
-        GL_CALL(glMemoryBarrier(GL_ALL_BARRIER_BITS));
-
         env                 .UnBindToTextureUnit(tex_unit_0);
         res.envCube         .UnBindToImageUnit(0);
+
+        _renderContext->MemoryBarrier(static_cast<ogl_barrier_bit>(texture_fetch_barrier_bit | shader_image_access_barrier_bit));
 
         // Generate IRRADIANCE cube map
         // ------------------------------------------------------------------------------------------------------
@@ -549,11 +547,10 @@ namespace tao_pbr
         );
         _renderContext->DispatchCompute(grpCntX, grpCntY, grpCntZ);
 
-        // TODO: renderContext->MemoryBarrier(...params...) !!! lazy
-        GL_CALL(glMemoryBarrier(GL_ALL_BARRIER_BITS));
-
         res.envCube         .UnBindToTextureUnit(tex_unit_0);
         res.irradianceCube  .UnBindToImageUnit(0);
+
+        _renderContext->MemoryBarrier(static_cast<ogl_barrier_bit>(texture_fetch_barrier_bit | shader_image_access_barrier_bit));
 
         // Generate PREFILTERED ENVIRONMENT cube map
         // ------------------------------------------------------------------------------------------------------
@@ -579,10 +576,9 @@ namespace tao_pbr
             res.prefilteredEnvCube  .UnBindToImageUnit(0);
         }
 
-        // TODO: renderContext->MemoryBarrier(...params...) !!! lazy
-        GL_CALL(glMemoryBarrier(GL_ALL_BARRIER_BITS));
-
         res.envCube             .UnBindToTextureUnit(tex_unit_0);
+
+        _renderContext->MemoryBarrier(static_cast<ogl_barrier_bit>(texture_fetch_barrier_bit | shader_image_access_barrier_bit));
 
     }
 }

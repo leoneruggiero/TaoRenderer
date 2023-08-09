@@ -171,6 +171,8 @@ namespace tao_render_context
 
         void ReadnPixels(GLint x, GLint y, GLsizei width, GLsizei height, ogl_read_pixels_format format, ogl_texture_data_type type, GLsizei bufSize, void* data);
 
+        void MemoryBarrier(ogl_barrier_bit barriers);
+
         void DrawArrays           (ogl_primitive_type mode, GLint first, GLsizei count);
         void DrawArraysInstanced  (ogl_primitive_type mode, GLint first, GLsizei count, GLsizei instanceCount);
         void DrawElements         (ogl_primitive_type mode, GLsizei count, ogl_indices_type type, const void* indices);
