@@ -92,9 +92,15 @@ namespace tao_pbr
                 .min_filter = sampler_min_filter_linear,
                 .mag_filter = sampler_mag_filter_linear
         };
+        ogl_sampler_filter_params linearMipLinearFilter
+        {
+                .min_filter = sampler_min_filter_linear_mip_linear,
+                .mag_filter = sampler_mag_filter_linear
+        };
 
-        _pointSampler.SetParams(ogl_sampler_params{.filter_params = pointFilter, .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
-        _linearSampler.SetParams(ogl_sampler_params{.filter_params = linearFilter, .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
+        _pointSampler           .SetParams(ogl_sampler_params{.filter_params = pointFilter,             .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
+        _linearSampler          .SetParams(ogl_sampler_params{.filter_params = linearFilter,            .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
+        _linearMipLinearSampler .SetParams(ogl_sampler_params{.filter_params = linearMipLinearFilter,   .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
     }
 
     void PbrRenderer::InitShaders()
@@ -113,10 +119,13 @@ namespace tao_pbr
 
         // Set uniforms
         lightPassShader.UseProgram();
-        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF0, LIGHTPASS_TEX_BINDING_GBUFF0);
-        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF1, LIGHTPASS_TEX_BINDING_GBUFF1);
-        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF2, LIGHTPASS_TEX_BINDING_GBUFF2);
-        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF3, LIGHTPASS_TEX_BINDING_GBUFF3);
+        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF0        , LIGHTPASS_TEX_BINDING_GBUFF0);
+        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF1        , LIGHTPASS_TEX_BINDING_GBUFF1);
+        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF2        , LIGHTPASS_TEX_BINDING_GBUFF2);
+        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF3        , LIGHTPASS_TEX_BINDING_GBUFF3);
+        lightPassShader.SetUniform(LIGHTPASS_NAME_ENV_BRDF_LUT  , LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT);
+        lightPassShader.SetUniform(LIGHTPASS_NAME_ENV_IRRADIANCE, LIGHTPASS_TEX_BINDING_ENV_IRRADIANCE);
+        lightPassShader.SetUniform(LIGHTPASS_NAME_ENV_PREFILTERED,LIGHTPASS_TEX_BINDING_ENV_PREFILTERED);
 
 
         // Compute Shaders
@@ -240,6 +249,25 @@ namespace tao_pbr
         return _texturesGraphicsData.insert(std::move(gd));
     }
 
+    GenKey<EnvironmentTextureGraphicsData>  PbrRenderer::CreateGraphicsData(EnvironmentTexture& image)
+    {
+        int w, h, c;
+        void* data = stbi_loadf(image._path.c_str(), &w, &h, &c, 3);
+
+        tao_ogl_resources::ogl_texture_internal_format ifmt {tex_int_for_rgb16f};
+        tao_ogl_resources::ogl_texture_format fmt           {tex_for_rgb};
+
+        // needed only to create the cube version of the environment
+        auto env2DTex = _renderContext->CreateTexture2D();
+        env2DTex.TexImage(0, ifmt, w, h, fmt, tao_ogl_resources::tex_typ_float, data);
+
+        EnvironmentTextureGraphicsData gd = CreateEnvironmentTextures(env2DTex);
+
+        stbi_image_free(data);
+
+        return _environmentTexturesGraphicsData.insert(std::move(gd));
+    }
+
     GenKey<Mesh> PbrRenderer::AddMesh(Mesh& mesh)
     {
         auto key = _meshes.insert(mesh);
@@ -258,6 +286,15 @@ namespace tao_pbr
         return key;
     }
 
+    GenKey<EnvironmentTexture> PbrRenderer::AddEnvironmentTexture(tao_pbr::EnvironmentTexture &texture)
+    {
+        auto key = _environmentTextures.insert(texture);
+
+        _environmentTextures.at(key)._graphicsData = CreateGraphicsData(texture);
+
+        return key;
+    }
+
     GenKey<PbrMaterial> PbrRenderer::AddMaterial(const PbrMaterial& material)
     {
         if(!PbrMaterial::CheckKey(material._diffuseTex, _textures))     throw std::runtime_error("Invalid texture key for `Diffuse` texture.");
@@ -270,12 +307,20 @@ namespace tao_pbr
         return key;
     }
 
-    void PbrRenderer::WriteTransfromToShaderBuffer(const MeshRenderer& mesh)
+    void PbrRenderer::SetCurrentEnvironment(const GenKey<tao_pbr::EnvironmentTexture> &environment)
     {
-        WriteTransfromToShaderBuffer(std::vector<MeshRenderer>{mesh});
+        if(!_environmentTextures.keyValid(environment))
+            throw std::runtime_error("The given key is not valid.");
+
+        _currentEnvironment = environment;
     }
 
-    void PbrRenderer::WriteTransfromToShaderBuffer(const std::vector<MeshRenderer>& meshes)
+    void PbrRenderer::WriteTransfromToShaderBuffer(const MeshRenderer& mesh, int offset)
+    {
+        WriteTransfromToShaderBuffer(std::vector<MeshRenderer>{mesh}, offset);
+    }
+
+    void PbrRenderer::WriteTransfromToShaderBuffer(const std::vector<MeshRenderer>& meshes, int offset)
     {
         const int trDataBlkSize = sizeof(transform_gl_data_block);
 
@@ -300,15 +345,15 @@ namespace tao_pbr
         // Since we need to glBindBufferRange we should take
         // GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT into account.
         auto data = pack.InterleavedBuffer(_renderContext->UniformBufferOffsetAlignment());
-        _shaderBuffers.transformUbo.OglBuffer().SetSubData(0, meshes.size()*_transformDataBlockAlignment, data.data());
+        _shaderBuffers.transformUbo.OglBuffer().SetSubData(offset, meshes.size()*_transformDataBlockAlignment, data.data());
     }
 
-    void PbrRenderer::WriteMaterialToShaderBuffer(const MeshRenderer& mesh)
+    void PbrRenderer::WriteMaterialToShaderBuffer(const MeshRenderer& mesh, int offset)
     {
-        WriteMaterialToShaderBuffer((std::vector<MeshRenderer>{mesh}));
+        WriteMaterialToShaderBuffer((std::vector<MeshRenderer>{mesh}), offset);
     }
 
-    void PbrRenderer::WriteMaterialToShaderBuffer(const std::vector<MeshRenderer>& meshes)
+    void PbrRenderer::WriteMaterialToShaderBuffer(const std::vector<MeshRenderer>& meshes, int offset)
     {
         const int matDataBlockSize = sizeof(material_gl_data_block);
 
@@ -340,7 +385,7 @@ namespace tao_pbr
         // Since we need to glBindBufferRange we should take
         // GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT into account.
         auto data = pack.InterleavedBuffer(_renderContext->UniformBufferOffsetAlignment());
-        _shaderBuffers.materialUbo.OglBuffer().SetSubData(0, meshes.size() * _materialDataBlockAlignment, data.data());
+        _shaderBuffers.materialUbo.OglBuffer().SetSubData(offset, meshes.size() * _materialDataBlockAlignment, data.data());
     }
 
     GenKey<MeshRenderer> PbrRenderer::AddMeshRenderer(const MeshRenderer& meshRenderer)
@@ -357,15 +402,15 @@ namespace tao_pbr
 
         // Transformations
         if( _shaderBuffers.transformUbo.Resize(rdrCount*_transformDataBlockAlignment))
-            WriteTransfromToShaderBuffer(_meshRenderers.vector()); // resized, need to re-write everything
+            WriteTransfromToShaderBuffer(_meshRenderers.vector(), 0);                                    // resized, need to re-write everything
         else
-            WriteTransfromToShaderBuffer(_meshRenderers.at(key));
+            WriteTransfromToShaderBuffer(_meshRenderers.at(key), key.Index*_transformDataBlockAlignment); // possibly overwrite existing old data
 
         // Materials
         if( _shaderBuffers.materialUbo.Resize(rdrCount*_materialDataBlockAlignment))
-            WriteMaterialToShaderBuffer(_meshRenderers.vector()); // resized, need to re-write everything
+            WriteMaterialToShaderBuffer(_meshRenderers.vector(), 0);                                    // resized, need to re-write everything
         else
-            WriteMaterialToShaderBuffer(_meshRenderers.at(key));
+            WriteMaterialToShaderBuffer(_meshRenderers.at(key), key.Index*_materialDataBlockAlignment);  // possibly overwrite existing old data
 
         return key;
     }
@@ -395,9 +440,9 @@ namespace tao_pbr
         _renderContext->MakeCurrent();
         _renderContext->SetViewport(0, 0, _windowWidth, _windowHeight);
 
-        _renderContext->SetDepthState(DEFAULT_DEPTH_STATE);
-        _renderContext->SetRasterizerState(DEFAULT_RASTERIZER_STATE);
-        _renderContext->SetBlendState(DEFAULT_BLEND_STATE);
+        _renderContext->SetDepthState       (DEFAULT_DEPTH_STATE);
+        _renderContext->SetRasterizerState  (DEFAULT_RASTERIZER_STATE);
+        _renderContext->SetBlendState       (DEFAULT_BLEND_STATE);
 
         camera_gl_data_block cameraGlDataBlock
         {
@@ -442,12 +487,12 @@ namespace tao_pbr
         ////////////////////////////////////////////
         _renderContext->SetDepthState(DEPTH_STATE_OFF);
 
-
         _outBuffer.buff.Bind(fbo_read_draw);
         _renderContext->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
         _shaders.lightPass.UseProgram();
 
+        // Bind GBuffer and samplers
         _gBuffer.texColor0.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF0));
         _gBuffer.texColor1.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF1));
         _gBuffer.texColor2.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF2));
@@ -457,6 +502,21 @@ namespace tao_pbr
         _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF1));
         _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF2));
         _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF3));
+
+        // Bind ambient IBL textures and samplers
+        if(_currentEnvironment.has_value())
+        {
+            EnvironmentTexture& currEnvTex = _environmentTextures.at(_currentEnvironment.value());
+            EnvironmentTextureGraphicsData& currEnvData = _environmentTexturesGraphicsData.at(currEnvTex._graphicsData.value());
+
+            _envBRDFLut                     .BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
+            currEnvData._irradianceCube     .BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_IRRADIANCE));
+            currEnvData._prefilteredEnvCube .BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_PREFILTERED));
+
+            _pointSampler           .BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
+            _pointSampler           .BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_IRRADIANCE));
+            _linearMipLinearSampler .BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_PREFILTERED));
+        }
 
         _fsQuad.vao.Bind();
         _renderContext->DrawElements(pmt_type_triangles, 6, idx_typ_unsigned_int, nullptr);
@@ -501,44 +561,44 @@ namespace tao_pbr
         _renderContext->MemoryBarrier(static_cast<ogl_barrier_bit>(texture_fetch_barrier_bit | shader_image_access_barrier_bit));
     }
 
-    PbrRenderer::EnvironmentTextures PbrRenderer::CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env)
+    EnvironmentTextureGraphicsData PbrRenderer::CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env)
     {
         constexpr int kEnvRes = 512;
         constexpr int kIrrRes = 64;
         constexpr int kPreRes = 128;
 
-        EnvironmentTextures res
+        EnvironmentTextureGraphicsData res
         {
-            .envCube{_renderContext->CreateTextureCube()},
-            .irradianceCube{_renderContext->CreateTextureCube()},
-            .prefilteredEnvCube{_renderContext->CreateTextureCube()}
+            ._envCube{_renderContext->CreateTextureCube()},
+            ._irradianceCube{_renderContext->CreateTextureCube()},
+            ._prefilteredEnvCube{_renderContext->CreateTextureCube()}
         };
 
         // Initialize each face level 0
         for(ogl_texture_cube_target face = tex_tar_cube_map_positive_x; face <=tex_tar_cube_map_negative_z; face = static_cast<ogl_texture_cube_target>(face+1))
         {
-            res.envCube             .TexImage(face, 0, tex_int_for_rgba16f, kEnvRes, kEnvRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
-            res.irradianceCube      .TexImage(face, 0, tex_int_for_rgba16f, kIrrRes, kIrrRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
-            res.prefilteredEnvCube  .TexImage(face, 0, tex_int_for_rgba16f, kPreRes, kPreRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
+            res._envCube             .TexImage(face, 0, tex_int_for_rgba16f, kEnvRes, kEnvRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
+            res._irradianceCube      .TexImage(face, 0, tex_int_for_rgba16f, kIrrRes, kIrrRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
+            res._prefilteredEnvCube  .TexImage(face, 0, tex_int_for_rgba16f, kPreRes, kPreRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
         }
 
-        res.prefilteredEnvCube.GenerateMipmap();
+        res._prefilteredEnvCube.GenerateMipmap();
 
         // --- !!! IMPORTANT !!! ---------------------------------------------------------------------------
         // Mh....apparently (with my current NVidia drivers) writes via ImageStore on a texture that is
         // 'texture incomplete` has no effect. The debug layer didn't say anything. Only NSight graphics
         // detected the issue. Is this by OGL specs???
         // -------------------------------------------------------------------------------------------------
-        res.envCube             .SetFilterParams(ogl_tex_filter_params{.min_filter = tex_min_filter_nearest, .mag_filter = tex_mag_filter_nearest});
-        res.irradianceCube      .SetFilterParams(ogl_tex_filter_params{.min_filter = tex_min_filter_nearest, .mag_filter = tex_mag_filter_nearest});
-        res.prefilteredEnvCube  .SetFilterParams(ogl_tex_filter_params{.min_filter = tex_min_filter_linear_mip_linear, .mag_filter = tex_mag_filter_linear});
+        res._envCube             .SetFilterParams(ogl_tex_filter_params{.min_filter = tex_min_filter_nearest, .mag_filter = tex_mag_filter_nearest});
+        res._irradianceCube      .SetFilterParams(ogl_tex_filter_params{.min_filter = tex_min_filter_nearest, .mag_filter = tex_mag_filter_nearest});
+        res._prefilteredEnvCube  .SetFilterParams(ogl_tex_filter_params{.min_filter = tex_min_filter_linear_mip_linear, .mag_filter = tex_mag_filter_linear});
 
         _linearSampler.BindToTextureUnit(tex_unit_0);
 
         // Generate ENVIRONMENT cube map
         // ------------------------------------------------------------------------------------------------------
         /* tex unit 0 */ env                 .BindToTextureUnit(tex_unit_0);
-        /* img unit 0 */ res.envCube         .BindToImageUnit(0, 0, true, 0, image_access_write, image_format_rgba16f);
+        /* img unit 0 */ res._envCube        .BindToImageUnit(0, 0, true, 0, image_access_write, image_format_rgba16f);
 
         _computeShaders.generateEnvironmentCube.UseProgram();
         _computeShaders.generateEnvironmentCube.SetUniform(PROCESS_ENV_ENV2D_TEX_NAME  , 0);
@@ -554,14 +614,14 @@ namespace tao_pbr
         _renderContext->DispatchCompute(grpCntX, grpCntY, grpCntZ);
 
         env                 .UnBindToTextureUnit(tex_unit_0);
-        res.envCube         .UnBindToImageUnit(0);
+        res._envCube        .UnBindToImageUnit(0);
 
         _renderContext->MemoryBarrier(static_cast<ogl_barrier_bit>(texture_fetch_barrier_bit | shader_image_access_barrier_bit));
 
         // Generate IRRADIANCE cube map
         // ------------------------------------------------------------------------------------------------------
-        /* tex unit 0 */ res.envCube         .BindToTextureUnit(tex_unit_0); // linear sampler should be bound!!!
-        /* img unit 0 */ res.irradianceCube  .BindToImageUnit(0, 0, true, 0, image_access_write, image_format_rgba16f);
+        /* tex unit 0 */ res._envCube         .BindToTextureUnit(tex_unit_0); // linear sampler should be bound!!!
+        /* img unit 0 */ res._irradianceCube  .BindToImageUnit(0, 0, true, 0, image_access_write, image_format_rgba16f);
 
         _computeShaders.generateIrradianceCube.UseProgram();
         _computeShaders.generateIrradianceCube.SetUniform(PROCESS_ENV_ENVCUBE_TEX_NAME  , 0);
@@ -574,8 +634,8 @@ namespace tao_pbr
         );
         _renderContext->DispatchCompute(grpCntX, grpCntY, grpCntZ);
 
-        res.envCube         .UnBindToTextureUnit(tex_unit_0);
-        res.irradianceCube  .UnBindToImageUnit(0);
+        res._envCube         .UnBindToTextureUnit(tex_unit_0);
+        res._irradianceCube  .UnBindToImageUnit(0);
 
         _renderContext->MemoryBarrier(static_cast<ogl_barrier_bit>(texture_fetch_barrier_bit | shader_image_access_barrier_bit));
 
@@ -590,8 +650,8 @@ namespace tao_pbr
         {
             _computeShaders.generatePrefilteredEnvCube.SetUniform(PROCESS_ENV_ROUGHNESS_NAME, mip/(max(1.0f, totalMips-1.0f)));
 
-            /* img unit 0 */ res.prefilteredEnvCube.BindToImageUnit(0, mip, true, 0, image_access_write,image_format_rgba16f);
-            /* tex unit 0 */ res.envCube           .BindToTextureUnit(tex_unit_0); // linear sampler should be bound!!!
+            /* img unit 0 */ res._prefilteredEnvCube.BindToImageUnit(0, mip, true, 0, image_access_write,image_format_rgba16f);
+            /* tex unit 0 */ res._envCube           .BindToTextureUnit(tex_unit_0); // linear sampler should be bound!!!
 
             ComputeShaderNumGroups(
                     resolution, resolution, 6/*cube map faces*/,
@@ -600,10 +660,10 @@ namespace tao_pbr
             );
 
             _renderContext->DispatchCompute(grpCntX, grpCntY, grpCntZ);
-            res.prefilteredEnvCube  .UnBindToImageUnit(0);
+            res._prefilteredEnvCube.UnBindToImageUnit(0);
         }
 
-        res.envCube             .UnBindToTextureUnit(tex_unit_0);
+        res._envCube             .UnBindToTextureUnit(tex_unit_0);
 
         _renderContext->MemoryBarrier(static_cast<ogl_barrier_bit>(texture_fetch_barrier_bit | shader_image_access_barrier_bit));
 

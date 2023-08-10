@@ -234,6 +234,29 @@ namespace tao_pbr
         // Handle to graphics data (ugly)
         std::optional<GenKey<ImageTextureGraphicsData>> _graphicsData;
     };
+
+    struct EnvironmentTextureGraphicsData
+    {
+        tao_ogl_resources::OglTextureCube _envCube;              // environment map as cube map
+        tao_ogl_resources::OglTextureCube _irradianceCube;       // irradiance cube map
+        tao_ogl_resources::OglTextureCube _prefilteredEnvCube;   // incoming env irradiance map (split-sum approx)
+    };
+
+    class EnvironmentTexture
+    {
+        friend class PbrRenderer;
+
+    public:
+        explicit EnvironmentTexture(const std::string &path) : _path(path)
+        {
+
+        }
+    private:
+        std::string _path;
+
+        // Handle to graphics data (ugly)
+        std::optional<GenKey<EnvironmentTextureGraphicsData>> _graphicsData;
+    };
         
     class PbrMaterial
     {
@@ -338,9 +361,15 @@ namespace tao_pbr
                         .vao{_renderContext->CreateVertexAttribArray()}
                 },
                 _meshes(),
+                _meshesGraphicsData(),
                 _textures(),
-                _pointSampler   {_renderContext->CreateSampler()},
-                _linearSampler  {_renderContext->CreateSampler()},
+                _texturesGraphicsData(),
+                _environmentTextures(),
+                _environmentTexturesGraphicsData(),
+                _currentEnvironment(),
+                _pointSampler           {_renderContext->CreateSampler()},
+                _linearSampler          {_renderContext->CreateSampler()},
+                _linearMipLinearSampler {_renderContext->CreateSampler()},
                 _materials(),
                 _meshRenderers()
         {
@@ -359,10 +388,13 @@ namespace tao_pbr
             _materialDataBlockAlignment = mtBlkSize/glOffAlignment + (mtBlkSize%glOffAlignment) ? glOffAlignment : 0;
         }
 
-        GenKey<Mesh> AddMesh(Mesh& mesh);
-        GenKey<ImageTexture> AddImageTexture(ImageTexture& texture);
-        GenKey<PbrMaterial> AddMaterial(const PbrMaterial& material);
-        GenKey<MeshRenderer> AddMeshRenderer(const MeshRenderer& meshRenderer);
+        [[nodiscard]] GenKey<Mesh>                AddMesh(Mesh& mesh);
+        [[nodiscard]] GenKey<ImageTexture>        AddImageTexture(ImageTexture& texture);
+        [[nodiscard]] GenKey<EnvironmentTexture>  AddEnvironmentTexture(EnvironmentTexture& texture);
+        [[nodiscard]] GenKey<PbrMaterial>         AddMaterial(const PbrMaterial& material);
+        [[nodiscard]] GenKey<MeshRenderer>        AddMeshRenderer(const MeshRenderer& meshRenderer);
+
+        void SetCurrentEnvironment(const GenKey<EnvironmentTexture>& environment);
 
         void ReloadShaders();
 
@@ -378,15 +410,21 @@ namespace tao_pbr
         static constexpr const char* LIGHTPASS_VERT_SOURCE = "LightPass.vert";
         static constexpr const char* LIGHTPASS_FRAG_SOURCE = "LightPass.frag";
 
-        static constexpr const char* LIGHTPASS_NAME_GBUFF0  = "gBuff0";
-        static constexpr const char* LIGHTPASS_NAME_GBUFF1  = "gBuff1";
-        static constexpr const char* LIGHTPASS_NAME_GBUFF2  = "gBuff2";
-        static constexpr const char* LIGHTPASS_NAME_GBUFF3  = "gBuff3";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF0          = "gBuff0";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF1          = "gBuff1";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF2          = "gBuff2";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF3          = "gBuff3";
+        static constexpr const char* LIGHTPASS_NAME_ENV_BRDF_LUT    = "envBrdfLut";
+        static constexpr const char* LIGHTPASS_NAME_ENV_IRRADIANCE  = "envIrradiance";
+        static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED = "envPrefiltered";
 
-        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF0  = 0;
-        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF1  = 1;
-        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF2  = 2;
-        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF3  = 3;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF0         = 0;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF1         = 1;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF2         = 2;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF3         = 3;
+        static constexpr const int LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT   = 4;
+        static constexpr const int LIGHTPASS_TEX_BINDING_ENV_IRRADIANCE = 5;
+        static constexpr const int LIGHTPASS_TEX_BINDING_ENV_PREFILTERED= 6;
 
         static constexpr const int GPASS_UBO_BINDING_TRANSFORM  = 2;
         static constexpr const int GPASS_UBO_BINDING_MATERIAL   = 3;
@@ -480,13 +518,6 @@ namespace tao_pbr
             tao_ogl_resources::OglVertexAttribArray vao;
         };
 
-        struct EnvironmentTextures
-        {
-            tao_ogl_resources::OglTextureCube envCube;              // environment map as cube map
-            tao_ogl_resources::OglTextureCube irradianceCube;       // irradiance cube map
-            tao_ogl_resources::OglTextureCube prefilteredEnvCube;   // incoming env irradiance map (split-sum approx)
-        };
-
         tao_ogl_resources::OglTexture2D   _envBRDFLut;              // env BRDF lut (split-sum approx)
 
         struct camera_gl_data_block
@@ -540,14 +571,19 @@ namespace tao_pbr
 
         NdcQuad _fsQuad;
 
-        GenKeyVector<Mesh>          _meshes;
-        GenKeyVector<MeshGraphicsData> _meshesGraphicsData;
+        GenKeyVector<Mesh>                      _meshes;
+        GenKeyVector<MeshGraphicsData>          _meshesGraphicsData;
 
-        GenKeyVector<ImageTexture>  _textures;
+        GenKeyVector<ImageTexture>              _textures;
         GenKeyVector<ImageTextureGraphicsData>  _texturesGraphicsData;
+
+        GenKeyVector<EnvironmentTexture>              _environmentTextures;
+        GenKeyVector<EnvironmentTextureGraphicsData>  _environmentTexturesGraphicsData;
+        std::optional<GenKey<EnvironmentTexture>>     _currentEnvironment;
 
         tao_ogl_resources::OglSampler _pointSampler;
         tao_ogl_resources::OglSampler _linearSampler;
+        tao_ogl_resources::OglSampler _linearMipLinearSampler;
 
         GenKeyVector<PbrMaterial>   _materials;
         GenKeyVector<MeshRenderer>  _meshRenderers;
@@ -562,15 +598,15 @@ namespace tao_pbr
         void InitSamplers();
         void InitEnvBRDFLut();
         void InitStaticShaderBuffers();
-        void WriteTransfromToShaderBuffer(const MeshRenderer& mesh);
-        void WriteTransfromToShaderBuffer(const std::vector<MeshRenderer>& meshes);
-        void WriteMaterialToShaderBuffer(const MeshRenderer& mesh);
-        void WriteMaterialToShaderBuffer(const std::vector<MeshRenderer>& meshes);
-        GenKey<MeshGraphicsData> CreateGraphicsData(Mesh& mesh);
-        GenKey<ImageTextureGraphicsData> CreateGraphicsData(ImageTexture& image);
+        void WriteTransfromToShaderBuffer(const MeshRenderer& mesh, int offset);
+        void WriteTransfromToShaderBuffer(const std::vector<MeshRenderer>& meshes, int offset);
+        void WriteMaterialToShaderBuffer(const MeshRenderer& mesh, int offset);
+        void WriteMaterialToShaderBuffer(const std::vector<MeshRenderer>& meshes, int offset);
+        [[nodiscard]] GenKey<MeshGraphicsData>                CreateGraphicsData(Mesh& mesh);
+        [[nodiscard]] GenKey<ImageTextureGraphicsData>        CreateGraphicsData(ImageTexture& image);
+        [[nodiscard]] GenKey<EnvironmentTextureGraphicsData>  CreateGraphicsData(EnvironmentTexture& image);
+        [[nodiscard]] EnvironmentTextureGraphicsData CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env);
 
-    public: // TODO: should not be public!!!
-        [[nodiscard]] EnvironmentTextures CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env);
 
     };
 

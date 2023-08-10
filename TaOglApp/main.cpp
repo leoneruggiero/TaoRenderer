@@ -917,8 +917,8 @@ int main()
         });
 
         // *** TEST ***
-        // -------------------
-        auto sphere = tao_geometry::Mesh::Sphere(1.0f, 32);
+        // ----------------------------------------------------------------------------
+        auto sphere = tao_geometry::Mesh::Sphere(0.3f, 32);
         tao_pbr::Mesh sphereMesh{
             sphere.GetPositions(),
             sphere.GetNormals(),
@@ -935,28 +935,49 @@ int main()
 
         auto sphereMeshKey = pbrRdr.AddMesh(sphereMesh);
         auto cubeMeshKey = pbrRdr.AddMesh(cubeMesh);
-        auto blueMat = pbrRdr.AddMaterial(PbrMaterial{0.6f, 0.0f, glm::vec3(0.0f, 0.3f, 1.0f)});
-        auto redMat = pbrRdr.AddMaterial(PbrMaterial{0.6f, 0.0f, glm::vec3(1.0f, 0.3f, 0.0f)});
-        auto orangeMat = pbrRdr.AddMaterial(PbrMaterial{0.6f, 0.0f, glm::vec3(0.9f, 0.6f, 0.0f)});
 
-        MeshRenderer mr0 = MeshRenderer(glm::mat4(1.0f), sphereMeshKey, blueMat);
-        MeshRenderer mr1 = MeshRenderer(glm::mat4(1.0f), cubeMeshKey, redMat);
-        MeshRenderer mr2 = MeshRenderer(glm::mat4(1.0f), sphereMeshKey, redMat);
-        MeshRenderer mr3 = MeshRenderer(glm::mat4(1.0f), cubeMeshKey, blueMat);
-        MeshRenderer mr4 = MeshRenderer(glm::mat4(1.0f), sphereMeshKey, orangeMat);
+        glm::vec3 dColor = vec3{0.8, 0.3, 0.0};
+        glm::vec3 mColor = vec3{0.7, 0.7, 0.7};
 
-        mr0.transformation.Translate({-1.0f, 0.0f, 2.0f});
-        mr1.transformation.Translate({0.2f, -1.0f, 0.5f});
-        mr2.transformation.Translate({3.2f, 2.2f, 1.3f});
-        mr3.transformation.Translate({2.0f, -0.5f, 0.0f});
-        mr4.transformation.Translate({0.0f, -1.0f, -3.0f});
+        // dielectrics
+        // -------------------------------------------------------------------------------------------------------------
+        auto matD0 = pbrRdr.AddMaterial(PbrMaterial{0.01f, 0.0f, dColor});
+        auto matD1 = pbrRdr.AddMaterial(PbrMaterial{0.30f, 0.0f, dColor});
+        auto matD2 = pbrRdr.AddMaterial(PbrMaterial{0.60f, 0.0f, dColor});
+        auto matD3 = pbrRdr.AddMaterial(PbrMaterial{0.90f, 0.0f, dColor});
+
+        MeshRenderer mr0 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, -1.0, 0.0}), sphereMeshKey, matD0);
+        MeshRenderer mr1 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, -1.0, 0.0}), sphereMeshKey, matD1);
+        MeshRenderer mr2 = MeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, -1.0, 0.0}), sphereMeshKey, matD2);
+        MeshRenderer mr3 = MeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, -1.0, 0.0}), sphereMeshKey, matD3);
+
+        // metals
+        // -------------------------------------------------------------------------------------------------------------
+        auto matM0 = pbrRdr.AddMaterial(PbrMaterial{0.01f, 1.0f, mColor});
+        auto matM1 = pbrRdr.AddMaterial(PbrMaterial{0.30f, 1.0f, mColor});
+        auto matM2 = pbrRdr.AddMaterial(PbrMaterial{0.60f, 1.0f, mColor});
+        auto matM3 = pbrRdr.AddMaterial(PbrMaterial{0.90f, 1.0f, mColor});
+
+        MeshRenderer mr4 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, 1.0, 0.0}), sphereMeshKey, matM0);
+        MeshRenderer mr5 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, 1.0, 0.0}), sphereMeshKey, matM1);
+        MeshRenderer mr6 = MeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, 1.0, 0.0}), sphereMeshKey, matM2);
+        MeshRenderer mr7 = MeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, 1.0, 0.0}), sphereMeshKey, matM3);
 
         auto meshRdrKey0 = pbrRdr.AddMeshRenderer(mr0);
         auto meshRdrKey1 = pbrRdr.AddMeshRenderer(mr1);
         auto meshRdrKey2 = pbrRdr.AddMeshRenderer(mr2);
         auto meshRdrKey3 = pbrRdr.AddMeshRenderer(mr3);
         auto meshRdrKey4 = pbrRdr.AddMeshRenderer(mr4);
-        // -------------------
+        auto meshRdrKey5 = pbrRdr.AddMeshRenderer(mr5);
+        auto meshRdrKey6 = pbrRdr.AddMeshRenderer(mr6);
+        auto meshRdrKey7 = pbrRdr.AddMeshRenderer(mr7);
+
+
+        auto env = EnvironmentTexture("C:/Users/Admin/Downloads/thatch_chapel_1k.hdr");
+        auto envKey = pbrRdr.AddEnvironmentTexture(env);
+        pbrRdr.SetCurrentEnvironment(envKey);
+
+        // ----------------------------------------------------------------------------
 
 		mouse_input_data mouseRotateData;
 		mouse_input_data mouseZoomData;

@@ -145,24 +145,24 @@ namespace tao_geometry
             // with the proper translation and scale
             for (int j = 0, k = 0; j < subdivisions; j++, k += 2)
             {
-                circleVertices.at(k) = glm::vec3(glm::cos(j * increment), glm::sin(j * increment), 0.0);
-                circleVertices.at(k + 1) = glm::vec3(glm::cos((j + 1) * increment), glm::sin((j + 1) * increment), 0.0);
+                circleVertices.at(k)            =  glm::vec3(glm::cos(j * increment), glm::sin(j * increment), 0.0);
+                circleVertices.at(k + 1)        =  glm::vec3(glm::cos((j + 1) * increment), glm::sin((j + 1) * increment), 0.0);
 
-                circleTextureCoordinates.at(k) = glm::vec2(j / (float)subdivisions, 0.0);
-                circleTextureCoordinates.at(k + 1) = glm::vec2((j + 1) / (float)subdivisions, 0.0);
+                circleTextureCoordinates.at(k)      = glm::vec2(j / (float)subdivisions, 0.0);
+                circleTextureCoordinates.at(k + 1)  = glm::vec2((j + 1) / (float)subdivisions, 0.0);
             }
 
             increment = (glm::pi<float>() / stacks);
             for (int i = 0; i <= stacks; i++)
             {
-                float height = glm::sin(i * increment - glm::pi<float>() / 2.0f);
-
-                float cos = glm::cos(glm::asin(height / radius));
-                float scale = cos * radius;
+                float angle  = i * increment - glm::pi<float>() / 2.0f;
+                float height = radius * glm::sin(angle);
+                float cos = glm::cos(angle);
+                float width = cos * radius;
 
                 for (int j = 0; j < circleVertices.size(); j++)
                 {
-                    glm::vec3 vertex = circleVertices.at(j) * glm::vec3(scale, scale, 1) + glm::vec3(0.0, 0.0, height);
+                    glm::vec3 vertex = glm::vec3(width, width, 1) * circleVertices.at(j) + glm::vec3(0.0, 0.0, height);
                     vertices.push_back(vertex);
                     normals.push_back(vertex / radius);
                     textureCoordinates.push_back(circleTextureCoordinates.at(j) + glm::vec2(0.0, (float)i / stacks));
