@@ -5,6 +5,21 @@ namespace tao_render_context
 
 	// ReSharper disable CppMemberFunctionMayBeStatic
 
+    class GlfwCallbacks
+    {
+    public:
+        static std::function<void(GLFWwindow*, int, int)> MyFramebufferSizeCallback;
+        static void FramebufferSizeCallback(GLFWwindow* win, int w, int h){MyFramebufferSizeCallback(win, w, h);}
+    };
+
+    std::function<void(GLFWwindow*, int, int)> GlfwCallbacks::MyFramebufferSizeCallback;
+
+    void RenderContext::InitGlfwCallbacks()
+    {
+        GlfwCallbacks::MyFramebufferSizeCallback = std::bind(&RenderContext::GlfwResizeCallback, this, placeholders::_1, placeholders::_2, placeholders::_3);
+        glfwSetFramebufferSizeCallback(_glf_window, GlfwCallbacks::FramebufferSizeCallback);
+    }
+
 #ifdef GFX_DEBUG_OUTPUT_ENABLED
     class CallBack
     {

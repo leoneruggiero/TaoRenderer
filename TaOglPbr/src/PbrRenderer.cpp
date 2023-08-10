@@ -46,7 +46,14 @@ namespace tao_pbr
         _gBuffer.gBuff.SetDrawBuffers(4, drawBuffs);
     }
 
-
+    void PbrRenderer::ResizeGBuffer(int width, int height)
+    {
+        _gBuffer.texColor0.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
+        _gBuffer.texColor1.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
+        _gBuffer.texColor2.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
+        _gBuffer.texColor3.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
+        _gBuffer.texDepth .TexImage(0, tex_int_for_depth_stencil, width, height, tex_for_depth, tex_typ_float, nullptr);
+    }
 
     void PbrRenderer::InitOutputBuffer(int width, int height)
     {
@@ -55,6 +62,11 @@ namespace tao_pbr
 
         const ogl_framebuffer_read_draw_buffs drawBuffs = fbo_read_draw_buff_color0;
         _outBuffer.buff.SetDrawBuffers(1, &drawBuffs);
+    }
+
+    void PbrRenderer::ResizeOutputBuffer(int width, int height)
+    {
+        _outBuffer.texColor.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
     }
 
     void PbrRenderer::InitSamplers()
@@ -361,6 +373,21 @@ namespace tao_pbr
     void PbrRenderer::ReloadShaders()
     {
         InitShaders();
+    }
+
+    void PbrRenderer::Resize(int newWidth, int newHeight)
+    {
+        if(newWidth <= 0 || newHeight <= 0)
+            throw std::runtime_error("Invalid size.");
+
+        if(newWidth==_windowWidth && newHeight==_windowHeight)
+            return;
+
+        _windowWidth  = newWidth;
+        _windowHeight = newHeight;
+
+        ResizeGBuffer(newWidth, newHeight);
+        ResizeOutputBuffer(newWidth, newHeight);
     }
 
     const OglFramebuffer<OglTexture2D>& PbrRenderer::Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far)

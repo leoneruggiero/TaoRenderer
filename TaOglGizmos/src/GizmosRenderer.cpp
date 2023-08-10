@@ -520,13 +520,19 @@ namespace tao_gizmos
 	 }
 
 	 void GizmosRenderer::InitMainFramebuffer(int width, int height)
-	{
-		 _colorTex.TexImage(8, tex_int_for_rgba, width, height, false);
-		 _depthTex.TexImage(8, tex_int_for_depth, width, height, false);
+	 {
+	 	 _colorTex.TexImage(MAIN_FBO_SAMPLE_COUNT, tex_int_for_rgba, width, height, false);
+	 	 _depthTex.TexImage(MAIN_FBO_SAMPLE_COUNT, tex_int_for_depth, width, height, false);
 
-		 _mainFramebuffer.AttachTexture(fbo_attachment_color0, _colorTex, 0);
-		 _mainFramebuffer.AttachTexture(fbo_attachment_depth, _depthTex, 0);
-	}
+	 	 _mainFramebuffer.AttachTexture(fbo_attachment_color0, _colorTex, 0);
+	 	 _mainFramebuffer.AttachTexture(fbo_attachment_depth, _depthTex, 0);
+	 }
+
+    void GizmosRenderer::ResizeMainFramebuffer(int width, int height)
+    {
+        _colorTex.TexImage(MAIN_FBO_SAMPLE_COUNT, tex_int_for_rgba, width, height, false);
+        _depthTex.TexImage(MAIN_FBO_SAMPLE_COUNT, tex_int_for_depth, width, height, false);
+    }
 
 	 void GizmosRenderer::InitSelectionFramebuffer(int width, int height)
 	 {
@@ -545,6 +551,12 @@ namespace tao_gizmos
 			_selectionPBOs[i].BufferStorage(/*width*height**/4, nullptr, ogl_buffer_flags::buffer_flags_map_read);
 		 }
 	 }
+
+    void GizmosRenderer::ResizeSelectionFramebuffer(int width, int height)
+    {
+        _selectionColorTex.TexImage(0, tex_int_for_rgba, width, height, tex_for_rgba, tex_typ_byte, nullptr);
+        _selectionDepthTex.TexImage(0, tex_int_for_depth, width, height, tex_for_depth, tex_typ_unsigned_byte, nullptr);
+    }
 
 	 void GizmosRenderer::InitShaders()
 	 {
@@ -1694,6 +1706,21 @@ namespace tao_gizmos
 			gi<<8  |
 			ri<<16 ;
 	}
+
+    void GizmosRenderer::Resize(int newWidth, int newHeight)
+    {
+        if(newWidth <= 0 || newHeight <= 0)
+            throw std::runtime_error("Invalid size.");
+
+        if(newWidth==_windowWidth && newHeight==_windowHeight)
+            return;
+
+        _windowWidth  = newWidth;
+        _windowHeight = newHeight;
+
+        ResizeMainFramebuffer     (_windowWidth, _windowHeight);
+        ResizeSelectionFramebuffer(_windowWidth, _windowHeight);
+    }
 
 	const OglFramebuffer<OglTexture2DMultisample>& GizmosRenderer::Render(
 		const glm::mat4& viewMatrix,

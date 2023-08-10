@@ -543,10 +543,12 @@ namespace tao_gizmos
 
 		/// Main Framebuffer and Textures
 		////////////////////////////////////////////////
+		static constexpr int MAIN_FBO_SAMPLE_COUNT = 8;
 		tao_ogl_resources::OglTexture2DMultisample										_colorTex;
 		tao_ogl_resources::OglTexture2DMultisample										_depthTex;
 		tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2DMultisample>	_mainFramebuffer;
-		void InitMainFramebuffer(int width, int height);
+		void InitMainFramebuffer    (int width, int height);
+        void ResizeMainFramebuffer  (int width, int height);
 
 		///  Selection Framebuffer and Textures
 		/// (false color drawing)
@@ -554,7 +556,8 @@ namespace tao_gizmos
 		tao_ogl_resources::OglTexture2D										_selectionColorTex;
 		tao_ogl_resources::OglTexture2D										_selectionDepthTex;
 		tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>	_selectionFramebuffer;
-		void InitSelectionFramebuffer(int width, int height);
+		void InitSelectionFramebuffer   (int width, int height);
+        void ResizeSelectionFramebuffer (int width, int height);
 
 		unsigned int										_latestSelectionPBOIdx = 0;
 		static constexpr unsigned int						_selectionPBOsCount = 3;
@@ -640,7 +643,9 @@ namespace tao_gizmos
 	public:
 		GizmosRenderer(tao_render_context::RenderContext& rc, int windowWidth, int windowHeight);
 
-		// todo: projection matrix is not a parameter (near and far should be modified)
+        void Resize(int newWidth, int newHeight);
+
+		// TODO: projection matrix is not a parameter (near and far should be modified)
 		[[nodiscard]] const tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2DMultisample>& Render(
 			const glm::mat4& viewMatrix, 
 			const glm::mat4& projectionMatrix,

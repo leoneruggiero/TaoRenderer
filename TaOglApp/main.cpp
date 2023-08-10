@@ -906,6 +906,16 @@ int main()
         // Pbr Renderer
         PbrRenderer pbrRdr{rc, fboWidth, fboHeight};
 
+        // Handle window resize
+        rc.SetResizeCallback
+        ([&rc, &gizRdr, &gizRdrVC, &pbrRdr, &fboWidth, &fboHeight](int w, int h)
+        {
+            rc.GetFramebufferSize(fboWidth, fboHeight);
+
+            gizRdr.Resize(fboWidth, fboHeight);
+            pbrRdr.Resize(fboWidth, fboHeight);
+        });
+
         // *** TEST ***
         // -------------------
         auto sphere = tao_geometry::Mesh::Sphere(1.0f, 32);
@@ -1002,8 +1012,6 @@ int main()
 		vec3 eyePos = vec3(-2.5f, -2.5f, 2.f);
 		vec3 eyeTrg = vec3(0.f);
 		vec3 up = vec3(0.f, 0.f, 1.f);
-		mat4 viewMatrix = glm::lookAt(eyePos, eyeTrg, up);
-		mat4 projMatrix = glm::perspective(radians<float>(60), static_cast<float>(fboWidth) / fboHeight, nearFar.x, nearFar.y);
 
 		float zoomDeltaX = 0.0f;
 		float zoomDeltaY = 0.0f;
@@ -1060,7 +1068,8 @@ int main()
 					  eyePos = eyeTrg + eyeDst * normalize(eyePos - eyeTrg);
 			}
 
-			viewMatrix = glm::lookAt(eyePos, eyeTrg, up);
+            mat4 viewMatrix = glm::lookAt(eyePos, eyeTrg, up);
+            mat4 projMatrix = glm::perspective(radians<float>(60), static_cast<float>(fboWidth) / fboHeight, nearFar.x, nearFar.y);
 			// ----------------------------------------------------------------------
 
 			time_point timeNow = high_resolution_clock::now();
@@ -1070,12 +1079,11 @@ int main()
             pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y)
                 .CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
 
-			// gizRdr.Render(viewMatrix, projMatrix, nearFar).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
-
 			float mouseX, mouseY;
 			mouseRawPosition.Position(mouseX, mouseY);
 
-			// gizRdr.GetGizmoUnderCursor(mouseX, mouseY, viewMatrix, projMatrix, nearFar);
+            //gizRdr.Render(viewMatrix, projMatrix, nearFar).CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
+            //gizRdr.GetGizmoUnderCursor(mouseX, mouseY, viewMatrix, projMatrix, nearFar);
 
 			mat4 viewMatrixVC = glm::lookAt(normalize(eyePos - eyeTrg)*3.5f, vec3{ 0.0f }, vec3{0.0, 0.0, 1.0});
 			mat4 projMatrixVC = glm::perspective(radians<float>(60), static_cast<float>(fboWidthVC) / fboHeightVC, 0.1f, 5.0f);

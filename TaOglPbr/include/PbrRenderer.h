@@ -369,6 +369,8 @@ namespace tao_pbr
         const tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>&
             Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far);
 
+        void Resize(int newWidth, int newHeight);
+
     private:
 
         static constexpr const char* GPASS_VERT_SOURCE = "GPass.vert";
@@ -551,8 +553,10 @@ namespace tao_pbr
         GenKeyVector<MeshRenderer>  _meshRenderers;
 
 
-        void InitGBuffer(int width, int height);
-        void InitOutputBuffer(int width, int height);
+        void InitGBuffer        (int width, int height);
+        void ResizeGBuffer       (int width, int height);
+        void InitOutputBuffer   (int width, int height);
+        void ResizeOutputBuffer (int width, int height);
         void InitFsQuad();
         void InitShaders();
         void InitSamplers();
