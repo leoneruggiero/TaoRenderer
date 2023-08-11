@@ -322,6 +322,7 @@ namespace tao_pbr
                 _windowHeight (windowHeight),
                 _renderContext(&rc),
                 _envBRDFLut{rc.CreateTexture2D()},
+                _frameDataUbo(rc.CreateUniformBuffer()),
                 _gBuffer
                 {
                         .texColor0{_renderContext->CreateTexture2D()},
@@ -381,6 +382,8 @@ namespace tao_pbr
             InitStaticShaderBuffers();
             InitEnvBRDFLut();
 
+            _frameDataUbo.SetData(sizeof(frame_gl_data_block), nullptr, tao_ogl_resources::buf_usg_dynamic_draw);
+
             int glOffAlignment = _renderContext->UniformBufferOffsetAlignment();
             int trBlkSize = sizeof(transform_gl_data_block);
             int mtBlkSize = sizeof(material_gl_data_block);
@@ -429,6 +432,7 @@ namespace tao_pbr
         static constexpr const int GPASS_UBO_BINDING_TRANSFORM  = 2;
         static constexpr const int GPASS_UBO_BINDING_MATERIAL   = 3;
         static constexpr const int GPASS_UBO_BINDING_CAMERA     = 1;
+        static constexpr const int UBO_BINDING_FRAME_DATA       = 0;
 
         static constexpr const char* PROCESS_ENV_COMPUTE_SOURCE      = "ProcessEnvironment.comp";
         static constexpr const char* GEN_ENV_SYMBOL                  = "GEN_ENVIRONMENT_CUBE";
@@ -444,6 +448,13 @@ namespace tao_pbr
         static constexpr int         PROCESS_ENV_GROUP_SIZE_X        = 8;
         static constexpr int         PROCESS_ENV_GROUP_SIZE_Y        = 8;
         static constexpr int         PROCESS_ENV_GROUP_SIZE_Z        = 1;
+
+        static constexpr int ENV_CUBE_RES = 512;
+        static constexpr int IRR_CUBE_RES = 64;
+        static constexpr int PRE_CUBE_RES = 128;
+        static constexpr int PRE_CUBE_MIN_LOD = 0;
+        static constexpr int PRE_CUBE_MAX_LOD = 4;
+
 
         static constexpr tao_ogl_resources::ogl_depth_state DEFAULT_DEPTH_STATE  =
                 tao_ogl_resources::ogl_depth_state
@@ -519,6 +530,22 @@ namespace tao_pbr
         };
 
         tao_ogl_resources::OglTexture2D   _envBRDFLut;              // env BRDF lut (split-sum approx)
+
+        struct frame_gl_data_block
+        {
+            glm::vec4 eyePosition;
+            glm::vec2 viewportSize;
+            glm::vec2 taaJitter;
+            int doGamma;
+            float gamma;
+            int doEnvironmentIbl;
+            float environmentIntensity;
+            int radianceMinLod;
+            int radianceMaxLod;
+            int doTaa;
+        };
+
+        tao_ogl_resources::OglUniformBuffer _frameDataUbo;
 
         struct camera_gl_data_block
         {

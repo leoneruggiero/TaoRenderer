@@ -936,15 +936,15 @@ int main()
         auto sphereMeshKey = pbrRdr.AddMesh(sphereMesh);
         auto cubeMeshKey = pbrRdr.AddMesh(cubeMesh);
 
-        glm::vec3 dColor = vec3{0.8, 0.3, 0.0};
-        glm::vec3 mColor = vec3{0.7, 0.7, 0.7};
+        glm::vec3 dColor = vec3{0.9, 0.1, 0.0};
+        glm::vec3 mColor = vec3{0.5, 0.3, 0.0};
 
         // dielectrics
         // -------------------------------------------------------------------------------------------------------------
-        auto matD0 = pbrRdr.AddMaterial(PbrMaterial{0.01f, 0.0f, dColor});
-        auto matD1 = pbrRdr.AddMaterial(PbrMaterial{0.30f, 0.0f, dColor});
-        auto matD2 = pbrRdr.AddMaterial(PbrMaterial{0.60f, 0.0f, dColor});
-        auto matD3 = pbrRdr.AddMaterial(PbrMaterial{0.90f, 0.0f, dColor});
+        auto matD0 = pbrRdr.AddMaterial(PbrMaterial{0.1f, 0.0f, dColor});
+        auto matD1 = pbrRdr.AddMaterial(PbrMaterial{0.3f, 0.0f, dColor});
+        auto matD2 = pbrRdr.AddMaterial(PbrMaterial{0.5f, 0.0f, dColor});
+        auto matD3 = pbrRdr.AddMaterial(PbrMaterial{0.8f, 0.0f, dColor});
 
         MeshRenderer mr0 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, -1.0, 0.0}), sphereMeshKey, matD0);
         MeshRenderer mr1 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, -1.0, 0.0}), sphereMeshKey, matD1);
@@ -953,10 +953,10 @@ int main()
 
         // metals
         // -------------------------------------------------------------------------------------------------------------
-        auto matM0 = pbrRdr.AddMaterial(PbrMaterial{0.01f, 1.0f, mColor});
-        auto matM1 = pbrRdr.AddMaterial(PbrMaterial{0.30f, 1.0f, mColor});
-        auto matM2 = pbrRdr.AddMaterial(PbrMaterial{0.60f, 1.0f, mColor});
-        auto matM3 = pbrRdr.AddMaterial(PbrMaterial{0.90f, 1.0f, mColor});
+        auto matM0 = pbrRdr.AddMaterial(PbrMaterial{0.1f, 1.0f, mColor});
+        auto matM1 = pbrRdr.AddMaterial(PbrMaterial{0.3f, 1.0f, mColor});
+        auto matM2 = pbrRdr.AddMaterial(PbrMaterial{0.5f, 1.0f, mColor});
+        auto matM3 = pbrRdr.AddMaterial(PbrMaterial{0.8f, 1.0f, mColor});
 
         MeshRenderer mr4 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, 1.0, 0.0}), sphereMeshKey, matM0);
         MeshRenderer mr5 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, 1.0, 0.0}), sphereMeshKey, matM1);
@@ -973,7 +973,7 @@ int main()
         auto meshRdrKey7 = pbrRdr.AddMeshRenderer(mr7);
 
 
-        auto env = EnvironmentTexture("C:/Users/Admin/Downloads/thatch_chapel_1k.hdr");
+        auto env = EnvironmentTexture("C:/Users/Admin/Downloads/brown_photostudio_05_1k.hdr");
         auto envKey = pbrRdr.AddEnvironmentTexture(env);
         pbrRdr.SetCurrentEnvironment(envKey);
 

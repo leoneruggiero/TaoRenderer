@@ -45,6 +45,8 @@ struct PointLight
 #define SPLITS 4
 #endif
 
+
+#ifdef GPASS
 layout (std140, binding = 2) uniform blk_PerObjectTransform
 {
     uniform mat4        o_modelMat;     // 64 byte
@@ -56,6 +58,7 @@ layout (std140, binding = 3) uniform blk_PerObjectMaterial
 {
     uniform Material    o_material;     // 64 byte
 };
+#endif
 
 layout (std140, binding = 1) uniform blk_ViewData
 {
@@ -68,22 +71,22 @@ layout (std140, binding = 1) uniform blk_ViewData
 
 layout (std140, binding = 0) uniform blk_PerFrameData
 {
-    uniform mat4             f_lightSpaceMatrix_directional[SPLITS];       // 256 byte
-    uniform mat4             f_lightSpaceMatrixInv_directional[SPLITS];    // 256 byte
-    uniform DirectionalLight f_dirLight;                                   // 64  byte
-    uniform PointLight       f_pointLight[MAX_POINT_LIGHTS];               // 144 byte
-    uniform vec4             f_eyeWorldPos;                                // 16  byte
-    uniform vec4             f_shadowCubeSize_directional;                 // 16  byte
-    uniform bool             f_doGamma;                                    // 4   byte
-    uniform float            f_gamma;                                      // 4   byte
-    uniform bool             f_hasIrradianceMap;                           // 4   byte
-    uniform float            f_environmentIntensity;                       // 4   byte
-    uniform bool             f_hasRadianceMap;                             // 4   byte
-    uniform bool             f_hasBrdfLut;                                 // 4   byte
-    uniform int              f_radiance_minLevel;                          // 4   byte
-    uniform int              f_radiance_maxLevel;                          // 4   byte
-    uniform vec2             f_taa_jitter;                                 // 8   byte
-    uniform vec2             f_viewportSize;                               // 8   byte
-    uniform bool             f_doTaa;                                      // 4   byte
-                                                                           // TOTAL => 804 byte
+    // --- TODO ------------------------------------------------------------------------
+    //uniform mat4             f_lightSpaceMatrix_directional[SPLITS];       // 256 byte
+    //uniform mat4             f_lightSpaceMatrixInv_directional[SPLITS];    // 256 byte
+    //uniform DirectionalLight f_dirLight;                                   // 64  byte
+    //uniform PointLight       f_pointLight[MAX_POINT_LIGHTS];               // 144 byte
+    //uniform vec4             f_shadowCubeSize_directional;                 // 16  byte
+    // ---------------------------------------------------------------------------------
+    uniform vec4               f_eyeWorldPos;                                // 16  byte
+    uniform vec2               f_viewportSize;                               // 8   byte
+    uniform vec2               f_taa_jitter;                                 // 8   byte
+    uniform bool               f_doGamma;                                    // 4   byte
+    uniform float              f_gamma;                                      // 4   byte
+    uniform bool               f_doEnvironmentIBL;                           // 4   byte
+    uniform float              f_environmentIntensity;                       // 4   byte
+    uniform int                f_radianceMinLod;                             // 4   byte
+    uniform int                f_radianceMaxLod;                             // 4   byte
+    uniform bool               f_doTaa;                                      // 4   byte
+                                                                             // TOTAL => 804 byte
 };

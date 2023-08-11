@@ -1733,7 +1733,7 @@ namespace tao_gizmos
 		_renderContext->SetViewport(0, 0, _windowWidth, _windowHeight);
 
 		// Set the default states so that clear operations
-		// are not disabled by what happend previously
+		// are not disabled by what happened previously
 		_renderContext->SetDepthState		(DEFAULT_DEPTH_STATE);
 		_renderContext->SetBlendState		(DEFAULT_BLEND_STATE);
 		_renderContext->SetRasterizerState	(DEFAULT_RASTERIZER_STATE);

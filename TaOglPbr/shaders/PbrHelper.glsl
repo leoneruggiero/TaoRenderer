@@ -84,21 +84,19 @@ float SpecularG_IBL(float NoL, float NoV, float roughness)
     SpecularG_IBL(NoV, roughness);  // normal - view  shadowing
 }
 
-// Slightly modified Fresnel Shlick's approx
-// From: https://seblagarde.wordpress.com/2012/06/03/spherical-gaussien-approximation-for-blinn-phong-phong-and-fresnel/
-// I'm sure saving one or two instructions will make all the difference in this project lol
+// Fresnel Shlick's approx
 vec3 SpecularF(vec3 F0, float VoH)
 {
-    return F0 + (1.0 - F0) * exp2((-5.55473 * VoH - 6.98316) * VoH);
+    return F0 + (1.0 - F0) * pow((1.0-VoH), 5.0);
 }
 
 vec3 SpecularBRDF(vec3 l, vec3 v, vec3 n, vec3 F0, float roughness)
 {
     vec3 h = normalize(l+v);
-    float NoL = dot(n, l);
-    float NoV = dot(n, v);
-    float NoH = dot(n, h);
-    float VoH = dot(v, h);
+    float NoL = saturate(dot(n, l));
+    float NoV = saturate(dot(n, v));
+    float NoH = saturate(dot(n, h));
+    float VoH = saturate(dot(v, h));
 
     return
         SpecularD(NoH, roughness) * SpecularF(F0, VoH) * SpecularG_Direct(NoL, NoV, roughness) /

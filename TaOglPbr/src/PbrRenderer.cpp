@@ -8,6 +8,8 @@ namespace tao_pbr
     using namespace  tao_ogl_resources;
     using namespace  tao_render_context;
 
+    using namespace glm;
+
     void PbrRenderer::InitGBuffer(int width, int height)
     {
         _gBuffer.texColor0.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
@@ -370,12 +372,13 @@ namespace tao_pbr
                             .emission = glm::vec4(mat._emission, 1.0f),
                             .roughness = mat._roughness,
                             .metalness = mat._metalness,
-                            .has_diffuse_tex = mat._diffuseTex.has_value(),
-                            .has_emission_tex = mat._emissionTex.has_value(),
-                            .has_normal_tex = mat._normalMap.has_value(),
-                            .has_roughness_tex = mat._roughnessMap.has_value(),
-                            .has_metalness_tex = mat._metalnessMap.has_value(),
-                            .has_occlusion_tex = mat._occlusionMap.has_value()
+
+                            .has_diffuse_tex    = mat._diffuseTex.has_value(),
+                            .has_emission_tex   = mat._emissionTex.has_value(),
+                            .has_normal_tex     = mat._normalMap.has_value(),
+                            .has_roughness_tex  = mat._roughnessMap.has_value(),
+                            .has_metalness_tex  = mat._metalnessMap.has_value(),
+                            .has_occlusion_tex  = mat._occlusionMap.has_value()
                     };
         }
 
@@ -444,6 +447,24 @@ namespace tao_pbr
         _renderContext->SetRasterizerState  (DEFAULT_RASTERIZER_STATE);
         _renderContext->SetBlendState       (DEFAULT_BLEND_STATE);
 
+        // loading per-frame data
+        frame_gl_data_block frameGlDataBlock
+        {
+            .eyePosition        = inverse(viewMatrix) * vec4(0.0, 0.0, 0.0, 1.0),
+            .viewportSize       = vec2(_windowWidth, _windowHeight),
+            .taaJitter          = vec2(0.0),
+            .doGamma            = 1,
+            .gamma              = 2.2,
+            .doEnvironmentIbl   = _currentEnvironment.has_value(),
+            .environmentIntensity = 1.0,
+            .radianceMinLod = PRE_CUBE_MIN_LOD,
+            .radianceMaxLod = PRE_CUBE_MAX_LOD,
+            .doTaa          = 0
+        };
+        _frameDataUbo.SetSubData(0, sizeof(frame_gl_data_block), &frameGlDataBlock);
+        _frameDataUbo.Bind(UBO_BINDING_FRAME_DATA);
+
+        // loading view data
         camera_gl_data_block cameraGlDataBlock
         {
             .viewMatrix = viewMatrix,
@@ -453,7 +474,6 @@ namespace tao_pbr
         };
         _shaderBuffers.cameraUbo.SetSubData(0, sizeof(camera_gl_data_block), &cameraGlDataBlock);
         _shaderBuffers.cameraUbo.Bind(GPASS_UBO_BINDING_CAMERA);
-
 
         /// Geometry Pass
         ////////////////////////////////////////////
@@ -485,6 +505,8 @@ namespace tao_pbr
 
         /// Light Pass
         ////////////////////////////////////////////
+
+
         _renderContext->SetDepthState(DEPTH_STATE_OFF);
 
         _outBuffer.buff.Bind(fbo_read_draw);
@@ -563,10 +585,6 @@ namespace tao_pbr
 
     EnvironmentTextureGraphicsData PbrRenderer::CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env)
     {
-        constexpr int kEnvRes = 512;
-        constexpr int kIrrRes = 64;
-        constexpr int kPreRes = 128;
-
         EnvironmentTextureGraphicsData res
         {
             ._envCube{_renderContext->CreateTextureCube()},
@@ -577,9 +595,9 @@ namespace tao_pbr
         // Initialize each face level 0
         for(ogl_texture_cube_target face = tex_tar_cube_map_positive_x; face <=tex_tar_cube_map_negative_z; face = static_cast<ogl_texture_cube_target>(face+1))
         {
-            res._envCube             .TexImage(face, 0, tex_int_for_rgba16f, kEnvRes, kEnvRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
-            res._irradianceCube      .TexImage(face, 0, tex_int_for_rgba16f, kIrrRes, kIrrRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
-            res._prefilteredEnvCube  .TexImage(face, 0, tex_int_for_rgba16f, kPreRes, kPreRes, 0,  tex_for_rgba, tex_typ_float, nullptr);
+            res._envCube             .TexImage(face, 0, tex_int_for_rgba16f, ENV_CUBE_RES, ENV_CUBE_RES, 0,  tex_for_rgba, tex_typ_float, nullptr);
+            res._irradianceCube      .TexImage(face, 0, tex_int_for_rgba16f, IRR_CUBE_RES, IRR_CUBE_RES, 0,  tex_for_rgba, tex_typ_float, nullptr);
+            res._prefilteredEnvCube  .TexImage(face, 0, tex_int_for_rgba16f, PRE_CUBE_RES, PRE_CUBE_RES, 0,  tex_for_rgba, tex_typ_float, nullptr);
         }
 
         res._prefilteredEnvCube.GenerateMipmap();
@@ -606,7 +624,7 @@ namespace tao_pbr
 
         int grpCntX, grpCntY, grpCntZ;
         ComputeShaderNumGroups(
-                kEnvRes, kEnvRes, 6/*cube map faces*/,
+                ENV_CUBE_RES, ENV_CUBE_RES, 6/*cube map faces*/,
                 PROCESS_ENV_GROUP_SIZE_X, PROCESS_ENV_GROUP_SIZE_Y, PROCESS_ENV_GROUP_SIZE_Z,
                 grpCntX, grpCntY, grpCntZ
                 );
@@ -628,7 +646,7 @@ namespace tao_pbr
         _computeShaders.generateIrradianceCube.SetUniform(PROCESS_ENV_IRRCUBE_TEX_NAME, 0);
 
         ComputeShaderNumGroups(
-                kIrrRes, kIrrRes, 6/*cube map faces*/,
+                IRR_CUBE_RES, IRR_CUBE_RES, 6/*cube map faces*/,
                 PROCESS_ENV_GROUP_SIZE_X, PROCESS_ENV_GROUP_SIZE_Y, PROCESS_ENV_GROUP_SIZE_Z,
                 grpCntX, grpCntY, grpCntZ
         );
@@ -645,10 +663,10 @@ namespace tao_pbr
         _computeShaders.generatePrefilteredEnvCube.SetUniform(PROCESS_ENV_ENVCUBE_TEX_NAME, 0);
         _computeShaders.generatePrefilteredEnvCube.SetUniform(PROCESS_ENV_PRECUBE_TEX_NAME, 0);
 
-        const int totalMips = log2(kPreRes)-1;
-        for(int mip=0, resolution = kPreRes; resolution>=4; resolution = resolution>>1, mip++ )
+        for(int mip=PRE_CUBE_MIN_LOD, resolution = PRE_CUBE_RES; mip<=PRE_CUBE_MAX_LOD; resolution = resolution>>1, mip++ )
         {
-            _computeShaders.generatePrefilteredEnvCube.SetUniform(PROCESS_ENV_ROUGHNESS_NAME, mip/(max(1.0f, totalMips-1.0f)));
+            float roughness = static_cast<float>(mip)/(PRE_CUBE_MAX_LOD - PRE_CUBE_MIN_LOD);
+            _computeShaders.generatePrefilteredEnvCube.SetUniform(PROCESS_ENV_ROUGHNESS_NAME, roughness);
 
             /* img unit 0 */ res._prefilteredEnvCube.BindToImageUnit(0, mip, true, 0, image_access_write,image_format_rgba16f);
             /* tex unit 0 */ res._envCube           .BindToTextureUnit(tex_unit_0); // linear sampler should be bound!!!

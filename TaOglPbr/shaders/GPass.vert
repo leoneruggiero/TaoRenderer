@@ -1,5 +1,6 @@
 #version 430 core
 
+#define GPASS
 //! #include "UboDefs.glsl"
 
 layout(location = 0) in vec3 v_position;

@@ -1,5 +1,6 @@
 #version 430 core
 
+#define GPASS
 #define GBUFF_WRITE
 
 //! #include "UboDefs.glsl"
