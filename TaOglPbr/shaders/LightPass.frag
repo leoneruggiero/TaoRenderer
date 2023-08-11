@@ -44,9 +44,6 @@ void main()
         col = vec4( kd * diffuse + specularD, 1.0);
 
 
-
-
-        // TODO: that's not true....
         float envIntensity =  0.02; /**f_environmentIntensity*/
         vec3 ambientD = envIntensity* texture(envIrradiance, nrmWorld.xzy * vec3(1,-1,1)).rgb;
         ambientD = mix(ambientD, vec3(0.0), metalness);
