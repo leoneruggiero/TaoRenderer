@@ -128,6 +128,7 @@ namespace tao_ogl_resources
         image_format_rgba32f = GL_RGBA32F,
         image_format_rgba16f = GL_RGBA16F,
         image_format_rg16f   = GL_RG16F,
+        image_format_r32f    = GL_R32F
     };
 
 	enum ogl_texture_cube_target
@@ -188,6 +189,9 @@ namespace tao_ogl_resources
 	enum ogl_texture_internal_format
 	{
 		tex_int_for_depth = GL_DEPTH_COMPONENT,
+        tex_int_for_depth_16 = GL_DEPTH_COMPONENT16,
+        tex_int_for_depth_24 = GL_DEPTH_COMPONENT24,
+        tex_int_for_depth_32f = GL_DEPTH_COMPONENT32F,
 		tex_int_for_depth_stencil = GL_DEPTH_STENCIL,
 		tex_int_for_red = GL_RED,
 		tex_int_for_rg = GL_RG,

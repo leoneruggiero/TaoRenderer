@@ -401,8 +401,13 @@ namespace tao_pbr
 
         void ReloadShaders();
 
-        tao_ogl_resources::OglTexture2D&
-            Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far);
+        struct pbrRendererOut
+        {
+            tao_ogl_resources::OglTexture2D                                    *_colorTexture;
+            tao_ogl_resources::OglTexture2D                                    *_depthTexture;
+        };
+
+        pbrRendererOut Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far);
 
         void Resize(int newWidth, int newHeight);
 

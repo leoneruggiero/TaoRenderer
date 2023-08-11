@@ -521,7 +521,7 @@ namespace tao_gizmos
 
 	 void GizmosRenderer::InitMainFramebuffer(int width, int height)
 	 {
-	 	 _colorTex.TexImage(MAIN_FBO_SAMPLE_COUNT, tex_int_for_rgba, width, height, false);
+	 	 _colorTex.TexImage(MAIN_FBO_SAMPLE_COUNT, tex_int_for_rgba , width, height, false);
 	 	 _depthTex.TexImage(MAIN_FBO_SAMPLE_COUNT, tex_int_for_depth, width, height, false);
 
 	 	 _mainFramebuffer.AttachTexture(fbo_attachment_color0, _colorTex, 0);
@@ -611,19 +611,18 @@ namespace tao_gizmos
 		 // todo: RESET
 	 }
 
-
 	 GizmosRenderer::GizmosRenderer(RenderContext& rc, int windowWidth, int windowHeight) :
 		 _windowWidth  (windowWidth),
 		 _windowHeight (windowHeight),
 		 _renderContext(&rc),
-		 _pointsShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::points    , gizmos_shader_modifier::none, SHADER_SRC_DIR)),
-		 _linesShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lines	 , gizmos_shader_modifier::none, SHADER_SRC_DIR)),
-		 _lineStripShader			  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lineStrip , gizmos_shader_modifier::none, SHADER_SRC_DIR)),
-		 _meshShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::mesh      , gizmos_shader_modifier::none, SHADER_SRC_DIR)),
-		 _pointsShaderForSelection	  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::points	 , gizmos_shader_modifier::selection, SHADER_SRC_DIR)),
-		 _linesShaderForSelection	  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lines	 , gizmos_shader_modifier::selection, SHADER_SRC_DIR)),
-		 _lineStripShaderForSelection (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lineStrip , gizmos_shader_modifier::selection, SHADER_SRC_DIR)),
-		 _meshShaderForSelection	  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::mesh		 , gizmos_shader_modifier::selection, SHADER_SRC_DIR)),
+		 _pointsShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::points      , gizmos_shader_modifier::none      , SHADER_SRC_DIR)),
+		 _linesShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lines       , gizmos_shader_modifier::none      , SHADER_SRC_DIR)),
+		 _lineStripShader			  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lineStrip   , gizmos_shader_modifier::none      , SHADER_SRC_DIR)),
+		 _meshShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::mesh        , gizmos_shader_modifier::none      , SHADER_SRC_DIR)),
+		 _pointsShaderForSelection	  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::points      , gizmos_shader_modifier::selection , SHADER_SRC_DIR)),
+		 _linesShaderForSelection	  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lines       , gizmos_shader_modifier::selection , SHADER_SRC_DIR)),
+		 _lineStripShaderForSelection (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lineStrip   , gizmos_shader_modifier::selection , SHADER_SRC_DIR)),
+		 _meshShaderForSelection	  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::mesh		 , gizmos_shader_modifier::selection , SHADER_SRC_DIR)),
 		 _pointsObjDataUbo	 (rc.CreateUniformBuffer()),
 		 _linesObjDataUbo	 (rc.CreateUniformBuffer()),
 		 _lineStripObjDataUbo(rc.CreateUniformBuffer()),
@@ -637,8 +636,9 @@ namespace tao_gizmos
 		 _colorTex			 (rc.CreateTexture2DMultisample()),
 		 _depthTex			 (rc.CreateTexture2DMultisample()),
 		 _mainFramebuffer	 (rc.CreateFramebuffer<OglTexture2DMultisample>()),
-         _outColorTex           (rc.CreateTexture2D()),
-         _outFramebuffer        (rc.CreateFramebuffer<OglTexture2D>()),
+         _outColorTex        (rc.CreateTexture2D()),
+         _outFramebuffer     (rc.CreateFramebuffer<OglTexture2D>()),
+         _depthFramebuffer   (rc.CreateFramebuffer<OglTexture2D>()),
 		 _selectionColorTex		(rc.CreateTexture2D()),
 		 _selectionDepthTex		(rc.CreateTexture2D()),
 		 _selectionFramebuffer	(rc.CreateFramebuffer<OglTexture2D>()),
@@ -1740,7 +1740,8 @@ namespace tao_gizmos
 	OglTexture2D& GizmosRenderer::Render(
 		const glm::mat4& viewMatrix,
 		const glm::mat4& projectionMatrix,
-		const glm::vec2& nearFar)
+		const glm::vec2& nearFar,
+        OglTexture2D* depthBuffer)
 	{
 		// todo isCurrent()
 		// rc.MakeCurrent();
@@ -1753,13 +1754,18 @@ namespace tao_gizmos
 		_renderContext->SetBlendState		(DEFAULT_BLEND_STATE);
 		_renderContext->SetRasterizerState	(DEFAULT_RASTERIZER_STATE);
 
-		// todo: how to show results? maybe return a texture or let the user access the drawn surface.
 		_mainFramebuffer.Bind(fbo_read_draw);
 
 		_renderContext->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 		_renderContext->ClearDepthStencil();
 
-		frame_data_block const frameData
+        // the client could provide a depth buffer
+        // used to mask the gizmo scene.
+        if(depthBuffer)
+            CopyDepthToMainFbo(depthBuffer);
+
+
+        frame_data_block const frameData
 		{
 			.view_matrix = viewMatrix,
 			.projection_matrix = projectionMatrix,
@@ -1996,6 +2002,10 @@ namespace tao_gizmos
 		OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
 	}
 
-
+    void GizmosRenderer::CopyDepthToMainFbo(tao_ogl_resources::OglTexture2D* depthTexture)
+    {
+        _depthFramebuffer.AttachTexture(fbo_attachment_depth, *depthTexture, 0);
+        _depthFramebuffer.CopyTo(&_mainFramebuffer, _windowWidth, _windowHeight, fbo_copy_mask_depth_bit);
+    }
 
 }

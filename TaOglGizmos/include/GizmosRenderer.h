@@ -566,6 +566,10 @@ namespace tao_gizmos
 		void InitSelectionFramebuffer   (int width, int height);
         void ResizeSelectionFramebuffer (int width, int height);
 
+        /// Depth Framebuffer
+        /////////////////////////////////////////////////
+        tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>	_depthFramebuffer;
+
 		unsigned int										_latestSelectionPBOIdx = 0;
 		static constexpr unsigned int						_selectionPBOsCount = 3;
 		std::vector<tao_ogl_resources::OglPixelPackBuffer>	_selectionPBOs;
@@ -647,6 +651,8 @@ namespace tao_gizmos
 
 		void ProcessSelectionRequests();
 
+        void CopyDepthToMainFbo(tao_ogl_resources::OglTexture2D* depthTexture);
+
 	public:
 		GizmosRenderer(tao_render_context::RenderContext& rc, int windowWidth, int windowHeight);
 
@@ -656,7 +662,8 @@ namespace tao_gizmos
 		[[nodiscard]] tao_ogl_resources::OglTexture2D& Render(
 			const glm::mat4& viewMatrix, 
 			const glm::mat4& projectionMatrix,
-			const glm::vec2& nearFar
+			const glm::vec2& nearFar,
+            tao_ogl_resources::OglTexture2D* depthBuffer
 		);
 
 		void SetSelectionCallback(const std::function<void(std::optional<gizmo_instance_id>)>& callback);

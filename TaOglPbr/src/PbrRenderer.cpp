@@ -438,7 +438,7 @@ namespace tao_pbr
         ResizeOutputBuffer(newWidth, newHeight);
     }
 
-    OglTexture2D& PbrRenderer::Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far)
+    PbrRenderer::pbrRendererOut PbrRenderer::Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far)
     {
         _renderContext->MakeCurrent();
         _renderContext->SetViewport(0, 0, _windowWidth, _windowHeight);
@@ -543,9 +543,21 @@ namespace tao_pbr
         _fsQuad.vao.Bind();
         _renderContext->DrawElements(pmt_type_triangles, 6, idx_typ_unsigned_int, nullptr);
 
+        // reset Framebuffer and texture bindings
         OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
+        OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF0));
+        OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF1));
+        OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF2));
+        OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF3));
+        OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
+        OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
+        OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
 
-        return _outBuffer.texColor;
+        return pbrRendererOut
+                {
+                    ._colorTexture = &_outBuffer.texColor,
+                    ._depthTexture = &_gBuffer  .texDepth
+                };
     }
 
 
