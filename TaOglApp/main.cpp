@@ -895,6 +895,9 @@ int main()
 
         InitImGui(rc.GetWindow());
 
+        // Window compositor
+        WindowCompositor compositor{rc, fboWidth, fboHeight};
+
         // GizmosRenderer
 		GizmosRenderer gizRdr{ rc, fboWidth, fboHeight };
 
@@ -908,12 +911,13 @@ int main()
 
         // Handle window resize
         rc.SetResizeCallback
-        ([&rc, &gizRdr, &gizRdrVC, &pbrRdr, &fboWidth, &fboHeight](int w, int h)
+        ([&rc, &compositor, &gizRdr, &gizRdrVC, &pbrRdr, &fboWidth, &fboHeight](int w, int h)
         {
             rc.GetFramebufferSize(fboWidth, fboHeight);
 
-            gizRdr.Resize(fboWidth, fboHeight);
-            pbrRdr.Resize(fboWidth, fboHeight);
+            compositor  .Resize(fboWidth, fboHeight);
+            gizRdr      .Resize(fboWidth, fboHeight);
+            pbrRdr      .Resize(fboWidth, fboHeight);
         });
 
         // *** TEST ***
@@ -1097,8 +1101,7 @@ int main()
 			auto delta = duration_cast<milliseconds>(timeNow - startTime).count();
 			//animation(delta);
 
-            pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y)
-                .CopyTo(nullptr, fboWidth, fboHeight, fbo_copy_mask_color_bit);
+            auto& pbrOut = pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y);
 
 			float mouseX, mouseY;
 			mouseRawPosition.Position(mouseX, mouseY);
@@ -1113,16 +1116,17 @@ int main()
             // so I had to place it here (ImGui is hidden by the VC however)
             EndImGuiFrame();
 
-			gizRdrVC.Render(viewMatrixVC, projMatrixVC, vec2{0.1f, 3.0f})
-				.CopyTo(
-					nullptr,
-					0, 0,
-					fboWidthVC, fboHeightVC,
-					fboWidth - fboWidthVC, fboHeight - fboHeightVC,
-					fboWidth, fboHeight,
-					fbo_copy_mask_color_bit, fbo_copy_filter_nearest
-				);
+			auto& vcGizOut = gizRdrVC.Render(viewMatrixVC, projMatrixVC, vec2{0.1f, 3.0f});
 
+
+            // composite windows
+            // ------------------
+            compositor
+            .AddLayer(pbrOut    , WindowCompositor::location{.x = 0, .y = 0, .width = fboWidth, .height = fboHeight}, WindowCompositor::blend_option::copy)
+            .AddLayer(vcGizOut  , WindowCompositor::location{.x = fboWidth - fboWidthVC, .y = fboHeight - fboHeightVC, .width = fboWidthVC, .height = fboHeightVC}, WindowCompositor::blend_option::alpha_blend)
+            .GetResult();
+
+            compositor.ClearLayers();
 
 			rc.SwapBuffers();
 		}

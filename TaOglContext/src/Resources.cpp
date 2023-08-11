@@ -452,40 +452,66 @@ namespace tao_ogl_resources
         GL_CALL(glBlitNamedFramebuffer(readFbo, drawFbo, srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter));
     }
 
-    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
-	void OglFramebuffer<Tex>::CopyFrom(const OglFramebuffer* src, GLint width, GLint height, ogl_framebuffer_copy_mask mask)
+    template<typename Tex>  requires ogl_texture<typename Tex::ogl_resource_type>
+    template<typename TSrc> requires ogl_texture<typename TSrc::ogl_resource_type>
+	void OglFramebuffer<Tex>::CopyFrom(const OglFramebuffer<TSrc>* src, GLint width, GLint height, ogl_framebuffer_copy_mask mask)
     {
         // src and dst have the same size.
         // copies a rect from <0,0> to <width, height>
-        GLuint const srcId = src ? src->_ogl_obj.ID() : 0;
-        FramebufferBlit(srcId, _ogl_obj.ID(), 0, 0, width, height, 0, 0, width, height, mask, ogl_framebuffer_copy_filter::fbo_copy_filter_nearest);
+        src->CopyFrom(_ogl_obj.ID(), 0, 0, width, height, 0, 0, width, height, mask, ogl_framebuffer_copy_filter::fbo_copy_filter_nearest);
     }
-    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
-	void OglFramebuffer<Tex>::CopyFrom(const OglFramebuffer* src, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter)
+
+    template<typename Tex>  requires ogl_texture<typename Tex::ogl_resource_type>
+    template<typename TSrc> requires ogl_texture<typename TSrc::ogl_resource_type>
+	void OglFramebuffer<Tex>::CopyFrom(const OglFramebuffer<TSrc>* src, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter)
     {
-        GLuint const srcId = src ? src->_ogl_obj.ID() : 0;
-        FramebufferBlit(srcId, _ogl_obj.ID(), srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+        src->CopyFrom(_ogl_obj.ID(), srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
     }
-    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
-	void OglFramebuffer<Tex>::CopyTo(const OglFramebuffer* dst, GLint width, GLint height, ogl_framebuffer_copy_mask mask) const
+
+    template<typename Tex>  requires ogl_texture<typename Tex::ogl_resource_type>
+    template<typename TDst> requires ogl_texture<typename TDst::ogl_resource_type>
+	void OglFramebuffer<Tex>::CopyTo(OglFramebuffer<TDst>* dst, GLint width, GLint height, ogl_framebuffer_copy_mask mask) const
     {
         // src and dst have the same size.
         // copies a rect from <0,0> to <width, height>
-        GLuint const dstId = dst ? dst->_ogl_obj.ID() : 0;
-        FramebufferBlit(_ogl_obj.ID(), dstId, 0, 0, width, height, 0, 0, width, height, mask, ogl_framebuffer_copy_filter::fbo_copy_filter_nearest);
+        dst->CopyFrom(_ogl_obj.ID(), 0, 0, width, height, 0, 0, width, height, mask, ogl_framebuffer_copy_filter::fbo_copy_filter_nearest);
+    }
+
+    template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
+    template<typename TDst> requires ogl_texture<typename TDst::ogl_resource_type>
+	void OglFramebuffer<Tex>::CopyTo(OglFramebuffer<TDst>* dst, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter) const
+    {
+       dst->CopyFrom(_ogl_obj.ID(), srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+    }
+
+    template<typename Tex>  requires ogl_texture<typename Tex::ogl_resource_type>
+    void OglFramebuffer<Tex>::CopyFrom(GLint id, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,  ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter)
+    {
+        // src and dst have the same size.
+        // copies a rect from <0,0> to <width, height>
+        FramebufferBlit(id, _ogl_obj.ID(), srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
     }
     template<typename Tex> requires ogl_texture<typename Tex::ogl_resource_type>
-	void OglFramebuffer<Tex>::CopyTo(const OglFramebuffer* dst, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter) const
+    void OglFramebuffer<Tex>::CopyTo(GLint id, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1,  ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter) const
     {
-        GLuint const dstId = dst ? dst->_ogl_obj.ID() : 0;
-        FramebufferBlit(_ogl_obj.ID(), dstId, srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1, mask, filter);
+        FramebufferBlit(_ogl_obj.ID(), id, srcX0, srcY0, srcX1, srcY1, dstX0, dstY0, dstX1, dstY1,  mask, filter);
     }
+
 
     // Forcing template instantiation....ugly, really ugly
     template class OglFramebuffer<OglTexture2D>;
     template class OglFramebuffer<OglTexture2DMultisample>;
     template class OglFramebuffer<OglTextureCube>;
 
+    template void  OglFramebuffer<OglTexture2D>::           CopyTo<OglTexture2D>           (OglFramebuffer<OglTexture2D>*, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, ogl_framebuffer_copy_mask, ogl_framebuffer_copy_filter) const;
+    template void  OglFramebuffer<OglTexture2D>::           CopyTo<OglTexture2DMultisample>(OglFramebuffer<OglTexture2DMultisample>*, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, ogl_framebuffer_copy_mask, ogl_framebuffer_copy_filter) const;
+    template void  OglFramebuffer<OglTexture2DMultisample>::CopyTo<OglTexture2D>           (OglFramebuffer<OglTexture2D>*, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, ogl_framebuffer_copy_mask, ogl_framebuffer_copy_filter) const;
+    template void  OglFramebuffer<OglTexture2DMultisample>::CopyTo<OglTexture2DMultisample>(OglFramebuffer<OglTexture2DMultisample>*, GLint, GLint, GLint, GLint, GLint, GLint, GLint, GLint, ogl_framebuffer_copy_mask, ogl_framebuffer_copy_filter) const;
+
+    template void  OglFramebuffer<OglTexture2D>::           CopyTo<OglTexture2D>           (OglFramebuffer<OglTexture2D>*, GLint, GLint, ogl_framebuffer_copy_mask) const;
+    template void  OglFramebuffer<OglTexture2D>::           CopyTo<OglTexture2DMultisample>(OglFramebuffer<OglTexture2DMultisample>*, GLint, GLint, ogl_framebuffer_copy_mask) const;
+    template void  OglFramebuffer<OglTexture2DMultisample>::CopyTo<OglTexture2D>           (OglFramebuffer<OglTexture2D>*, GLint, GLint, ogl_framebuffer_copy_mask) const;
+    template void  OglFramebuffer<OglTexture2DMultisample>::CopyTo<OglTexture2DMultisample>(OglFramebuffer<OglTexture2DMultisample>*, GLint, GLint, ogl_framebuffer_copy_mask) const;
 
     void OglFence::Create(ogl_sync_condition condition)
     {

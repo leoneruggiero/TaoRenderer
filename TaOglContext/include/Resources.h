@@ -618,10 +618,25 @@ namespace tao_ogl_resources
 		void AttachTexture(ogl_framebuffer_attachment attachment, const Tex& texture, GLint level);
 		void SetDrawBuffers(GLsizei n, const ogl_framebuffer_read_draw_buffs* buffs);
 		void SetReadBuffer(ogl_framebuffer_read_draw_buffs buff);
-		void CopyFrom(const OglFramebuffer* src, GLint width, GLint height, ogl_framebuffer_copy_mask mask);
-		void CopyTo  (const OglFramebuffer* dst, GLint width, GLint height, ogl_framebuffer_copy_mask mask) const;
-		void CopyFrom(const OglFramebuffer* src, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter);
-		void CopyTo  (const OglFramebuffer* dst, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter) const;
+
+        template<typename TSrc> requires ogl_texture<typename TSrc::ogl_resource_type>
+        void CopyFrom(const OglFramebuffer<TSrc>* src, GLint width, GLint height, ogl_framebuffer_copy_mask mask);
+
+        template<typename TDst> requires ogl_texture<typename TDst::ogl_resource_type>
+		void CopyTo  (OglFramebuffer<TDst>* dst, GLint width, GLint height, ogl_framebuffer_copy_mask mask) const;
+
+        template<typename TSrc> requires ogl_texture<typename TSrc::ogl_resource_type>
+        void CopyFrom(const OglFramebuffer<TSrc>* src, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter);
+
+        template<typename TDst> requires ogl_texture<typename TDst::ogl_resource_type>
+        void CopyTo  (OglFramebuffer<TDst>* dst, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter) const;
+
+        // Internal use only !!!
+        void CopyFrom(GLint id, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter);
+
+        // Internal use only !!!
+        void CopyTo  (GLint id, GLint srcX0, GLint srcY0, GLint srcX1, GLint srcY1, GLint dstX0, GLint dstY0, GLint dstX1, GLint dstY1, ogl_framebuffer_copy_mask mask, ogl_framebuffer_copy_filter filter) const;
+
 
     private:
         OglResource<ogl_resource_type> _ogl_obj;

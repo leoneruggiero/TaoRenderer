@@ -558,6 +558,17 @@ namespace tao_gizmos
         _selectionDepthTex.TexImage(0, tex_int_for_depth, width, height, tex_for_depth, tex_typ_unsigned_byte, nullptr);
     }
 
+    void GizmosRenderer::InitOutFramebuffer(int width, int height)
+    {
+        _outColorTex.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
+        _outFramebuffer.AttachTexture(fbo_attachment_color0, _outColorTex, 0);
+    }
+
+    void GizmosRenderer::ResizeOutFramebuffer(int width, int height)
+    {
+        _outColorTex.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
+    }
+
 	 void GizmosRenderer::InitShaders()
 	 {
 		 // per-object data
@@ -626,6 +637,8 @@ namespace tao_gizmos
 		 _colorTex			 (rc.CreateTexture2DMultisample()),
 		 _depthTex			 (rc.CreateTexture2DMultisample()),
 		 _mainFramebuffer	 (rc.CreateFramebuffer<OglTexture2DMultisample>()),
+         _outColorTex           (rc.CreateTexture2D()),
+         _outFramebuffer        (rc.CreateFramebuffer<OglTexture2D>()),
 		 _selectionColorTex		(rc.CreateTexture2D()),
 		 _selectionDepthTex		(rc.CreateTexture2D()),
 		 _selectionFramebuffer	(rc.CreateFramebuffer<OglTexture2D>()),
@@ -650,6 +663,7 @@ namespace tao_gizmos
 		 // -----------------------------------------
 		 InitMainFramebuffer	 (_windowWidth, _windowHeight);
 		 InitSelectionFramebuffer(_windowWidth, _windowHeight); // false color drawing for mouse picking
+         InitOutFramebuffer      (_windowWidth, _windowHeight);
 
 		 // Shaders
 		 // -----------------------------------------
@@ -1444,9 +1458,9 @@ namespace tao_gizmos
 	void GizmosRenderer::ProcessLineStripGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix)
 	{
 		/////////////////////////////////////////////////////
-		// Line Strip Preprocessing:					   //
-		// computing screen length for each line segment   //
-		// to draw stippled lines.						   //
+		/// Line Strip Preprocessing:					  ///
+		/// computing screen length for each line segment ///
+		/// to draw stippled lines.						  ///
 		/////////////////////////////////////////////////////
 
 		// total number of vertices considering
@@ -1718,11 +1732,12 @@ namespace tao_gizmos
         _windowWidth  = newWidth;
         _windowHeight = newHeight;
 
-        ResizeMainFramebuffer     (_windowWidth, _windowHeight);
-        ResizeSelectionFramebuffer(_windowWidth, _windowHeight);
+        ResizeMainFramebuffer       (_windowWidth, _windowHeight);
+        ResizeSelectionFramebuffer  (_windowWidth, _windowHeight);
+        ResizeOutFramebuffer        (_windowWidth, _windowHeight);
     }
 
-	const OglFramebuffer<OglTexture2DMultisample>& GizmosRenderer::Render(
+	OglTexture2D& GizmosRenderer::Render(
 		const glm::mat4& viewMatrix,
 		const glm::mat4& projectionMatrix,
 		const glm::vec2& nearFar)
@@ -1741,7 +1756,7 @@ namespace tao_gizmos
 		// todo: how to show results? maybe return a texture or let the user access the drawn surface.
 		_mainFramebuffer.Bind(fbo_read_draw);
 
-		_renderContext->ClearColor(0.2f, 0.2f, 0.2f);
+		_renderContext->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 		_renderContext->ClearDepthStencil();
 
 		frame_data_block const frameData
@@ -1774,7 +1789,10 @@ namespace tao_gizmos
 		// TODO: here???
 		ProcessSelectionRequests();
 
-		return _mainFramebuffer;
+        // resolve color
+        _mainFramebuffer.CopyTo(&_outFramebuffer, _windowWidth, _windowHeight, fbo_copy_mask_color_bit);
+
+		return _outColorTex;
 	}
 
 	

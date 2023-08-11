@@ -550,6 +550,13 @@ namespace tao_gizmos
 		void InitMainFramebuffer    (int width, int height);
         void ResizeMainFramebuffer  (int width, int height);
 
+        /// Output Framebuffer, contains resolved color
+        /////////////////////////////////////////////////
+        tao_ogl_resources::OglTexture2D     										    _outColorTex;
+        tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>	            _outFramebuffer;
+        void InitOutFramebuffer    (int width, int height);
+        void ResizeOutFramebuffer  (int width, int height);
+
 		///  Selection Framebuffer and Textures
 		/// (false color drawing)
 		////////////////////////////////////////////////
@@ -646,7 +653,7 @@ namespace tao_gizmos
         void Resize(int newWidth, int newHeight);
 
 		// TODO: projection matrix is not a parameter (near and far should be modified)
-		[[nodiscard]] const tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2DMultisample>& Render(
+		[[nodiscard]] tao_ogl_resources::OglTexture2D& Render(
 			const glm::mat4& viewMatrix, 
 			const glm::mat4& projectionMatrix,
 			const glm::vec2& nearFar

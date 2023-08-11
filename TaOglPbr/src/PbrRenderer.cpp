@@ -438,7 +438,7 @@ namespace tao_pbr
         ResizeOutputBuffer(newWidth, newHeight);
     }
 
-    const OglFramebuffer<OglTexture2D>& PbrRenderer::Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far)
+    OglTexture2D& PbrRenderer::Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far)
     {
         _renderContext->MakeCurrent();
         _renderContext->SetViewport(0, 0, _windowWidth, _windowHeight);
@@ -545,7 +545,7 @@ namespace tao_pbr
 
         OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
 
-        return _outBuffer.buff;
+        return _outBuffer.texColor;
     }
 
 

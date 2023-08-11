@@ -167,4 +167,190 @@ namespace tao_render_context
         else 										return currVertCapacity * ((newVertCount / currVertCapacity) + 1);
     }
 
+
+    WindowCompositor::WindowCompositor(RenderContext& renderContext, int width, int height)
+                                                            :   _renderContext{&renderContext},
+                                                                _vbo                {_renderContext->CreateVertexBuffer()},
+                                                                _vao                {_renderContext->CreateVertexAttribArray()},
+                                                                _shader             {_renderContext->CreateShaderProgram()},
+                                                                _linearSampler      {_renderContext->CreateSampler()}
+                                                                //_colorTexture       {_renderContext->CreateTexture2D()},
+                                                                //_framebuffer        {_renderContext->CreateFramebuffer<OglTexture2D>()}
+    {
+        constexpr const char* kVertSource =
+                R"(
+            #version 430 core
+
+            layout (location = 0) in vec2 v_position;
+                                 out vec2 v_uv;
+            void main()
+            {
+                v_uv        = v_position.xy*0.5+0.5;
+                gl_Position = vec4(v_position.xy, 0.0, 1.0);
+            }
+        )";
+
+        constexpr const char* kFragSource =
+                R"(
+            #version 430 core
+
+                                 in vec2 v_uv;
+            layout(location = 0) uniform sampler2D tex;
+            layout(location = 0) out vec4 outColor;
+
+            void main()
+            {
+                outColor = texture(tex, v_uv);
+            }
+        )";
+        constexpr int   kNumVerts = 6;
+        constexpr float kQuadVerts[]
+        {
+            -1.0f,-1.0f,
+             1.0f,-1.0f,
+             1.0f, 1.0f,
+
+            -1.0f,-1.0f,
+             1.0f, 1.0f,
+            -1.0f, 1.0f,
+        };
+
+        // VBO and VAO
+        // --------------------------
+        _vbo.SetData(sizeof(float)*kNumVerts*2.0, &kQuadVerts, buf_usg_static_draw);
+        _vao.SetVertexAttribPointer(_vbo, 0, 2, vao_typ_float, false, 0, nullptr);
+        _vao.EnableVertexAttrib(0);
+
+        // Shader
+        // --------------------------
+        _shader = std::move(_renderContext->CreateShaderProgram(kVertSource, kFragSource));
+
+        // Framebuffer
+        // --------------------------
+        //_colorTexture.TexImage(0, tex_int_for_rgba16f, width, height, tex_for_rgba, tex_typ_float, nullptr);
+        //_framebuffer.AttachTexture(fbo_attachment_color0, _colorTexture, 0);
+        //ogl_framebuffer_read_draw_buffs drawBuffs[]{fbo_read_draw_buff_color0};
+        //_framebuffer.SetDrawBuffers(1, drawBuffs);
+
+
+        // Samplers
+        // --------------------------
+        _linearSampler.SetParams(ogl_sampler_params{
+                .filter_params  {.min_filter = sampler_min_filter_linear, .mag_filter = sampler_mag_filter_linear},
+                .wrap_params    { /* use defaults */ },
+                .lod_params     { /* use defaults */ },
+                .compare_params { /* use defaults */ }
+        });
+
+        // Pipeline states
+        // --------------------------
+        _depthState=
+        {
+            .depth_test_enable = false,
+            .depth_write_enable = false,
+            .depth_func = depth_func_always,
+            .depth_range_near = 0.0,
+            .depth_range_far = 1.0
+        };
+
+        _rasterizerState=
+        {
+            .culling_enable = false,
+            .polygon_mode = polygon_mode_fill,
+            .multisample_enable = false,
+            .alpha_to_coverage_enable = false,
+        };
+
+        _blendStateBlendingOn=
+        {
+            .blend_enable = true,
+
+            /* --- textures are assumed to contain pre-multiplied data --- */
+            .blend_equation_rgb
+            {
+                .blend_factor_src = blend_fac_one,
+                .blend_factor_dst = blend_fac_one_minus_src_alpha
+            },
+            .blend_equation_alpha
+            {
+                .blend_factor_src = blend_fac_one,
+                .blend_factor_dst = blend_fac_one_minus_src_alpha
+            },
+
+            .color_mask = mask_all
+        };
+
+        _blendStateBlendingOff=
+        {
+            .blend_enable = false,
+            .color_mask = mask_all,
+        };
+    }
+
+    void WindowCompositor::Resize(int newWidth, int newHeight)
+    {
+        // _colorTexture.TexImage(0, tex_int_for_rgba16f, newWidth, newHeight, tex_for_rgba, tex_typ_float, nullptr);
+    }
+
+    WindowCompositor& WindowCompositor::AddLayer(tao_ogl_resources::OglTexture2D& layerTex, location loc, blend_option blend)
+    {
+       blendOperation operation
+       {
+           .texture = &layerTex,
+           .location = loc,
+           .operation = blend
+       };
+
+       _operations.push_back(operation);
+
+        return *this;
+    }
+
+    void WindowCompositor::ClearLayers()
+    {
+        _operations.clear();
+    }
+
+    void WindowCompositor::GetResult( /* TODO: output framebuffer*/ )
+    {
+        if(_operations.empty())
+            throw std::runtime_error("Cannot provide the result for an empty list of operations.");
+
+        _renderContext->SetDepthState(_depthState);
+        _renderContext->SetRasterizerState(_rasterizerState);
+
+        // TODO --------------------------------------------------------------
+        //_framebuffer.Bind(fbo_read_draw);
+        OglFramebuffer<OglTexture2D>::UnBind(fbo_draw);
+        _renderContext->ClearColor(0.0, 0.0, 0.0, 0.0);
+        // -------------------------------------------------------------------
+
+        _shader.UseProgram();
+        _vao.Bind();
+
+        for(int i=0; i<_operations.size(); i++)
+        {
+            blend_option  opt = _operations[i].operation;
+            location      loc = _operations[i].location;
+            OglTexture2D *tex = _operations[i].texture;
+
+            switch(opt)
+            {
+                case(copy):         _renderContext->SetBlendState(_blendStateBlendingOff);  break;
+                case(alpha_blend):  _renderContext->SetBlendState(_blendStateBlendingOn);   break;
+            }
+
+            _renderContext->SetViewport(loc.x, loc.y, loc.width, loc.height);
+
+            tex->BindToTextureUnit(tex_unit_0);
+
+            _renderContext->DrawArrays(pmt_type_triangles, 0, 6);
+
+            tex->UnBindToTextureUnit(tex_unit_0);
+        }
+
+        _vao.UnBind();
+
+        //_framebuffer.UnBind(ogl_framebuffer_binding::fbo_read_draw);
+    }
 }

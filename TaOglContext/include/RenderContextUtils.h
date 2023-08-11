@@ -11,6 +11,58 @@ namespace tao_render_context
 {
     class RenderContext;
 
+    class WindowCompositor
+    {
+    public:
+
+        enum blend_option
+        {
+            copy,
+            alpha_blend,
+        };
+
+        struct location
+        {
+            int x;
+            int y;
+            int width;
+            int height;
+        };
+
+        WindowCompositor(RenderContext& renderContext, int width, int height);
+
+        [[nodiscard]] WindowCompositor& AddLayer(tao_ogl_resources::OglTexture2D& layerTex, location loc, blend_option blend);
+
+        /*[[nodiscard]] tao_ogl_resources::OglTexture2D*/ void GetResult();
+
+        void ClearLayers();
+
+        void Resize(int newWidth, int newHeight);
+
+    private:
+        tao_render_context::RenderContext*              _renderContext;
+        tao_ogl_resources::OglVertexBuffer              _vbo;
+        tao_ogl_resources::OglVertexAttribArray         _vao;
+        tao_ogl_resources::OglShaderProgram             _shader;
+        tao_ogl_resources::OglSampler                   _linearSampler;
+        //tao_ogl_resources::OglTexture2D                 _colorTexture;
+        //tao_ogl_resources::OglFramebuffer<OglTexture2D> _framebuffer;
+
+        ogl_blend_state         _blendStateBlendingOn;
+        ogl_blend_state         _blendStateBlendingOff;
+        ogl_depth_state         _depthState;
+        ogl_rasterizer_state    _rasterizerState;
+
+        struct blendOperation
+        {
+            tao_ogl_resources::OglTexture2D *texture;
+            location                         location;
+            blend_option                     operation;
+        };
+
+        std::vector<blendOperation> _operations;
+    };
+
     class ShaderLoader
     {
     public:
