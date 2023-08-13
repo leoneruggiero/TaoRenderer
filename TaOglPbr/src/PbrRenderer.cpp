@@ -510,7 +510,7 @@ namespace tao_pbr
         _renderContext->SetDepthState(DEPTH_STATE_OFF);
 
         _outBuffer.buff.Bind(fbo_read_draw);
-        _renderContext->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        _renderContext->ClearColor(0.1f, 0.1f, 0.1f, 0.0f);
 
         _shaders.lightPass.UseProgram();
 

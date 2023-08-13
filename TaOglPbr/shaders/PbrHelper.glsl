@@ -3,7 +3,11 @@
 #define PI     3.14159265359
 #define PI_2   1.57079632679
 #define PI_INV 0.31830988618
-#define saturate(a) min(max(0.0, (a)), 1.0)
+
+#define F0_DIELECTRIC vec3(0.04)
+
+#define SATURATE(a) (clamp( (a) , 0.0, 1.0))
+#define CLAMPED_DOT(a, b) (SATURATE(dot((a), (b))))
 
 // from: https://learnopengl.com/PBR/IBL/Specular-IBL
 // ---------------------------------------------------------------------------
@@ -87,20 +91,14 @@ float SpecularG_IBL(float NoL, float NoV, float roughness)
 // Fresnel Shlick's approx
 vec3 SpecularF(vec3 F0, float VoH)
 {
-    return F0 + (1.0 - F0) * pow((1.0-VoH), 5.0);
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - VoH, 0.0, 1.0), 5.0);
 }
 
-vec3 SpecularBRDF(vec3 l, vec3 v, vec3 n, vec3 F0, float roughness)
+vec3 SpecularBRDF(float NoL, float NoV, float NoH, float VoH, vec3 F0, float roughness)
 {
-    vec3 h = normalize(l+v);
-    float NoL = saturate(dot(n, l));
-    float NoV = saturate(dot(n, v));
-    float NoH = saturate(dot(n, h));
-    float VoH = saturate(dot(v, h));
-
     return
-        SpecularD(NoH, roughness) * SpecularF(F0, VoH) * SpecularG_Direct(NoL, NoV, roughness) /
-            4.0 * NoL * NoV;
+        SpecularD(NoH, roughness) * SpecularF(F0, VoH) * SpecularG_Direct(NoL, NoV, roughness)
+        /(4.0 * NoL * NoV + 0.00001);
 
 }
 
@@ -133,7 +131,7 @@ vec3 PrefilterEnvMap( samplerCube EnvMap, float Roughness, vec3 R )
         vec2 Xi = Hammersley( i, NumSamples );
         vec3 H = ImportanceSampleGGX( Xi, Roughness, N );
         vec3 L = 2 * dot( V, H ) * H - V;
-        float NoL = saturate( dot( N, L ) );
+        float NoL = SATURATE( dot( N, L ) );
         if( NoL > 0 )
         {
             PrefilteredColor += ClampHDRValue(texture( EnvMap , L).rgb, 10.0) * NoL;
@@ -158,9 +156,9 @@ vec2 IntegrateBRDF( float Roughness, float NoV )
         vec2 Xi = Hammersley( i, NumSamples );
         vec3 H = ImportanceSampleGGX( Xi, Roughness, N );
         vec3 L = 2 * dot( V, H ) * H - V;
-        float NoL = saturate( L.z );
-        float NoH = saturate( H.z );
-        float VoH = saturate( dot( V, H ) );
+        float NoL = SATURATE( L.z );
+        float NoH = SATURATE( H.z );
+        float VoH = SATURATE( dot( V, H ) );
         if( NoL > 0 )
         {
             float G = SpecularG_IBL( NoV, NoL, Roughness );

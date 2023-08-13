@@ -12,6 +12,48 @@ layout(location = 4) uniform sampler2D   envBrdfLut;
 layout(location = 5) uniform samplerCube envIrradiance;
 layout(location = 6) uniform samplerCube envPrefiltered;
 
+
+vec3 DiffuseDirectionalLight(float NoL, vec3 diffuse, float metalness, vec3 lightColor)
+{
+    vec3 c = diffuse.rgb * lightColor * NoL;
+    return  mix(c, vec3(0.0), metalness);
+}
+
+vec3 SpecularDirectionalLight(float NoL, float NoV, float NoH, float VoH, vec3 F0, float roughness, vec3 lightColor)
+{
+    return  lightColor * NoL * SpecularBRDF(NoL, NoV, NoH, VoH, F0, roughness);
+}
+
+vec3 ComputeDirectionalLight(float NoL, float NoV, float NoH, float VoH, vec3 f0, vec3 diffuse, float roughness,float metalness, vec3 lightColor)
+{
+    vec3 kd = 1.0 - SpecularF(f0, NoV);
+    vec3 directDiffuse  = DiffuseDirectionalLight(NoL, diffuse, metalness, lightColor);
+    vec3 directSpecular = SpecularDirectionalLight(NoL, NoV, NoH, VoH, f0, roughness, lightColor);
+
+    return kd * directDiffuse + directSpecular; // "ks" is already in the GGX brdf
+}
+
+vec3 ComputeAmbientLight(vec3 viewDir, vec3 normal, vec3 f0, vec3 diffuse, float roughness, float metalness, float environemtIntensity)
+{
+    // Diffuse
+    // -------------
+    vec3 ambientD = environemtIntensity * diffuse * texture(envIrradiance, normal.xzy * vec3(1,-1,1)).rgb;
+    ambientD = mix(ambientD, vec3(0.0), metalness);
+
+    // Spcular
+    // -------------
+    vec3 reflDir = reflect(-viewDir, normal);
+    reflDir = reflDir.xzy * vec3(1,-1,1); // TODO
+
+    float NoV = CLAMPED_DOT(normal, viewDir);
+    float lod = f_radianceMinLod + roughness * (f_radianceMaxLod - f_radianceMinLod);
+    vec3 irr       = textureLod(envPrefiltered, normalize(reflDir), lod).rgb;
+    vec2 scaleBias = texture(envBrdfLut, vec2(roughness, NoV)).xy;
+    vec3 ambientS  = environemtIntensity * irr * (f0 * scaleBias.x + scaleBias.y);
+
+    return ambientS + ambientD;
+}
+
 void main()
 {
     // Gbuff data
@@ -26,41 +68,33 @@ void main()
     ivec2 fragCoord = ivec2(gl_FragCoord.xy-0.5);
     ReadGBuff(fragCoord, albedo, emission, posWorld, nrmWorld, roughness, metalness, occlusion);
 
-    vec4 col = vec4(albedo, 1.0);
+    vec4 col = vec4(0.0, 0.0, 0.0, 1.0);
 
-    vec3 LIGHT_DEBUG = 1.0 * vec3(1.0);
+    vec3 LIGHT_DIR = vec3(1.0, 0.0, 0.5);
+    vec3 LIGHT_COL = 1.0 * vec3(1.0, 1.0, 1.0);
 
     if(posWorld!=vec3(0.0))
     {
-        vec3 lightDir = normalize(LIGHT_DEBUG);
-        vec3 viewDir = normalize(f_eyeWorldPos.xyz - posWorld);
-        vec3 halfVec = normalize(viewDir + lightDir);
-        vec3 F0 = mix(vec3(0.04), albedo.rgb, metalness);
-        vec3 diffuse = albedo.rgb * LIGHT_DEBUG * saturate(dot(nrmWorld, lightDir));
-        diffuse = mix(diffuse, vec3(0.0), metalness);
-        vec3 specularD = LIGHT_DEBUG * SpecularBRDF(lightDir, viewDir, nrmWorld, F0, roughness);
-        vec3 kd = 1.0-SpecularF(F0, saturate(dot(viewDir , nrmWorld)));
+        // TODO: meh?
+        nrmWorld = normalize(nrmWorld);
 
-        col = vec4( kd * diffuse + specularD, 1.0);
+        vec3 lightDir = normalize(LIGHT_DIR);
+        vec3 viewDir  = normalize(f_eyeWorldPos.xyz - posWorld);
+        vec3 h        = normalize(viewDir + lightDir);
 
+        float NoL = CLAMPED_DOT(nrmWorld, lightDir);
+        float NoV = CLAMPED_DOT(nrmWorld, viewDir);
+        float NoH = CLAMPED_DOT(nrmWorld, h);
+        float VoH = CLAMPED_DOT(viewDir, h);
 
-        float envIntensity =  0.02; /**f_environmentIntensity*/
-        vec3 ambientD = envIntensity* texture(envIrradiance, nrmWorld.xzy * vec3(1,-1,1)).rgb;
-        ambientD = mix(ambientD, vec3(0.0), metalness);
+        vec3 f0 = mix(F0_DIELECTRIC, albedo.rgb, metalness);
 
-        vec3 reflDir = reflect(-viewDir, nrmWorld);
-        reflDir = reflDir.xzy * vec3(1,-1,1);
+        col.rgb += ComputeDirectionalLight(NoL, NoV, NoH, VoH, f0, albedo.rgb, roughness, metalness, LIGHT_COL);
+        col.rgb += ComputeAmbientLight(viewDir, nrmWorld, f0, albedo.rgb, roughness, metalness, 0.3);
 
-        float lod = f_radianceMinLod + roughness * (f_radianceMaxLod - f_radianceMinLod);
-        vec3 reflection = textureLod(envPrefiltered, normalize(reflDir), lod).rgb;
-        float NoV = saturate(dot(nrmWorld, viewDir));
-        vec2 brdfLut    = texture(envBrdfLut, vec2(roughness, NoV)).xy;
-
-
-        vec3 ambientS = envIntensity * reflection*(F0*brdfLut.x + brdfLut.y);
-        col += vec4(ambientS + ambientD, 1.0);
-        //col = vec4((F0*brdfLut.x + brdfLut.y), 1.0);
     }
+    else
+            discard;
 
     if(f_doGamma)
     {

@@ -929,7 +929,7 @@ int main()
             sphere.GetTextureCoordinates(),
             sphere.GetIndices()
         };
-        auto cube = tao_geometry::Mesh::Box(2.0f, 2.0f, 2.0f);
+        auto cube = tao_geometry::Mesh::Box(10.0f, 10.0f, 1.0f);
         tao_pbr::Mesh cubeMesh{
                 cube.GetPositions(),
                 cube.GetNormals(),
@@ -940,8 +940,8 @@ int main()
         auto sphereMeshKey = pbrRdr.AddMesh(sphereMesh);
         auto cubeMeshKey = pbrRdr.AddMesh(cubeMesh);
 
-        glm::vec3 dColor = vec3{0.9, 0.1, 0.0};
-        glm::vec3 mColor = vec3{0.5, 0.3, 0.0};
+        glm::vec3 dColor = vec3{0.9, 0.25, 0.0};
+        glm::vec3 mColor = vec3{1.0};
 
         // dielectrics
         // -------------------------------------------------------------------------------------------------------------
@@ -975,6 +975,9 @@ int main()
         auto meshRdrKey5 = pbrRdr.AddMeshRenderer(mr5);
         auto meshRdrKey6 = pbrRdr.AddMeshRenderer(mr6);
         auto meshRdrKey7 = pbrRdr.AddMeshRenderer(mr7);
+
+        MeshRenderer mr8 = MeshRenderer(glm::translate(glm::mat4(1.0f), { -5.0, -5.0, -2.0}), cubeMeshKey, matD0);
+        auto meshRdrKey8 = pbrRdr.AddMeshRenderer(mr8);
 
 
         auto env = EnvironmentTexture("C:/Users/Admin/Downloads/brown_photostudio_05_1k.hdr");
@@ -1113,10 +1116,6 @@ int main()
 			mat4 viewMatrixVC = glm::lookAt(normalize(eyePos - eyeTrg)*3.5f, vec3{ 0.0f }, vec3{0.0, 0.0, 1.0});
 			mat4 projMatrixVC = glm::perspective(radians<float>(60), static_cast<float>(fboWidthVC) / fboHeightVC, 0.1f, 5.0f);
 
-            // View Cube drawing seems to conflict with ImGui,
-            // so I had to place it here (ImGui is hidden by the VC however)
-            EndImGuiFrame();
-
 			auto& vcGizOut = gizRdrVC.Render(viewMatrixVC, projMatrixVC, vec2{0.1f, 3.0f}, nullptr);
 
 
@@ -1124,11 +1123,15 @@ int main()
             // ------------------
             compositor
             .AddLayer(*pbrOut._colorTexture , WindowCompositor::location{.x = 0, .y = 0, .width = fboWidth, .height = fboHeight}, WindowCompositor::blend_option::copy)
-            .AddLayer(gizOut                , WindowCompositor::location{.x = 0, .y = 0, .width = fboWidth, .height = fboHeight}, WindowCompositor::blend_option::alpha_blend)
-            .AddLayer(vcGizOut              , WindowCompositor::location{.x = fboWidth - fboWidthVC, .y = fboHeight - fboHeightVC, .width = fboWidthVC, .height = fboHeightVC}, WindowCompositor::blend_option::alpha_blend)
+            //.AddLayer(gizOut                , WindowCompositor::location{.x = 0, .y = 0, .width = fboWidth, .height = fboHeight}, WindowCompositor::blend_option::alpha_blend)
+            //.AddLayer(vcGizOut              , WindowCompositor::location{.x = fboWidth - fboWidthVC, .y = fboHeight - fboHeightVC, .width = fboWidthVC, .height = fboHeightVC}, WindowCompositor::blend_option::alpha_blend)
             .GetResult();
 
             compositor.ClearLayers();
+
+            // View Cube drawing seems to conflict with ImGui,
+            // so I had to place it here (ImGui is hidden by the VC however)
+            EndImGuiFrame();
 
 			rc.SwapBuffers();
 		}
