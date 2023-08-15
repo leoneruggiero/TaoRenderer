@@ -17,10 +17,10 @@ void WriteGBuff(vec3 albedo, vec3 emission, vec3 position, vec3 normal, float ro
 
 #ifdef GBUFF_READ
 
-uniform sampler2D gBuff0;
-uniform sampler2D gBuff1;
-uniform sampler2D gBuff2;
-uniform sampler2D gBuff3;
+layout(binding = 0) uniform sampler2D gBuff0;
+layout(binding = 1) uniform sampler2D gBuff1;
+layout(binding = 2) uniform sampler2D gBuff2;
+layout(binding = 3) uniform sampler2D gBuff3;
 
 void ReadGBuff(ivec2 texCoord, out vec3 albedo, out vec3 emission, out vec3 position, out vec3 normal, out float roughness, out float metalness, out float occlusion)
 {

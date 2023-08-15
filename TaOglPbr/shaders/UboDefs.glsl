@@ -14,28 +14,6 @@ struct Material
     bool hasTex_Metalness        ;
     bool hasTex_Occlusion        ;
 };
-   
-struct DirectionalLight
-{
-	vec4 Direction; // 16 byte
-	vec4 Diffuse;   // 16 byte
-
-    // (softness, bias, doSplits, UNUSED)
-	vec4 Data;      // 16 byte
-                    // => 48 byte
-    vec4 Splits;
-};
-
-struct PointLight
-{
-	vec4  Color;            // 16 byte
-	vec4  Position;         // 16 byte
-    float Radius;	        // 4  byte
-    float Size;             // 4  byte
-    float InvSqrRadius;     // 4  byte
-    float Bias;             // 4  byte
-                            // => 48 byte
-};
 
 #ifndef MAX_POINT_LIGHTS
 #define MAX_POINT_LIGHTS 3

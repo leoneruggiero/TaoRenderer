@@ -1,1 +1,2 @@
 #cmakedefine SHADER_SRC_DIR "@SHADER_SRC_DIR@"
+#cmakedefine RESOURCES_DIR  "@RESOURCES_DIR@"

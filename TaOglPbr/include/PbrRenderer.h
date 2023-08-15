@@ -321,7 +321,9 @@ namespace tao_pbr
                 _windowWidth  (windowWidth),
                 _windowHeight (windowHeight),
                 _renderContext(&rc),
-                _envBRDFLut{rc.CreateTexture2D()},
+                _envBRDFLut {rc.CreateTexture2D()},
+                _ltcLut1    {rc.CreateTexture2D()},
+                _ltcLut2    {rc.CreateTexture2D()},
                 _frameDataUbo(rc.CreateUniformBuffer()),
                 _gBuffer
                 {
@@ -345,8 +347,12 @@ namespace tao_pbr
                 _shaderBuffers
                 {
                         .cameraUbo  {_renderContext->CreateUniformBuffer()},
-                        .transformUbo   {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy},
-                        .materialUbo    {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy}
+                        .lightsUbo  {_renderContext->CreateUniformBuffer()},
+                        .transformUbo               {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy},
+                        .materialUbo                {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy},
+                        .directionalLightsSsbo      {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy},
+                        .sphereLightsSsbo           {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy},
+                        .rectLightsSsbo             {*_renderContext, 0, tao_ogl_resources::buf_usg_dynamic_draw, tao_render_context::ResizeBufferPolicy}
                 },
                 _computeShaders
                 {
@@ -381,6 +387,7 @@ namespace tao_pbr
             InitSamplers();
             InitStaticShaderBuffers();
             InitEnvBRDFLut();
+            InitLtcLut();
 
             _frameDataUbo.SetData(sizeof(frame_gl_data_block), nullptr, tao_ogl_resources::buf_usg_dynamic_draw);
 
@@ -424,7 +431,16 @@ namespace tao_pbr
         static constexpr const char* LIGHTPASS_NAME_GBUFF3          = "gBuff3";
         static constexpr const char* LIGHTPASS_NAME_ENV_BRDF_LUT    = "envBrdfLut";
         static constexpr const char* LIGHTPASS_NAME_ENV_IRRADIANCE  = "envIrradiance";
+        static constexpr const char* LIGHTPASS_NAME_LTC_LUT_1       = "ltcLut1";
+        static constexpr const char* LIGHTPASS_NAME_LTC_LUT_2       = "ltcLut2";
         static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED = "envPrefiltered";
+        static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED_MIN_LOD = "u_envPrefilteredMinLod";
+        static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED_MAX_LOD = "u_envPrefilteredMaxLod";
+
+        static constexpr const char* LIGHTPASS_ENV_LIGHTS_SYMBOL    = "LIGHT_PASS_ENVIRONMENT";
+        static constexpr const char* LIGHTPASS_DIR_LIGHTS_SYMBOL    = "LIGTH_PASS_DIRECTIONAL";
+        static constexpr const char* LIGHTPASS_SPHERE_LIGHTS_SYMBOL = "LIGTH_PASS_SPHERE";
+        static constexpr const char* LIGHTPASS_RECT_LIGHTS_SYMBOL   = "LIGTH_PASS_RECT";
 
         static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF0         = 0;
         static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF1         = 1;
@@ -433,6 +449,8 @@ namespace tao_pbr
         static constexpr const int LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT   = 4;
         static constexpr const int LIGHTPASS_TEX_BINDING_ENV_IRRADIANCE = 5;
         static constexpr const int LIGHTPASS_TEX_BINDING_ENV_PREFILTERED= 6;
+        static constexpr const int LIGHTPASS_TEX_BINDING_LTC_LUT_1      = 7;
+        static constexpr const int LIGHTPASS_TEX_BINDING_LTC_LUT_2      = 8;
 
         static constexpr const int GPASS_UBO_BINDING_TRANSFORM  = 2;
         static constexpr const int GPASS_UBO_BINDING_MATERIAL   = 3;
@@ -534,7 +552,9 @@ namespace tao_pbr
             tao_ogl_resources::OglVertexAttribArray vao;
         };
 
-        tao_ogl_resources::OglTexture2D   _envBRDFLut;              // env BRDF lut (split-sum approx)
+        tao_ogl_resources::OglTexture2D   _envBRDFLut;  // env BRDF lut (split-sum approx)
+        tao_ogl_resources::OglTexture2D   _ltcLut1;     // see: https://github.com/selfshadow/ltc_code
+        tao_ogl_resources::OglTexture2D   _ltcLut2;     // "" ""
 
         struct frame_gl_data_block
         {
@@ -548,6 +568,38 @@ namespace tao_pbr
             int radianceMinLod;
             int radianceMaxLod;
             int doTaa;
+        };
+
+        struct lights_gl_data_block
+        {
+            int doEnvironment;
+            float environmentIntensity;
+            int directionalLightsCnt;
+            int sphereLightsCnt;
+            int rectLightsCnt;
+        };
+
+        struct directional_light_gl_data_block
+        {
+            glm::vec3 direction;
+            glm::vec3 intensity;
+        };
+
+        struct sphere_light_gl_data_block
+        {
+            glm::vec3 position;
+            glm::vec3 intensity;
+            float     radius;
+        };
+
+        struct rect_light_gl_data_block
+        {
+            glm::vec3 position;
+            glm::vec3 intensity;
+            glm::vec3 axisX;
+            glm::vec3 axisY;
+            glm::vec3 axisZ;
+            glm::vec2 size;
         };
 
         tao_ogl_resources::OglUniformBuffer _frameDataUbo;
@@ -586,8 +638,12 @@ namespace tao_pbr
         struct ShaderBuffers
         {
             tao_ogl_resources::OglUniformBuffer cameraUbo;
-            tao_render_context::ResizableUbo transformUbo;
-            tao_render_context::ResizableUbo materialUbo;
+            tao_ogl_resources::OglUniformBuffer lightsUbo;
+            tao_render_context::ResizableUbo    transformUbo;
+            tao_render_context::ResizableUbo    materialUbo;
+            tao_render_context::ResizableSsbo   directionalLightsSsbo;
+            tao_render_context::ResizableSsbo   sphereLightsSsbo;
+            tao_render_context::ResizableSsbo   rectLightsSsbo;
         };
 
         int                                _windowWidth, _windowHeight;
@@ -629,6 +685,7 @@ namespace tao_pbr
         void InitShaders();
         void InitSamplers();
         void InitEnvBRDFLut();
+        void InitLtcLut();
         void InitStaticShaderBuffers();
         void WriteTransfromToShaderBuffer(const MeshRenderer& mesh, int offset);
         void WriteTransfromToShaderBuffer(const std::vector<MeshRenderer>& meshes, int offset);

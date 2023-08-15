@@ -181,7 +181,8 @@ namespace tao_ogl_resources
 		tex_typ_short = GL_SHORT,
 		tex_typ_unsigned_int = GL_UNSIGNED_INT,
 		tex_typ_int = GL_INT,
-		tex_typ_float = GL_FLOAT
+		tex_typ_float = GL_FLOAT,
+        tex_typ_half_float = GL_HALF_FLOAT,
 
 		/// ... some other esoteric formats... ///
 	};

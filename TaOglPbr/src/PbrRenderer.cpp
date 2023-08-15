@@ -1,6 +1,7 @@
 #include "PbrRenderer.h"
 #include "TaOglPbrConfig.h"
-#include "stb_image.h"
+#include "stb_image/stb_image.h"
+#include "gli/gli.hpp"
 
 namespace tao_pbr
 {
@@ -116,19 +117,23 @@ namespace tao_pbr
 
         auto lightPassShader = _renderContext->CreateShaderProgram(
                 ShaderLoader::LoadShader(LIGHTPASS_VERT_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR).c_str(),
-                ShaderLoader::LoadShader(LIGHTPASS_FRAG_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR).c_str()
+                ShaderLoader::DefineConditional(
+            ShaderLoader::LoadShader(LIGHTPASS_FRAG_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR),
+                        // Uber-shader approach: contains the code (and branching) for
+                        // all the supported light types.
+                {
+                            LIGHTPASS_DIR_LIGHTS_SYMBOL,
+                            LIGHTPASS_ENV_LIGHTS_SYMBOL,
+                            LIGHTPASS_SPHERE_LIGHTS_SYMBOL,
+                            LIGHTPASS_RECT_LIGHTS_SYMBOL
+                }).c_str()
         );
 
-        // Set uniforms
+        // Set Uniforms
+        // --------------------------------------
         lightPassShader.UseProgram();
-        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF0        , LIGHTPASS_TEX_BINDING_GBUFF0);
-        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF1        , LIGHTPASS_TEX_BINDING_GBUFF1);
-        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF2        , LIGHTPASS_TEX_BINDING_GBUFF2);
-        lightPassShader.SetUniform(LIGHTPASS_NAME_GBUFF3        , LIGHTPASS_TEX_BINDING_GBUFF3);
-        lightPassShader.SetUniform(LIGHTPASS_NAME_ENV_BRDF_LUT  , LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT);
-        lightPassShader.SetUniform(LIGHTPASS_NAME_ENV_IRRADIANCE, LIGHTPASS_TEX_BINDING_ENV_IRRADIANCE);
-        lightPassShader.SetUniform(LIGHTPASS_NAME_ENV_PREFILTERED,LIGHTPASS_TEX_BINDING_ENV_PREFILTERED);
-
+        lightPassShader.SetUniform(LIGHTPASS_NAME_ENV_PREFILTERED_MIN_LOD, PRE_CUBE_MIN_LOD);
+        lightPassShader.SetUniform(LIGHTPASS_NAME_ENV_PREFILTERED_MAX_LOD, PRE_CUBE_MAX_LOD);
 
         // Compute Shaders
         // --------------------------------------
@@ -505,8 +510,6 @@ namespace tao_pbr
 
         /// Light Pass
         ////////////////////////////////////////////
-
-
         _renderContext->SetDepthState(DEPTH_STATE_OFF);
 
         _outBuffer.buff.Bind(fbo_read_draw);
@@ -540,6 +543,15 @@ namespace tao_pbr
             _linearMipLinearSampler .BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_PREFILTERED));
         }
 
+        // Bind ltc LUTs
+        // TODO: if(areaLightsCnt>0)
+        {
+            _ltcLut1.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_LTC_LUT_1));
+            _ltcLut2.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_LTC_LUT_2));
+            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_LTC_LUT_1));
+            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_LTC_LUT_2));
+        }
+
         _fsQuad.vao.Bind();
         _renderContext->DrawElements(pmt_type_triangles, 6, idx_typ_unsigned_int, nullptr);
 
@@ -549,15 +561,25 @@ namespace tao_pbr
         OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF1));
         OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF2));
         OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_GBUFF3));
-        OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
-        OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
-        OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
+
+        if(_currentEnvironment.has_value())
+        {
+            OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
+            OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
+            OglTexture2D::UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
+        }
+
+        // TODO: if(areaLightsCnt>0)
+        {
+            _ltcLut1.UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_LTC_LUT_1));
+            _ltcLut2.UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_LTC_LUT_2));
+        }
 
         return pbrRendererOut
-                {
-                    ._colorTexture = &_outBuffer.texColor,
-                    ._depthTexture = &_gBuffer  .texDepth
-                };
+        {
+            ._colorTexture = &_outBuffer.texColor,
+            ._depthTexture = &_gBuffer  .texDepth
+        };
     }
 
 
@@ -593,6 +615,34 @@ namespace tao_pbr
         _envBRDFLut.UnBindToImageUnit(0);
 
         _renderContext->MemoryBarrier(static_cast<ogl_barrier_bit>(texture_fetch_barrier_bit | shader_image_access_barrier_bit));
+    }
+
+    void PbrRenderer::InitLtcLut()
+    {
+        // Those LUTs comes pre-computed from: https://github.com/selfshadow/ltc_code
+        // This is ok as long as the area lights implementation matches theirs.
+        auto ltc1Path = std::string{}.append(RESOURCES_DIR).append("/ltc_1.dds");
+        auto ltc2Path = std::string{}.append(RESOURCES_DIR).append("/ltc_2.dds");
+
+        gli::texture ltc1Tex= gli::load_dds(ltc1Path);
+        gli::texture ltc2Tex= gli::load_dds(ltc2Path);
+
+        if(ltc1Tex.empty())
+            throw std::runtime_error(std::string("Error loading texture at ").append(ltc1Path));
+
+        if(ltc2Tex.empty())
+            throw std::runtime_error(std::string("Error loading texture at ").append(ltc1Path));
+
+        ogl_tex_filter_params linearFilter
+        {
+                .min_filter = tex_min_filter_linear,
+                .mag_filter = tex_mag_filter_linear
+        };
+
+        _ltcLut1.TexImage(0, tex_int_for_rgba16f, ltc1Tex.extent(0).x, ltc1Tex.extent(0).y, tex_for_rgba, tex_typ_half_float, ltc1Tex.data());
+        _ltcLut2.TexImage(0, tex_int_for_rgba16f, ltc2Tex.extent(0).x, ltc1Tex.extent(0).y, tex_for_rgba, tex_typ_half_float, ltc2Tex.data());
+        _ltcLut1.SetFilterParams(linearFilter);
+        _ltcLut2.SetFilterParams(linearFilter);
     }
 
     EnvironmentTextureGraphicsData PbrRenderer::CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env)
