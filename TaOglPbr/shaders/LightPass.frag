@@ -8,15 +8,23 @@
 
 out layout (location = 0) vec4 FragColor;
 
-layout (std140, binding = 0) uniform blk_LightsData
+layout (std140, binding = 4) uniform blk_LightsData
 {
-    bool  u_doEnvironment;
-    float u_environmentIntensity;
-    bool  u_directionalLightsCnt;
-    bool  u_sphereLightsCnt;
-    bool  u_rectLightsCnt;
+    bool    u_doEnvironment;
+    float   u_environmentIntensity;
+    int     u_directionalLightsCnt;
+    int     u_sphereLightsCnt;
+    int     u_rectLightsCnt;
 };
 
+// -------------!!! IMPORTANT !!!------------------ //
+// ------------------------------------------------ //
+// All the following structures have vec4s          //
+// instead of vec3 on the cpp side. std430          //
+// still needs padding for vec3.                    //
+// Here I left vec3s to avoid unnecessary .xyz      //
+// in the shader code.                              //
+// ------------------------------------------------ //
 struct DirectionalLight
 {
     vec3 direction;
@@ -49,21 +57,25 @@ uniform int u_envPrefilteredMinLod;
 uniform int u_envPrefilteredMaxLod;
 #endif
 
-#ifdef LIGTH_PASS_DIRECTIONAL
-layout(std430, binding = 1) buffer buff_directional_lights
+#ifdef LIGHT_PASS_DIRECTIONAL
+layout(binding = 9 ) uniform sampler2D       dirShadowMap;      // TODO: Array
+layout(binding = 10) uniform sampler2DShadow dirShadowMapComp;  // TODO: Array
+                     uniform mat4            u_dirShadowMatrix; // TODO: Array
+                     uniform bool            u_doDirShadow;
+layout(std430, binding = 5) buffer buff_directional_lights
 {
     DirectionalLight directionalLights[];
 };
 #endif
 
-#ifdef LIGTH_PASS_SPHERE
-layout(std430, binding = 2) buffer buff_sphere_lights
+#ifdef LIGHT_PASS_SPHERE
+layout(std430, binding = 6) buffer buff_sphere_lights
 {
     SphereLight sphereLights[];
 };
 #endif
 
-#ifdef LIGTH_PASS_RECT
+#ifdef LIGHT_PASS_RECT
 const float LTC_LUT_SIZE  = 64.0;
 const float LTC_LUT_BIAS  = 0.5/LTC_LUT_SIZE;
 const float LTC_LUT_SCALE = ((LTC_LUT_SIZE - 1.0)/LTC_LUT_SIZE);
@@ -73,7 +85,7 @@ const float LTC_LUT_SCALE = ((LTC_LUT_SIZE - 1.0)/LTC_LUT_SIZE);
 layout(binding = 7) uniform sampler2D ltcLut1;
 layout(binding = 8) uniform sampler2D ltcLut2;
 
-layout(std430, binding = 3) buffer buff_rect_lights
+layout(std430, binding = 7) buffer buff_rect_lights
 {
     RectLight rectLights[];
 };
@@ -93,8 +105,20 @@ vec3 SpecularDirectionalLight(vec3 viewDirection, vec3 lightDirection, vec3 surf
     return  lightColor * CLAMPED_DOT(lightDirection, surfNormal) * SpecularBRDF(viewDirection, lightDirection, surfNormal, F0, roughness);
 }
 
-vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 lightDirection, vec3 surfNormal, vec3 f0, vec3 diffuse, float roughness,float metalness, vec3 lightColor)
+vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 lightDirection, vec3 surfPosition, vec3 surfNormal, vec3 f0, vec3 diffuse, float roughness,float metalness, vec3 lightColor)
 {
+
+    if(u_doDirShadow)
+    {
+        vec4 shadowPos = u_dirShadowMatrix*vec4(surfPosition, 1.0);
+        shadowPos.xyz/=shadowPos.w;
+        shadowPos.xyz=shadowPos.xyz*0.5+0.5;
+        shadowPos.z-=0.01;
+        float visibility = texture(dirShadowMapComp, shadowPos.xyz, 0.0).r;
+        //float visibility = float(texture(dirShadowMap, shadowPos.xy).r>shadowPos.z);
+
+        lightColor*=visibility;
+    }
 
     vec3 kd = 1.0 - SpecularF(f0, CLAMPED_DOT(surfNormal, viewDirection));
     vec3 directDiffuse  = DiffuseDirectionalLight(lightDirection, surfNormal, diffuse, metalness, lightColor);
@@ -102,9 +126,9 @@ vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 lightDirection, vec3 surfN
 
     return kd * directDiffuse + directSpecular; // "ks" is already in the GGX brdf
 }
-vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 surfNormal, vec3 f0, vec3 diffuse, float roughness,float metalness, DirectionalLight l)
+vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal, vec3 f0, vec3 diffuse, float roughness,float metalness, DirectionalLight l)
 {
-    return ComputeDirectionalLight(viewDirection, l.direction, surfNormal, f0, diffuse, roughness,metalness, l.intensity);
+    return ComputeDirectionalLight(viewDirection, -l.direction, surfPosition, surfNormal, f0, diffuse, roughness,metalness, l.intensity);
 }
 
 
@@ -112,6 +136,9 @@ vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 surfNormal, vec3 f0, vec3 
 // -------------------------------------------------------------------------------------------------------------------------
 vec3 ComputeSphereLight(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal , vec3 surfDiffuse, float surfRoughness, float surfMetalness, vec3 surfF0, vec3 lightPosition, vec3 lightColor, float lightRadius)
 {
+    // avoid problems with radius = 0.0
+    lightRadius = max(lightRadius, 1e-4);
+
     // Diffuse
     // --------------------------------------------------
     vec3 kd = 1.0 - SpecularF(surfF0, CLAMPED_DOT(viewDirection, surfNormal));
@@ -154,6 +181,7 @@ vec3 ComputeSphereLight(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal ,
 // from: https://github.com/selfshadow/ltc_code
 vec3 ComputeRectLightLTC(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal , vec3 surfDiffuse, float surfRoughness, float surfMetalness, vec3 surfF0, RectLight l)
 {
+    l.size = max(l.size, vec2(1e-4));
     bool twoSided = false;
 
     vec3 pos = surfPosition;
@@ -278,7 +306,7 @@ void main()
 
 #ifdef LIGHT_PASS_DIRECTIONAL
         for(int i=0;i<u_directionalLightsCnt;i++)
-            col.rgb += ComputeDirectionalLight(viewDir, nrmWorld, f0, albedo.rgb, roughness, metalness, directionalLights[i]);
+            col.rgb += ComputeDirectionalLight(viewDir, posWorld, nrmWorld, f0, albedo.rgb, roughness, metalness, directionalLights[i]);
 #endif
 
 #ifdef LIGHT_PASS_SPHERE
@@ -291,7 +319,7 @@ void main()
             col.rgb += ComputeRectLightLTC(viewDir, posWorld, nrmWorld , albedo.rgb, roughness, metalness, f0, rectLights[i]);
 #endif
 
-#ifdef LIGTH_PASS_ENVIRONMENT
+#ifdef LIGHT_PASS_ENVIRONMENT
         if(u_doEnvironment)
             col.rgb += ComputeAmbientLight(viewDir, nrmWorld, f0, albedo.rgb, roughness, metalness, u_environmentIntensity,
                                            u_envPrefilteredMinLod, u_envPrefilteredMaxLod, envIrradiance, envPrefiltered, envBrdfLut);

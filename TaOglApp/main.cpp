@@ -945,44 +945,60 @@ int main()
 
         // dielectrics
         // -------------------------------------------------------------------------------------------------------------
-        auto matD0 = pbrRdr.AddMaterial(PbrMaterial{0.1f, 0.0f, dColor});
+        auto matD0 = pbrRdr.AddMaterial(PbrMaterial{0.05f, 0.0f, dColor});
         auto matD1 = pbrRdr.AddMaterial(PbrMaterial{0.3f, 0.0f, dColor});
         auto matD2 = pbrRdr.AddMaterial(PbrMaterial{0.5f, 0.0f, dColor});
         auto matD3 = pbrRdr.AddMaterial(PbrMaterial{0.8f, 0.0f, dColor});
 
-        MeshRenderer mr0 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, -1.0, 0.0}), sphereMeshKey, matD0);
-        MeshRenderer mr1 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, -1.0, 0.0}), sphereMeshKey, matD1);
-        MeshRenderer mr2 = MeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, -1.0, 0.0}), sphereMeshKey, matD2);
-        MeshRenderer mr3 = MeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, -1.0, 0.0}), sphereMeshKey, matD3);
+        GenKey<MeshRenderer> mr0 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, -1.0, 0.0}), sphereMeshKey, matD0);
+        GenKey<MeshRenderer> mr1 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, -1.0, 0.0}), sphereMeshKey, matD1);
+        GenKey<MeshRenderer> mr2 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, -1.0, 0.0}), sphereMeshKey, matD2);
+        GenKey<MeshRenderer> mr3 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, -1.0, 0.0}), sphereMeshKey, matD3);
 
         // metals
         // -------------------------------------------------------------------------------------------------------------
-        auto matM0 = pbrRdr.AddMaterial(PbrMaterial{0.1f, 1.0f, mColor});
+        auto matM0 = pbrRdr.AddMaterial(PbrMaterial{0.05f, 1.0f, mColor});
         auto matM1 = pbrRdr.AddMaterial(PbrMaterial{0.3f, 1.0f, mColor});
         auto matM2 = pbrRdr.AddMaterial(PbrMaterial{0.5f, 1.0f, mColor});
         auto matM3 = pbrRdr.AddMaterial(PbrMaterial{0.8f, 1.0f, mColor});
 
-        MeshRenderer mr4 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, 1.0, 0.0}), sphereMeshKey, matM0);
-        MeshRenderer mr5 = MeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, 1.0, 0.0}), sphereMeshKey, matM1);
-        MeshRenderer mr6 = MeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, 1.0, 0.0}), sphereMeshKey, matM2);
-        MeshRenderer mr7 = MeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, 1.0, 0.0}), sphereMeshKey, matM3);
+        GenKey<MeshRenderer> mr4 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, 1.0, 0.0}), sphereMeshKey, matM0);
+        GenKey<MeshRenderer> mr5 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, 1.0, 0.0}), sphereMeshKey, matM1);
+        GenKey<MeshRenderer> mr6 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, 1.0, 0.0}), sphereMeshKey, matM2);
+        GenKey<MeshRenderer> mr7 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, 1.0, 0.0}), sphereMeshKey, matM3);
 
-        auto meshRdrKey0 = pbrRdr.AddMeshRenderer(mr0);
-        auto meshRdrKey1 = pbrRdr.AddMeshRenderer(mr1);
-        auto meshRdrKey2 = pbrRdr.AddMeshRenderer(mr2);
-        auto meshRdrKey3 = pbrRdr.AddMeshRenderer(mr3);
-        auto meshRdrKey4 = pbrRdr.AddMeshRenderer(mr4);
-        auto meshRdrKey5 = pbrRdr.AddMeshRenderer(mr5);
-        auto meshRdrKey6 = pbrRdr.AddMeshRenderer(mr6);
-        auto meshRdrKey7 = pbrRdr.AddMeshRenderer(mr7);
-
-        MeshRenderer mr8 = MeshRenderer(glm::translate(glm::mat4(1.0f), { -5.0, -5.0, -2.0}), cubeMeshKey, matD0);
-        auto meshRdrKey8 = pbrRdr.AddMeshRenderer(mr8);
+        GenKey<MeshRenderer> mr8 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { -5.0, -5.0, -2.0}), cubeMeshKey, matD0);
 
 
-        auto env = EnvironmentTexture("C:/Users/Admin/Downloads/brown_photostudio_05_1k.hdr");
+        auto env = EnvironmentLight("C:/Users/Admin/Downloads/brown_photostudio_05_1k.hdr");
         auto envKey = pbrRdr.AddEnvironmentTexture(env);
         pbrRdr.SetCurrentEnvironment(envKey);
+
+        auto dirLight = pbrRdr.AddDirectionalLight(
+    DirectionalLight
+                {
+                    .transformation = glm::rotate(glm::mat4(1.0), 2.8f, vec3{1.0, 1.0, 0.0}),
+                    .intensity = vec3(0.6)
+                });
+
+        auto sphereLight = pbrRdr.AddSphereLight(
+                SphereLight
+                {
+                    .transformation = glm::translate(glm::mat4(1.0), {0.0, 0.0, 1.5}),
+                    .intensity = vec3(7.0),
+                    .radius = 0.6
+                });
+
+
+        auto rectLight = pbrRdr.AddRectLight(
+            RectLight
+            {
+                .transformation =
+                        glm::translate(glm::mat4(1.0), {-3.0, 0.0, 1.6})*
+                        glm::rotate(glm::mat4(1.0), 2.2f, vec3{0.0, 1.0, 0.0}),
+                .intensity = vec3(7.0),
+                .size = vec2{2.0, 3.0}
+            });
 
         // ----------------------------------------------------------------------------
 
@@ -1124,7 +1140,7 @@ int main()
             compositor
             .AddLayer(*pbrOut._colorTexture , WindowCompositor::location{.x = 0, .y = 0, .width = fboWidth, .height = fboHeight}, WindowCompositor::blend_option::copy)
             //.AddLayer(gizOut                , WindowCompositor::location{.x = 0, .y = 0, .width = fboWidth, .height = fboHeight}, WindowCompositor::blend_option::alpha_blend)
-            //.AddLayer(vcGizOut              , WindowCompositor::location{.x = fboWidth - fboWidthVC, .y = fboHeight - fboHeightVC, .width = fboWidthVC, .height = fboHeightVC}, WindowCompositor::blend_option::alpha_blend)
+            .AddLayer(vcGizOut              , WindowCompositor::location{.x = fboWidth - fboWidthVC, .y = fboHeight - fboHeightVC, .width = fboWidthVC, .height = fboHeightVC}, WindowCompositor::blend_option::alpha_blend)
             .GetResult();
 
             compositor.ClearLayers();

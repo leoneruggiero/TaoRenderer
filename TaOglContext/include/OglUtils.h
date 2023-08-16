@@ -445,6 +445,7 @@ namespace tao_ogl_resources
 
 	enum ogl_framebuffer_read_draw_buffs
 	{
+        fbo_read_draw_buff_none   = GL_NONE,
 		fbo_read_draw_buff_color0 = GL_COLOR_ATTACHMENT0
 	};
 

@@ -24,14 +24,16 @@ struct Material
 #endif
 
 
-#ifdef GPASS
+#if defined(GPASS) || defined(SHADOWPASS)
 layout (std140, binding = 2) uniform blk_PerObjectTransform
 {
     uniform mat4        o_modelMat;     // 64 byte
     uniform mat4        o_normalMat;    // 64 byte
                                         // TOTAL => 128 byte
 };
+#endif
 
+#ifdef GPASS
 layout (std140, binding = 3) uniform blk_PerObjectMaterial
 {
     uniform Material    o_material;     // 64 byte

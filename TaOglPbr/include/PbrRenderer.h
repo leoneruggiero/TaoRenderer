@@ -2,6 +2,7 @@
 
 #include "RenderContext.h"
 #include "RenderContextUtils.h"
+#include "TaoMath.h"
 
 #include <list>
 #include <optional>
@@ -242,12 +243,12 @@ namespace tao_pbr
         tao_ogl_resources::OglTextureCube _prefilteredEnvCube;   // incoming env irradiance map (split-sum approx)
     };
 
-    class EnvironmentTexture
+    class EnvironmentLight
     {
         friend class PbrRenderer;
 
     public:
-        explicit EnvironmentTexture(const std::string &path) : _path(path)
+        explicit EnvironmentLight(const std::string &path) : _path(path)
         {
 
         }
@@ -292,27 +293,66 @@ namespace tao_pbr
     class Transformation
     {
     public:
-        Transformation(glm::mat4 transform) : _transformation(transform)
+        Transformation(glm::mat4 transform) : _matrix(transform)
         {
         }
 
-        inline const glm::mat4& transformation() const {return _transformation;}
+        inline const glm::mat4& matrix() const {return _matrix;}
         void Translate(const glm::vec3& v)
         {
-            _transformation  = glm::translate(_transformation, v);
+            _matrix  = glm::translate(_matrix, v);
         }
 
     private:
-        glm::mat4 _transformation;
+        glm::mat4 _matrix;
     };
 
-    struct MeshRenderer
+    struct DirectionalLight
     {
         Transformation transformation;
-        GenKey<Mesh> mesh;
-        GenKey<PbrMaterial> material;
+        glm::vec3      intensity;
     };
 
+    struct SphereLight
+    {
+        Transformation transformation;
+        glm::vec3      intensity;
+        float          radius;
+    };
+
+    struct RectLight
+    {
+        Transformation transformation;
+        glm::vec3      intensity;
+        glm::vec2      size;
+    };
+
+    class MeshRenderer
+    {
+        friend class PbrRenderer;
+
+    public:
+        void SetTransformation(const Transformation& transformation);
+
+    private:
+        const PbrRenderer*                      _renderer; //TODO: weak_ptr?
+        Transformation                          _transformation;
+        tao_math::BoundingBox<float, 3>::AaBb   _aabb;
+        GenKey<Mesh>                            _mesh;
+        GenKey<PbrMaterial>                     _material;
+
+        MeshRenderer(const PbrRenderer* renderer,
+                     const GenKey<Mesh> &mesh,
+                     const GenKey<PbrMaterial> &material,
+                     const Transformation& transformation):
+                            _renderer{renderer},
+                            _transformation{transformation},
+                            _mesh{mesh},_material{material}
+        {
+            // TODO: dangling ptr
+            if(!renderer) throw std::runtime_error("renderer param can't be null.");
+        }
+    };
 
     class PbrRenderer
     {
@@ -325,6 +365,7 @@ namespace tao_pbr
                 _ltcLut1    {rc.CreateTexture2D()},
                 _ltcLut2    {rc.CreateTexture2D()},
                 _frameDataUbo(rc.CreateUniformBuffer()),
+                _lightsDataUbo(rc.CreateUniformBuffer()),
                 _gBuffer
                 {
                         .texColor0{_renderContext->CreateTexture2D()},
@@ -338,6 +379,11 @@ namespace tao_pbr
                 {
                         .texColor{_renderContext->CreateTexture2D()},
                         .buff{_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
+                },
+                _directionalShadowMap
+                {
+                        .shadowMap{_renderContext->CreateTexture2D()},
+                        .shadowFbo{_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
                 },
                 _shaders
                 {
@@ -377,6 +423,7 @@ namespace tao_pbr
                 _pointSampler           {_renderContext->CreateSampler()},
                 _linearSampler          {_renderContext->CreateSampler()},
                 _linearMipLinearSampler {_renderContext->CreateSampler()},
+                _shadowSampler          {_renderContext->CreateSampler()},
                 _materials(),
                 _meshRenderers()
         {
@@ -385,11 +432,13 @@ namespace tao_pbr
             InitFsQuad();
             InitShaders();
             InitSamplers();
+            InitShadowMaps();
             InitStaticShaderBuffers();
             InitEnvBRDFLut();
             InitLtcLut();
 
-            _frameDataUbo.SetData(sizeof(frame_gl_data_block), nullptr, tao_ogl_resources::buf_usg_dynamic_draw);
+            _frameDataUbo .SetData(sizeof(frame_gl_data_block) , nullptr, tao_ogl_resources::buf_usg_dynamic_draw);
+            _lightsDataUbo.SetData(sizeof(lights_gl_data_block), nullptr, tao_ogl_resources::buf_usg_dynamic_draw);
 
             int glOffAlignment = _renderContext->UniformBufferOffsetAlignment();
             int trBlkSize = sizeof(transform_gl_data_block);
@@ -400,11 +449,14 @@ namespace tao_pbr
 
         [[nodiscard]] GenKey<Mesh>                AddMesh(Mesh& mesh);
         [[nodiscard]] GenKey<ImageTexture>        AddImageTexture(ImageTexture& texture);
-        [[nodiscard]] GenKey<EnvironmentTexture>  AddEnvironmentTexture(EnvironmentTexture& texture);
+        [[nodiscard]] GenKey<EnvironmentLight>    AddEnvironmentTexture(EnvironmentLight& texture);
         [[nodiscard]] GenKey<PbrMaterial>         AddMaterial(const PbrMaterial& material);
-        [[nodiscard]] GenKey<MeshRenderer>        AddMeshRenderer(const MeshRenderer& meshRenderer);
+        [[nodiscard]] GenKey<MeshRenderer>        AddMeshRenderer(const Transformation& transform, const GenKey<Mesh>& mesh, const GenKey<PbrMaterial> &material);
+        [[nodiscard]] GenKey<DirectionalLight>    AddDirectionalLight(const DirectionalLight& directionalLight);
+        [[nodiscard]] GenKey<SphereLight>         AddSphereLight(const SphereLight& sphereLight);
+        [[nodiscard]] GenKey<RectLight>           AddRectLight(const RectLight& rectLigth);
 
-        void SetCurrentEnvironment(const GenKey<EnvironmentTexture>& environment);
+        void SetCurrentEnvironment(const GenKey<EnvironmentLight>& environment);
 
         void ReloadShaders();
 
@@ -420,42 +472,51 @@ namespace tao_pbr
 
     private:
 
-        static constexpr const char* GPASS_VERT_SOURCE = "GPass.vert";
-        static constexpr const char* GPASS_FRAG_SOURCE = "GPass.frag";
-        static constexpr const char* LIGHTPASS_VERT_SOURCE = "LightPass.vert";
-        static constexpr const char* LIGHTPASS_FRAG_SOURCE = "LightPass.frag";
+        static constexpr const char* GPASS_VERT_SOURCE                      = "GPass.vert";
+        static constexpr const char* GPASS_FRAG_SOURCE                      = "GPass.frag";
+        static constexpr const char* LIGHTPASS_VERT_SOURCE                  = "LightPass.vert";
+        static constexpr const char* LIGHTPASS_FRAG_SOURCE                  = "LightPass.frag";
 
-        static constexpr const char* LIGHTPASS_NAME_GBUFF0          = "gBuff0";
-        static constexpr const char* LIGHTPASS_NAME_GBUFF1          = "gBuff1";
-        static constexpr const char* LIGHTPASS_NAME_GBUFF2          = "gBuff2";
-        static constexpr const char* LIGHTPASS_NAME_GBUFF3          = "gBuff3";
-        static constexpr const char* LIGHTPASS_NAME_ENV_BRDF_LUT    = "envBrdfLut";
-        static constexpr const char* LIGHTPASS_NAME_ENV_IRRADIANCE  = "envIrradiance";
-        static constexpr const char* LIGHTPASS_NAME_LTC_LUT_1       = "ltcLut1";
-        static constexpr const char* LIGHTPASS_NAME_LTC_LUT_2       = "ltcLut2";
-        static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED = "envPrefiltered";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF0                  = "gBuff0";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF1                  = "gBuff1";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF2                  = "gBuff2";
+        static constexpr const char* LIGHTPASS_NAME_GBUFF3                  = "gBuff3";
+        static constexpr const char* LIGHTPASS_NAME_ENV_BRDF_LUT            = "envBrdfLut";
+        static constexpr const char* LIGHTPASS_NAME_ENV_IRRADIANCE          = "envIrradiance";
+        static constexpr const char* LIGHTPASS_NAME_LTC_LUT_1               = "ltcLut1";
+        static constexpr const char* LIGHTPASS_NAME_LTC_LUT_2               = "ltcLut2";
+        static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED         = "envPrefiltered";
         static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED_MIN_LOD = "u_envPrefilteredMinLod";
         static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED_MAX_LOD = "u_envPrefilteredMaxLod";
+        static constexpr const char* LIGHTPASS_NAME_DIR_SHADOW_MATRIX       = "u_dirShadowMatrix";
+        static constexpr const char* LIGHTPASS_NAME_DO_DIR_SHADOW           = "u_doDirShadow";
 
-        static constexpr const char* LIGHTPASS_ENV_LIGHTS_SYMBOL    = "LIGHT_PASS_ENVIRONMENT";
-        static constexpr const char* LIGHTPASS_DIR_LIGHTS_SYMBOL    = "LIGTH_PASS_DIRECTIONAL";
-        static constexpr const char* LIGHTPASS_SPHERE_LIGHTS_SYMBOL = "LIGTH_PASS_SPHERE";
-        static constexpr const char* LIGHTPASS_RECT_LIGHTS_SYMBOL   = "LIGTH_PASS_RECT";
+        static constexpr const char* LIGHTPASS_ENV_LIGHTS_SYMBOL            = "LIGHT_PASS_ENVIRONMENT";
+        static constexpr const char* LIGHTPASS_DIR_LIGHTS_SYMBOL            = "LIGHT_PASS_DIRECTIONAL";
+        static constexpr const char* LIGHTPASS_SPHERE_LIGHTS_SYMBOL         = "LIGHT_PASS_SPHERE";
+        static constexpr const char* LIGHTPASS_RECT_LIGHTS_SYMBOL           = "LIGHT_PASS_RECT";
 
-        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF0         = 0;
-        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF1         = 1;
-        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF2         = 2;
-        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF3         = 3;
-        static constexpr const int LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT   = 4;
-        static constexpr const int LIGHTPASS_TEX_BINDING_ENV_IRRADIANCE = 5;
-        static constexpr const int LIGHTPASS_TEX_BINDING_ENV_PREFILTERED= 6;
-        static constexpr const int LIGHTPASS_TEX_BINDING_LTC_LUT_1      = 7;
-        static constexpr const int LIGHTPASS_TEX_BINDING_LTC_LUT_2      = 8;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF0              = 0;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF1              = 1;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF2              = 2;
+        static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF3              = 3;
+        static constexpr const int LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT        = 4;
+        static constexpr const int LIGHTPASS_TEX_BINDING_ENV_IRRADIANCE      = 5;
+        static constexpr const int LIGHTPASS_TEX_BINDING_ENV_PREFILTERED     = 6;
+        static constexpr const int LIGHTPASS_TEX_BINDING_LTC_LUT_1           = 7;
+        static constexpr const int LIGHTPASS_TEX_BINDING_LTC_LUT_2           = 8;
+        static constexpr const int LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP      = 9;
+        static constexpr const int LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP_COMP = 10;
+
+        static constexpr const int LIGHTPASS_BUFFER_BINDING_DIR_LIGHTS      = 5;
+        static constexpr const int LIGHTPASS_BUFFER_BINDING_SPHERE_LIGHTS   = 6;
+        static constexpr const int LIGHTPASS_BUFFER_BINDING_RECT_LIGHTS     = 7;
 
         static constexpr const int GPASS_UBO_BINDING_TRANSFORM  = 2;
         static constexpr const int GPASS_UBO_BINDING_MATERIAL   = 3;
         static constexpr const int GPASS_UBO_BINDING_CAMERA     = 1;
         static constexpr const int UBO_BINDING_FRAME_DATA       = 0;
+        static constexpr const int LIGHTPASS_UBO_BINDING_LIGHTS_DATA = 4;
 
         static constexpr const char* PROCESS_ENV_COMPUTE_SOURCE      = "ProcessEnvironment.comp";
         static constexpr const char* GEN_ENV_SYMBOL                  = "GEN_ENVIRONMENT_CUBE";
@@ -472,6 +533,7 @@ namespace tao_pbr
         static constexpr int         PROCESS_ENV_GROUP_SIZE_Y        = 8;
         static constexpr int         PROCESS_ENV_GROUP_SIZE_Z        = 1;
 
+        static constexpr int DIR_SHADOW_RES = 1024;
         static constexpr int ENV_CUBE_RES = 512;
         static constexpr int IRR_CUBE_RES = 64;
         static constexpr int PRE_CUBE_RES = 128;
@@ -513,6 +575,13 @@ namespace tao_pbr
                         .alpha_to_coverage_enable = false
                 };
 
+        struct DirectionalShadowMap
+        {
+            tao_ogl_resources::OglTexture2D                                     shadowMap;
+            tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>  shadowFbo;
+            glm::mat4                                                           shadowMatrix;
+        };
+
         struct GBuffer
         {
             tao_ogl_resources::OglTexture2D texColor0; // position (3) - roughness (1)
@@ -535,6 +604,7 @@ namespace tao_pbr
         {
             tao_ogl_resources::OglShaderProgram gPass;
             tao_ogl_resources::OglShaderProgram lightPass;
+            //tao_ogl_resources::OglShaderProgram shadowPass;
         };
 
         struct ComputeShaders
@@ -556,6 +626,7 @@ namespace tao_pbr
         tao_ogl_resources::OglTexture2D   _ltcLut1;     // see: https://github.com/selfshadow/ltc_code
         tao_ogl_resources::OglTexture2D   _ltcLut2;     // "" ""
 
+        tao_ogl_resources::OglUniformBuffer _frameDataUbo;
         struct frame_gl_data_block
         {
             glm::vec4 eyePosition;
@@ -570,6 +641,7 @@ namespace tao_pbr
             int doTaa;
         };
 
+        tao_ogl_resources::OglUniformBuffer _lightsDataUbo;
         struct lights_gl_data_block
         {
             int doEnvironment;
@@ -581,28 +653,26 @@ namespace tao_pbr
 
         struct directional_light_gl_data_block
         {
-            glm::vec3 direction;
-            glm::vec3 intensity;
+            glm::vec4 direction;
+            glm::vec4 intensity;
         };
 
         struct sphere_light_gl_data_block
         {
-            glm::vec3 position;
+            glm::vec4 position;
             glm::vec3 intensity;
             float     radius;
         };
 
         struct rect_light_gl_data_block
         {
-            glm::vec3 position;
-            glm::vec3 intensity;
-            glm::vec3 axisX;
-            glm::vec3 axisY;
-            glm::vec3 axisZ;
+            glm::vec4 position;
+            glm::vec4 intensity;
+            glm::vec4 axisX;
+            glm::vec4 axisY;
+            glm::vec4 axisZ;
             glm::vec2 size;
         };
-
-        tao_ogl_resources::OglUniformBuffer _frameDataUbo;
 
         struct camera_gl_data_block
         {
@@ -652,6 +722,8 @@ namespace tao_pbr
         GBuffer _gBuffer;
         OutputFramebuffer _outBuffer;
 
+        DirectionalShadowMap _directionalShadowMap;
+
         Shaders _shaders;
         ShaderBuffers _shaderBuffers;
 
@@ -665,16 +737,20 @@ namespace tao_pbr
         GenKeyVector<ImageTexture>              _textures;
         GenKeyVector<ImageTextureGraphicsData>  _texturesGraphicsData;
 
-        GenKeyVector<EnvironmentTexture>              _environmentTextures;
+        GenKeyVector<EnvironmentLight>              _environmentTextures;
         GenKeyVector<EnvironmentTextureGraphicsData>  _environmentTexturesGraphicsData;
-        std::optional<GenKey<EnvironmentTexture>>     _currentEnvironment;
+        std::optional<GenKey<EnvironmentLight>>     _currentEnvironment;
 
         tao_ogl_resources::OglSampler _pointSampler;
         tao_ogl_resources::OglSampler _linearSampler;
         tao_ogl_resources::OglSampler _linearMipLinearSampler;
+        tao_ogl_resources::OglSampler _shadowSampler;
 
-        GenKeyVector<PbrMaterial>   _materials;
-        GenKeyVector<MeshRenderer>  _meshRenderers;
+        GenKeyVector<PbrMaterial>       _materials;
+        GenKeyVector<MeshRenderer>      _meshRenderers;
+        GenKeyVector<DirectionalLight>  _directionalLights;
+        GenKeyVector<SphereLight>       _sphereLights;
+        GenKeyVector<RectLight>         _rectLights;
 
 
         void InitGBuffer        (int width, int height);
@@ -686,6 +762,7 @@ namespace tao_pbr
         void InitSamplers();
         void InitEnvBRDFLut();
         void InitLtcLut();
+        void InitShadowMaps();
         void InitStaticShaderBuffers();
         void WriteTransfromToShaderBuffer(const MeshRenderer& mesh, int offset);
         void WriteTransfromToShaderBuffer(const std::vector<MeshRenderer>& meshes, int offset);
@@ -693,8 +770,10 @@ namespace tao_pbr
         void WriteMaterialToShaderBuffer(const std::vector<MeshRenderer>& meshes, int offset);
         [[nodiscard]] GenKey<MeshGraphicsData>                CreateGraphicsData(Mesh& mesh);
         [[nodiscard]] GenKey<ImageTextureGraphicsData>        CreateGraphicsData(ImageTexture& image);
-        [[nodiscard]] GenKey<EnvironmentTextureGraphicsData>  CreateGraphicsData(EnvironmentTexture& image);
-        [[nodiscard]] EnvironmentTextureGraphicsData CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env);
+        [[nodiscard]] GenKey<EnvironmentTextureGraphicsData>  CreateGraphicsData(EnvironmentLight& image);
+        [[nodiscard]] EnvironmentTextureGraphicsData          CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env);
+
+        void CreateShadowMap(DirectionalShadowMap &shadowMapData, const tao_pbr::DirectionalLight &l, int shadowMapWidth, int shadowMapHeight);
 
 
     };

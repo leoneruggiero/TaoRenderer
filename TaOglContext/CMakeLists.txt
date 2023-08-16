@@ -1,16 +1,6 @@
 # .lib name
 set(LIB_NAME "TaOglContext")
 
-# collecting .h files
-set(MY_HEADERS
-	"include/TaOglContext/RenderContext.h"
-	"include/TaOglContext/RenderContextUtils.h"
-	"include/TaOglContext/Resources.h"
-	"include/TaOglContext/OglUtils.h"
-	"include/TaOglContext/Input.h"
-	"include/TaOglContext/GeometricPrimitives.h"
-	"include/TaOglContext/Instrumentation.h")
-
 # collecting .cpp files	  
 set(MY_SOURCE
 	"src/RenderContext.cpp"

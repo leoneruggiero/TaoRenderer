@@ -2,12 +2,13 @@
 #include "TaOglPbrConfig.h"
 #include "stb_image/stb_image.h"
 #include "gli/gli.hpp"
-
+#include "glm/gtc/type_ptr.hpp"
 namespace tao_pbr
 {
 
     using namespace  tao_ogl_resources;
     using namespace  tao_render_context;
+    using namespace  tao_math;
 
     using namespace glm;
 
@@ -72,12 +73,29 @@ namespace tao_pbr
         _outBuffer.texColor.TexImage(0, tex_int_for_rgba16f, width, height,tex_for_rgba, tex_typ_float, nullptr);
     }
 
+    void PbrRenderer::InitShadowMaps()
+    {
+        _directionalShadowMap.shadowMap.TexImage(0, tex_int_for_depth, DIR_SHADOW_RES, DIR_SHADOW_RES, tex_for_depth, tex_typ_float, nullptr);
+
+        _directionalShadowMap.shadowFbo.AttachTexture(fbo_attachment_depth, _directionalShadowMap.shadowMap, 0);
+
+        // don't write to any color buffer
+        ogl_framebuffer_read_draw_buffs buffs[] = {fbo_read_draw_buff_none};
+        _directionalShadowMap.shadowFbo.SetDrawBuffers(1, buffs);
+        _directionalShadowMap.shadowFbo.SetReadBuffer (buffs[0]);
+    }
+
     void PbrRenderer::InitSamplers()
     {
         ogl_sampler_compare_params noCompare
         {
             .compare_mode = sampler_cmp_mode_none,
             .compare_func = sampler_cmp_func_never
+        };
+        ogl_sampler_compare_params compareLess
+        {
+                .compare_mode = sampler_cmp_mode_compare_ref_to_texture,
+                .compare_func = sampler_cmp_func_less,
         };
         ogl_sampler_wrap_params clamp
         {
@@ -104,6 +122,7 @@ namespace tao_pbr
         _pointSampler           .SetParams(ogl_sampler_params{.filter_params = pointFilter,             .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
         _linearSampler          .SetParams(ogl_sampler_params{.filter_params = linearFilter,            .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
         _linearMipLinearSampler .SetParams(ogl_sampler_params{.filter_params = linearMipLinearFilter,   .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
+        _shadowSampler          .SetParams(ogl_sampler_params{.filter_params = linearFilter,            .wrap_params = clamp, .lod_params{}, .compare_params = compareLess,});
     }
 
     void PbrRenderer::InitShaders()
@@ -256,7 +275,7 @@ namespace tao_pbr
         return _texturesGraphicsData.insert(std::move(gd));
     }
 
-    GenKey<EnvironmentTextureGraphicsData>  PbrRenderer::CreateGraphicsData(EnvironmentTexture& image)
+    GenKey<EnvironmentTextureGraphicsData>  PbrRenderer::CreateGraphicsData(EnvironmentLight& image)
     {
         int w, h, c;
         void* data = stbi_loadf(image._path.c_str(), &w, &h, &c, 3);
@@ -293,7 +312,7 @@ namespace tao_pbr
         return key;
     }
 
-    GenKey<EnvironmentTexture> PbrRenderer::AddEnvironmentTexture(tao_pbr::EnvironmentTexture &texture)
+    GenKey<EnvironmentLight> PbrRenderer::AddEnvironmentTexture(tao_pbr::EnvironmentLight &texture)
     {
         auto key = _environmentTextures.insert(texture);
 
@@ -314,7 +333,7 @@ namespace tao_pbr
         return key;
     }
 
-    void PbrRenderer::SetCurrentEnvironment(const GenKey<tao_pbr::EnvironmentTexture> &environment)
+    void PbrRenderer::SetCurrentEnvironment(const GenKey<tao_pbr::EnvironmentLight> &environment)
     {
         if(!_environmentTextures.keyValid(environment))
             throw std::runtime_error("The given key is not valid.");
@@ -335,7 +354,7 @@ namespace tao_pbr
 
         for (int i = 0; i < meshes.size(); i++)
         {
-            glm::mat4 model = meshes[i].transformation.transformation();
+            glm::mat4 model = meshes[i]._transformation.matrix();
             glm::mat3 normal = glm::transpose(glm::inverse(model));
 
             dataTra[i] = (transform_gl_data_block
@@ -369,7 +388,7 @@ namespace tao_pbr
         for (int i = 0; i < meshes.size(); i++)
         {
 
-            const PbrMaterial &mat = _materials.at(meshes[i].material);
+            const PbrMaterial &mat = _materials.at(meshes[i]._material);
 
             dataMat[i] = material_gl_data_block
                     {
@@ -396,12 +415,17 @@ namespace tao_pbr
         _shaderBuffers.materialUbo.OglBuffer().SetSubData(offset, meshes.size() * _materialDataBlockAlignment, data.data());
     }
 
-    GenKey<MeshRenderer> PbrRenderer::AddMeshRenderer(const MeshRenderer& meshRenderer)
+    GenKey<MeshRenderer> PbrRenderer::AddMeshRenderer(const Transformation& transform, const GenKey<Mesh>& mesh, const GenKey<PbrMaterial> &material)
     {
-        if(!_meshes.keyValid(meshRenderer.mesh))        throw std::runtime_error("Invalid `mesh` key.");
-        if(!_materials.keyValid(meshRenderer.material)) throw std::runtime_error("Invalid `material` key.");
+        if(!_meshes.keyValid(mesh))        throw std::runtime_error("Invalid `mesh` key.");
+        if(!_materials.keyValid(material)) throw std::runtime_error("Invalid `material` key.");
 
-        auto key = _meshRenderers.insert(meshRenderer);
+        MeshRenderer mr(this, mesh, material, transform);
+        mr._aabb = tao_math::BoundingBox<float, 3>::ComputeBbox(
+                _meshes.at(mesh)._positions,
+                mr._transformation.matrix());
+
+        auto key = _meshRenderers.insert(mr);
 
         // Write transform and material to their buffers.
         // Resize and copy back old data if necessary.
@@ -421,6 +445,91 @@ namespace tao_pbr
             WriteMaterialToShaderBuffer(_meshRenderers.at(key), key.Index*_materialDataBlockAlignment);  // possibly overwrite existing old data
 
         return key;
+    }
+
+    // TODO: this "CPU-GPU synced buffer" should become an entity on its own
+    template<typename T, typename G>
+    GenKey<T> AddToCollectionSyncGpu(GenKeyVector<T>& genKeyedCollection, ResizableSsbo& gpuBuffer, const T& elemToAdd, std::function<G(const T&)> converter)
+    {
+        auto key = genKeyedCollection.insert(elemToAdd);
+
+        int totalElementsCnt = genKeyedCollection.vector().size();
+        // this works with SSBOs and std430(I hope...), for UBOs
+        // we should query  the gpu  offset alignment.
+        int gpuRequiredCapacity = totalElementsCnt * sizeof(G) /* which should exactly match gpu-side size...*/;
+
+        if(gpuBuffer.Resize(gpuRequiredCapacity))
+        {
+            // There wasn't enough space, gpu buffer resized.
+            // Need to copy all the elements from the start.
+            vector<G> gpuData(totalElementsCnt);
+            for(int i=0;i<gpuData.size(); i++) gpuData[i] = converter(genKeyedCollection.vector()[i]);
+            gpuBuffer.OglBuffer().SetSubData(0, gpuData.size()*sizeof(G), gpuData.data());
+        }
+        else
+        {
+            // There was enough space to insert a new element
+            // in the gpu buffer.
+            G elem = converter(elemToAdd);
+            gpuBuffer.OglBuffer().SetSubData((totalElementsCnt-1)*sizeof(G), sizeof(G), &elem);
+        }
+
+        return key;
+    }
+
+
+
+    GenKey<DirectionalLight> PbrRenderer::AddDirectionalLight(const tao_pbr::DirectionalLight &directionalLight)
+    {
+        std::function<directional_light_gl_data_block(const DirectionalLight&)> converter =
+        // Converts a directional light into its graphics data
+        [](const DirectionalLight& l)
+        {
+            return directional_light_gl_data_block
+            {
+                    .direction = l.transformation.matrix()[2], // transform's Z
+                    .intensity = vec4(l.intensity, 0.0)
+            };
+        };
+
+        return AddToCollectionSyncGpu(_directionalLights, _shaderBuffers.directionalLightsSsbo, directionalLight, converter);
+    }
+
+    GenKey<SphereLight> PbrRenderer::AddSphereLight(const tao_pbr::SphereLight &sphereLight)
+    {
+        std::function<sphere_light_gl_data_block(const SphereLight&)> converter =
+        // Converts a directional light into its graphics data
+        [](const SphereLight& l)
+        {
+            return sphere_light_gl_data_block
+            {
+                    .position =  l.transformation.matrix()[3],
+                    .intensity = vec4(l.intensity, 0.0),
+                    .radius    = l.radius
+            };
+        };
+
+        return AddToCollectionSyncGpu(_sphereLights, _shaderBuffers.sphereLightsSsbo, sphereLight, converter);
+    }
+
+    GenKey<RectLight> PbrRenderer::AddRectLight(const tao_pbr::RectLight &rectLight)
+    {
+        std::function<rect_light_gl_data_block(const RectLight&)> converter =
+        // Converts a directional light into its graphics data
+        [](const RectLight& l)
+        {
+            return rect_light_gl_data_block
+            {
+                    .position = l.transformation.matrix()[3],
+                    .intensity = vec4(l.intensity, 0.0),
+                    .axisX = l.transformation.matrix()[0],
+                    .axisY = l.transformation.matrix()[1],
+                    .axisZ = l.transformation.matrix()[2],
+                    .size = l.size
+            };
+        };
+
+        return AddToCollectionSyncGpu(_rectLights, _shaderBuffers.rectLightsSsbo, rectLight, converter);
     }
 
     void PbrRenderer::ReloadShaders()
@@ -446,28 +555,49 @@ namespace tao_pbr
     PbrRenderer::pbrRendererOut PbrRenderer::Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far)
     {
         _renderContext->MakeCurrent();
+
+        // loading per-frame data
+        frame_gl_data_block frameGlDataBlock
+        {
+                .eyePosition        = inverse(viewMatrix) * vec4(0.0, 0.0, 0.0, 1.0),
+                .viewportSize       = vec2(_windowWidth, _windowHeight),
+                .taaJitter          = vec2(0.0),
+                .doGamma            = 1,
+                .gamma              = 2.2,
+                .doEnvironmentIbl   = _currentEnvironment.has_value(),
+                .environmentIntensity = 1.0,
+                .radianceMinLod = PRE_CUBE_MIN_LOD,
+                .radianceMaxLod = PRE_CUBE_MAX_LOD,
+                .doTaa          = 0
+        };
+        _frameDataUbo.SetSubData(0, sizeof(frame_gl_data_block), &frameGlDataBlock);
+        _frameDataUbo.Bind(UBO_BINDING_FRAME_DATA);
+
+
+        /// Shadow Pass
+        ////////////////////////////////////////////
+        if(_directionalLights.vector().size()>0 && _directionalLights.indexValid(0))
+        {
+            CreateShadowMap(_directionalShadowMap,_directionalLights.vector()[0], DIR_SHADOW_RES, DIR_SHADOW_RES);
+        }
+
         _renderContext->SetViewport(0, 0, _windowWidth, _windowHeight);
 
         _renderContext->SetDepthState       (DEFAULT_DEPTH_STATE);
         _renderContext->SetRasterizerState  (DEFAULT_RASTERIZER_STATE);
         _renderContext->SetBlendState       (DEFAULT_BLEND_STATE);
 
-        // loading per-frame data
-        frame_gl_data_block frameGlDataBlock
+        // loading lights data
+        lights_gl_data_block lightsGlDataBlock
         {
-            .eyePosition        = inverse(viewMatrix) * vec4(0.0, 0.0, 0.0, 1.0),
-            .viewportSize       = vec2(_windowWidth, _windowHeight),
-            .taaJitter          = vec2(0.0),
-            .doGamma            = 1,
-            .gamma              = 2.2,
-            .doEnvironmentIbl   = _currentEnvironment.has_value(),
-            .environmentIntensity = 1.0,
-            .radianceMinLod = PRE_CUBE_MIN_LOD,
-            .radianceMaxLod = PRE_CUBE_MAX_LOD,
-            .doTaa          = 0
+            .doEnvironment= _currentEnvironment.has_value(),
+            .environmentIntensity = 0.1f,
+            .directionalLightsCnt = static_cast<int>(_directionalLights.vector().size()),
+            .sphereLightsCnt      = static_cast<int>(_sphereLights.vector().size()),
+            .rectLightsCnt        = static_cast<int>(_rectLights.vector().size())
         };
-        _frameDataUbo.SetSubData(0, sizeof(frame_gl_data_block), &frameGlDataBlock);
-        _frameDataUbo.Bind(UBO_BINDING_FRAME_DATA);
+        _lightsDataUbo.SetSubData(0, sizeof(lights_gl_data_block), &lightsGlDataBlock);
+        _lightsDataUbo.Bind(LIGHTPASS_UBO_BINDING_LIGHTS_DATA);
 
         // loading view data
         camera_gl_data_block cameraGlDataBlock
@@ -492,7 +622,7 @@ namespace tao_pbr
         {
             if(!_meshRenderers.indexValid(i)) continue;
 
-            auto meshKey = _meshRenderers.vector()[i].mesh;
+            auto meshKey = _meshRenderers.vector()[i]._mesh;
             auto meshDataKey = _meshes.at(meshKey)._graphicsData;
 
             if(!meshDataKey.has_value()) throw std::runtime_error("The mesh has no graphics data.");
@@ -531,7 +661,7 @@ namespace tao_pbr
         // Bind ambient IBL textures and samplers
         if(_currentEnvironment.has_value())
         {
-            EnvironmentTexture& currEnvTex = _environmentTextures.at(_currentEnvironment.value());
+            EnvironmentLight& currEnvTex = _environmentTextures.at(_currentEnvironment.value());
             EnvironmentTextureGraphicsData& currEnvData = _environmentTexturesGraphicsData.at(currEnvTex._graphicsData.value());
 
             _envBRDFLut                     .BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_ENV_BRDF_LUT));
@@ -551,6 +681,20 @@ namespace tao_pbr
             _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_LTC_LUT_1));
             _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_LTC_LUT_2));
         }
+
+        // Bind lights SSBOs
+        _shaderBuffers.directionalLightsSsbo.OglBuffer().Bind(LIGHTPASS_BUFFER_BINDING_DIR_LIGHTS);
+        _shaderBuffers.sphereLightsSsbo.OglBuffer().Bind(LIGHTPASS_BUFFER_BINDING_SPHERE_LIGHTS);
+        _shaderBuffers.rectLightsSsbo.OglBuffer().Bind(LIGHTPASS_BUFFER_BINDING_RECT_LIGHTS);
+
+
+        // Shadow data
+        _directionalShadowMap.shadowMap.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP));
+        _directionalShadowMap.shadowMap.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP_COMP));
+        _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP));
+        _shadowSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP_COMP));
+        _shaders.lightPass.SetUniformMatrix4(LIGHTPASS_NAME_DIR_SHADOW_MATRIX, glm::value_ptr(_directionalShadowMap.shadowMatrix));
+        _shaders.lightPass.SetUniform(LIGHTPASS_NAME_DO_DIR_SHADOW, true);
 
         _fsQuad.vao.Bind();
         _renderContext->DrawElements(pmt_type_triangles, 6, idx_typ_unsigned_int, nullptr);
@@ -749,4 +893,72 @@ namespace tao_pbr
 
         return res;
     }
+
+    void PbrRenderer::CreateShadowMap(DirectionalShadowMap &shadowMapData, const tao_pbr::DirectionalLight &l, int shadowMapWidth, int shadowMapHeight)
+    {
+        // Compute scene Bbox
+        int mrCnt = _meshRenderers.vector().size();
+        vector<vec3> pts{}; pts.reserve(mrCnt*2);
+        for(int i=0;i<mrCnt; i++)
+        {
+            if(!_meshRenderers.indexValid(i)) continue;
+
+            pts.push_back(_meshRenderers.vector()[i]._aabb.Min);
+            pts.push_back(_meshRenderers.vector()[i]._aabb.Max);
+        }
+
+        auto sceneAABB = BoundingBox<float, 3>::ComputeBbox(pts);
+
+        // Use the enclosing sphere to determine the camera position
+        vec3  sceneCenter = sceneAABB.Center();
+        float sceneRadius = sceneAABB.Diagonal()*0.5;
+
+        vec3  viewDir    = vec3{l.transformation.matrix()[2]};
+        vec3  viewPos    = sceneCenter-viewDir*sceneRadius;
+        float viewNear   = 1e-3; // mh...
+        float viewFar    = sceneRadius*2.0;
+        mat4  viewMatrix = lookAt(viewPos, sceneCenter,vec3{l.transformation.matrix()[1]});
+        mat4  projMatrix = ortho(-sceneRadius, sceneRadius, -sceneRadius, sceneRadius, viewNear, viewFar);
+
+        shadowMapData.shadowMatrix = projMatrix*viewMatrix;
+
+        // set view data
+        camera_gl_data_block cameraGlDataBlock
+        {
+            .viewMatrix         = viewMatrix,
+            .projectionMatrix   = projMatrix,
+            .near               = viewNear,
+            .far                = viewFar
+        };
+        _shaderBuffers.cameraUbo.SetSubData(0, sizeof(camera_gl_data_block), &cameraGlDataBlock);
+        _shaderBuffers.cameraUbo.Bind(GPASS_UBO_BINDING_CAMERA);
+
+        _renderContext->SetViewport(0, 0, shadowMapWidth, shadowMapHeight);
+
+        shadowMapData.shadowFbo.Bind(fbo_read_draw);
+
+        _renderContext->SetDepthState(DEFAULT_DEPTH_STATE);
+
+        _renderContext->ClearDepth(1.0f);
+
+        _shaders.gPass.UseProgram(); // using the gPass shader for now....
+        for(int i=0;i<_meshRenderers.vector().size(); i++)
+        {
+            if(!_meshRenderers.indexValid(i)) continue;
+
+            auto meshKey = _meshRenderers.vector()[i]._mesh;
+            auto meshDataKey = _meshes.at(meshKey)._graphicsData;
+
+            if(!meshDataKey.has_value()) throw std::runtime_error("The mesh has no graphics data.");
+
+            auto& gfxData = _meshesGraphicsData.at(meshDataKey.value());
+            gfxData._glVao.Bind();
+
+            _shaderBuffers.transformUbo.OglBuffer().BindRange(GPASS_UBO_BINDING_TRANSFORM, i*_transformDataBlockAlignment, sizeof(transform_gl_data_block));
+            _renderContext->DrawElements(pmt_type_triangles, gfxData._indicesCount, idx_typ_unsigned_int, nullptr);
+        }
+
+        shadowMapData.shadowFbo.UnBind(fbo_read_draw);
+    }
+
 }

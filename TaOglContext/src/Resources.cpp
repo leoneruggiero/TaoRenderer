@@ -103,6 +103,12 @@ namespace tao_ogl_resources
     template<>void OglShaderProgram::SetUniform<GLuint>(GLint location, GLuint v0, GLuint v1, GLuint v2) { GL_CALL(glUniform3ui(location, v0, v1, v2)); }
     template<>void OglShaderProgram::SetUniform<GLuint>(GLint location, GLuint v0, GLuint v1, GLuint v2, GLuint v3) { GL_CALL(glUniform4ui(location, v0, v1, v2, v3)); }
 
+    // BOOL template spec
+    template<>void OglShaderProgram::SetUniform<bool>(GLint location, bool v0) { GL_CALL(glUniform1ui(location, v0)); }
+    template<>void OglShaderProgram::SetUniform<bool>(GLint location, bool v0, bool v1) { GL_CALL(glUniform2ui(location, v0, v1)); }
+    template<>void OglShaderProgram::SetUniform<bool>(GLint location, bool v0, bool v1, bool v2) { GL_CALL(glUniform3ui(location, v0, v1, v2)); }
+    template<>void OglShaderProgram::SetUniform<bool>(GLint location, bool v0, bool v1, bool v2, bool v3) { GL_CALL(glUniform4ui(location, v0, v1, v2, v3)); }
+
     // INT template spec
     template<>void OglShaderProgram::SetUniform<GLint>(GLint location, GLint v0) { GL_CALL(glUniform1i(location, v0)); }
     template<>void OglShaderProgram::SetUniform<GLint>(GLint location, GLint v0, GLint v1) { GL_CALL(glUniform2i(location, v0, v1)); }
