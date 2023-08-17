@@ -368,27 +368,34 @@ namespace tao_pbr
                 _lightsDataUbo(rc.CreateUniformBuffer()),
                 _gBuffer
                 {
-                        .texColor0{_renderContext->CreateTexture2D()},
-                        .texColor1{_renderContext->CreateTexture2D()},
-                        .texColor2{_renderContext->CreateTexture2D()},
-                        .texColor3{_renderContext->CreateTexture2D()},
-                        .texDepth{_renderContext->CreateTexture2D()},
-                        .gBuff{_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
+                        .texColor0  {_renderContext->CreateTexture2D()},
+                        .texColor1  {_renderContext->CreateTexture2D()},
+                        .texColor2  {_renderContext->CreateTexture2D()},
+                        .texColor3  {_renderContext->CreateTexture2D()},
+                        .texDepth   {_renderContext->CreateTexture2D()},
+                        .gBuff      {_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
                 },
                 _outBuffer
                 {
-                        .texColor{_renderContext->CreateTexture2D()},
-                        .buff{_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
+                        .texColor   {_renderContext->CreateTexture2D()},
+                        .buff       {_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
                 },
                 _directionalShadowMap
                 {
                         .shadowMap{_renderContext->CreateTexture2D()},
                         .shadowFbo{_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
                 },
+                _sphereShadowMap
+                {
+                        .shadowMapColor {_renderContext->CreateTextureCube()},
+                        .shadowMapDepth {_renderContext->CreateTextureCube()},
+                        .shadowFbo      {_renderContext->CreateFramebuffer<tao_ogl_resources::OglTextureCube>()},
+                },
                 _shaders
                 {
-                        .gPass{_renderContext->CreateShaderProgram()},
-                        .lightPass{_renderContext->CreateShaderProgram()}
+                        .gPass          {_renderContext->CreateShaderProgram()},
+                        .lightPass      {_renderContext->CreateShaderProgram()},
+                        .pointShadowMap {_renderContext->CreateShaderProgram()}
                 },
                 _shaderBuffers
                 {
@@ -476,6 +483,9 @@ namespace tao_pbr
         static constexpr const char* GPASS_FRAG_SOURCE                      = "GPass.frag";
         static constexpr const char* LIGHTPASS_VERT_SOURCE                  = "LightPass.vert";
         static constexpr const char* LIGHTPASS_FRAG_SOURCE                  = "LightPass.frag";
+        static constexpr const char* POINT_SHADOWS_VERT_SOURCE              = "PointShadowMap.vert";
+        static constexpr const char* POINT_SHADOWS_GEOM_SOURCE              = "PointShadowMap.geom";
+        static constexpr const char* POINT_SHADOWS_FRAG_SOURCE              = "PointShadowMap.frag";
 
         static constexpr const char* LIGHTPASS_NAME_GBUFF0                  = "gBuff0";
         static constexpr const char* LIGHTPASS_NAME_GBUFF1                  = "gBuff1";
@@ -490,6 +500,8 @@ namespace tao_pbr
         static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED_MAX_LOD = "u_envPrefilteredMaxLod";
         static constexpr const char* LIGHTPASS_NAME_DIR_SHADOW_MATRIX       = "u_dirShadowMatrix";
         static constexpr const char* LIGHTPASS_NAME_DO_DIR_SHADOW           = "u_doDirShadow";
+        static constexpr const char* POINT_SHADOWS_NAME_LIGHT_POS           = "u_lightWorldPos";
+        static constexpr const char* POINT_SHADOWS_NAME_VIEWPROJ            = "u_viewProjMat";
 
         static constexpr const char* LIGHTPASS_ENV_LIGHTS_SYMBOL            = "LIGHT_PASS_ENVIRONMENT";
         static constexpr const char* LIGHTPASS_DIR_LIGHTS_SYMBOL            = "LIGHT_PASS_DIRECTIONAL";
@@ -534,6 +546,7 @@ namespace tao_pbr
         static constexpr int         PROCESS_ENV_GROUP_SIZE_Z        = 1;
 
         static constexpr int DIR_SHADOW_RES = 1024;
+        static constexpr int POINT_SHADOW_RES = 512;
         static constexpr int ENV_CUBE_RES = 512;
         static constexpr int IRR_CUBE_RES = 64;
         static constexpr int PRE_CUBE_RES = 128;
@@ -582,6 +595,14 @@ namespace tao_pbr
             glm::mat4                                                           shadowMatrix;
         };
 
+        struct SphereShadowMap
+        {
+            tao_ogl_resources::OglTextureCube                                     shadowMapColor;
+            tao_ogl_resources::OglTextureCube                                     shadowMapDepth;
+            tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTextureCube>  shadowFbo;
+            glm::vec3                                                             shadowCenter;
+        };
+
         struct GBuffer
         {
             tao_ogl_resources::OglTexture2D texColor0; // position (3) - roughness (1)
@@ -604,7 +625,7 @@ namespace tao_pbr
         {
             tao_ogl_resources::OglShaderProgram gPass;
             tao_ogl_resources::OglShaderProgram lightPass;
-            //tao_ogl_resources::OglShaderProgram shadowPass;
+            tao_ogl_resources::OglShaderProgram pointShadowMap;
         };
 
         struct ComputeShaders
@@ -723,6 +744,7 @@ namespace tao_pbr
         OutputFramebuffer _outBuffer;
 
         DirectionalShadowMap _directionalShadowMap;
+        SphereShadowMap      _sphereShadowMap;
 
         Shaders _shaders;
         ShaderBuffers _shaderBuffers;
@@ -774,7 +796,7 @@ namespace tao_pbr
         [[nodiscard]] EnvironmentTextureGraphicsData          CreateEnvironmentTextures(tao_ogl_resources::OglTexture2D &env);
 
         void CreateShadowMap(DirectionalShadowMap &shadowMapData, const tao_pbr::DirectionalLight &l, int shadowMapWidth, int shadowMapHeight);
-
+        void CreateShadowMap(SphereShadowMap      &shadowMapData, const tao_pbr::SphereLight      &l, int shadowMapResolution);
 
     };
 

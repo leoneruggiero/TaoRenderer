@@ -31,7 +31,7 @@ void Emit(VERT v)
 {
     gs_out.v_color    = v.color;
     gs_out.v_texCoord = v.texCoord;
-    gl_Position         = v.clipPos;
+    gl_Position       = v.clipPos;
     EmitVertex();
 }
 

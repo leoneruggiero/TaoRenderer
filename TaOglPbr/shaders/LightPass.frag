@@ -320,9 +320,9 @@ void main()
 #endif
 
 #ifdef LIGHT_PASS_ENVIRONMENT
-        if(u_doEnvironment)
-            col.rgb += ComputeAmbientLight(viewDir, nrmWorld, f0, albedo.rgb, roughness, metalness, u_environmentIntensity,
-                                           u_envPrefilteredMinLod, u_envPrefilteredMaxLod, envIrradiance, envPrefiltered, envBrdfLut);
+        //if(u_doEnvironment)
+            //col.rgb += ComputeAmbientLight(viewDir, nrmWorld, f0, albedo.rgb, roughness, metalness, u_environmentIntensity,
+                                           //u_envPrefilteredMinLod, u_envPrefilteredMaxLod, envIrradiance, envPrefiltered, envBrdfLut);
 #endif
     }
 
