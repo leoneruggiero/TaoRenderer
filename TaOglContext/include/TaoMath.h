@@ -9,6 +9,7 @@
 
 namespace tao_math
 {
+
     template<typename T, int N>
     class BoundingBox
     {

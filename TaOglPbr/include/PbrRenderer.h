@@ -499,7 +499,10 @@ namespace tao_pbr
         static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED_MIN_LOD = "u_envPrefilteredMinLod";
         static constexpr const char* LIGHTPASS_NAME_ENV_PREFILTERED_MAX_LOD = "u_envPrefilteredMaxLod";
         static constexpr const char* LIGHTPASS_NAME_DIR_SHADOW_MATRIX       = "u_dirShadowMatrix";
+        static constexpr const char* LIGHTPASS_NAME_DIR_SHADOW_POS          = "u_dirShadowPosition";
+        static constexpr const char* LIGHTPASS_NAME_DIR_SHADOW_SIZE         = "u_dirShadowSize";
         static constexpr const char* LIGHTPASS_NAME_DO_DIR_SHADOW           = "u_doDirShadow";
+        static constexpr const char* LIGHTPASS_NAME_DO_SPHERE_SHADOW        = "u_doSphereShadow";
         static constexpr const char* POINT_SHADOWS_NAME_LIGHT_POS           = "u_lightWorldPos";
         static constexpr const char* POINT_SHADOWS_NAME_VIEWPROJ            = "u_viewProjMat";
 
@@ -519,6 +522,7 @@ namespace tao_pbr
         static constexpr const int LIGHTPASS_TEX_BINDING_LTC_LUT_2           = 8;
         static constexpr const int LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP      = 9;
         static constexpr const int LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP_COMP = 10;
+        static constexpr const int LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP   = 11;
 
         static constexpr const int LIGHTPASS_BUFFER_BINDING_DIR_LIGHTS      = 5;
         static constexpr const int LIGHTPASS_BUFFER_BINDING_SPHERE_LIGHTS   = 6;
@@ -545,7 +549,7 @@ namespace tao_pbr
         static constexpr int         PROCESS_ENV_GROUP_SIZE_Y        = 8;
         static constexpr int         PROCESS_ENV_GROUP_SIZE_Z        = 1;
 
-        static constexpr int DIR_SHADOW_RES = 1024;
+        static constexpr int DIR_SHADOW_RES = 2048;
         static constexpr int POINT_SHADOW_RES = 512;
         static constexpr int ENV_CUBE_RES = 512;
         static constexpr int IRR_CUBE_RES = 64;
@@ -593,6 +597,8 @@ namespace tao_pbr
             tao_ogl_resources::OglTexture2D                                     shadowMap;
             tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>  shadowFbo;
             glm::mat4                                                           shadowMatrix;
+            glm::vec3                                                           lightPos;
+            glm::vec4                                                           shadowSize;
         };
 
         struct SphereShadowMap

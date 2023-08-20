@@ -12,7 +12,6 @@
 #include "GizmosRenderer.h"
 #include "GizmosHelper.h"
 #include "PbrRenderer.h"
-#include "../../TestApp_OpenGL/TestApp_OpenGL/stb_image.h" // TODO: WTF??
 
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_glfw.h"
@@ -28,6 +27,325 @@ using namespace tao_input;
 using namespace tao_pbr;
 
 
+enum MouseInputAgentTag
+{
+    None           = 1u<<0,
+    CameraRotate   = 1u<<1,
+    CameraZoom     = 1u<<2
+};
+
+// The ugliest struct...
+struct MouseInputModifier
+{
+    MouseInputModifier(bool leftMouseButton, bool middleMouseButton, bool rightMouseButton,
+                       bool ctrlKey, bool leftShiftKey):
+                       lmb{leftMouseButton},
+                       mmb{middleMouseButton},
+                       rmb{rightMouseButton},
+                       ctrl{ctrlKey},
+                       lshift{leftShiftKey}
+    {
+    }
+    bool lmb;
+    bool mmb;
+    bool rmb;
+
+    bool ctrl;
+    bool lshift;
+};
+
+
+class MouseInputManager;
+
+class MouseInputAgent
+{
+public:
+    MouseInputAgent(MouseInputModifier inputModifier, MouseInputAgentTag tag):
+    _tag{tag},
+    _mod{inputModifier}
+    {
+    }
+
+    virtual void MouseUp  (float, float, int, int)  = 0;
+    virtual void MouseDown(float, float, int, int)  = 0;
+    virtual void MouseMove(float, float, float, float, int, int)  = 0;
+    virtual void Enable()  = 0;
+    virtual void Disable() = 0;
+    virtual void Mute()    = 0;
+    virtual void UnMute()  = 0;
+
+    MouseInputAgentTag  GetTag()      const{return _tag;}
+    MouseInputModifier  GetModifier() const{return _mod;}
+
+    void SetInputManager(MouseInputManager* manager)
+    {
+        _manager = manager;
+    }
+
+private:
+    MouseInputAgentTag _tag = MouseInputAgentTag::None;
+    MouseInputModifier _mod;
+protected:
+    MouseInputManager* _manager;
+};
+
+class MouseInputManager
+{
+public:
+
+    MouseInputManager(RenderContext* renderContext) :
+    _rc{renderContext},
+    _mouseListeners{},
+    _agents{},
+    _muted{None}
+    {
+    }
+
+    void PollMouseEvents()
+    {
+        int surfaceWidth, surfaceHeight;
+        _rc->GetWindowSize(surfaceWidth, surfaceHeight);
+
+        _rc->PollEvents();
+
+        for(int i=0;i<_agents.size();i++)
+        {
+            if(_agents[i]->GetTag() & _muted) continue;
+
+            float posX, posY, smoothPosX, smoothPosY;
+            _mouseListeners[i]->Position(posX, posY, false, tao_input::mouse_origin::bottom_left);
+            _mouseListeners[i]->Position(smoothPosX, smoothPosY, true, tao_input::mouse_origin::bottom_left);
+
+            _agents[i]->MouseMove(posX, posY, smoothPosX, smoothPosY, surfaceWidth, surfaceHeight);
+        }
+
+    }
+
+    void AddInputAgent(MouseInputAgent* agent)
+    {
+        agent->SetInputManager(this);
+
+        _agents.push_back(agent);
+
+        auto shouldListedPredicate = [this, agent]()
+        {
+            return
+                    !(this->_rc->Mouse().IsKeyPressed(left_shift_key)      ^ agent->GetModifier().lshift) &&
+                    !(this->_rc->Mouse().IsKeyPressed(left_control_key)    ^ agent->GetModifier().ctrl) &&
+                    !(this->_rc->Mouse().IsPressed(left_mouse_button)    ^ agent->GetModifier().lmb) &&
+                    !(this->_rc->Mouse().IsPressed(middle_mouse_button)  ^ agent->GetModifier().mmb) &&
+                    !(this->_rc->Mouse().IsPressed(right_mouse_button)   ^ agent->GetModifier().rmb);
+        };
+
+        function<void()> enableFunc = bind(&MouseInputAgent::Enable, agent);
+        function<void()> disableFunc = bind(&MouseInputAgent::Disable, agent);
+        function<void(float, float, int, int)> mouseDownFunc = bind(&MouseInputAgent::MouseDown, agent,placeholders::_1,placeholders::_2,placeholders::_3,placeholders::_4);
+        function<void(float, float, int, int)> mouseUpFunc = bind(&MouseInputAgent::MouseUp, agent,placeholders::_1,placeholders::_2,placeholders::_3,placeholders::_4);
+
+        auto listenerPtr = make_shared<MouseInputListener>(shouldListedPredicate, enableFunc,disableFunc, mouseDownFunc, mouseUpFunc, 60.0f);
+
+        _mouseListeners.push_back(listenerPtr);
+        _rc->Mouse().AddListener(listenerPtr);
+    }
+
+    void MuteAgents(MouseInputAgentTag tag)
+    {
+        for(int i=0;i<_agents.size();i++)
+        {
+            bool isMuted        = _agents[i]->GetTag() & _muted;
+            bool willBeMuted    = _agents[i]->GetTag() & tag;
+
+            if (!isMuted&&willBeMuted) _agents[i]->Mute();
+        }
+
+        _muted = static_cast<MouseInputAgentTag>(_muted|tag);
+    }
+
+    void UnMuteAgents(MouseInputAgentTag tag)
+    {
+        for(int i=0;i<_agents.size();i++)
+        {
+            bool isMuted          = _agents[i]->GetTag() & _muted;
+            bool willBeUnMuted    = _agents[i]->GetTag() & tag;
+
+            if (isMuted&&willBeUnMuted) _agents[i]->UnMute();
+        }
+
+        _muted = static_cast<MouseInputAgentTag>(_muted&(~tag));
+    }
+
+private:
+    RenderContext*                          _rc;
+    vector<shared_ptr<MouseInputListener>>  _mouseListeners;
+    vector<MouseInputAgent*>                _agents;
+    MouseInputAgentTag                      _muted = None;
+};
+
+class CameraZoomAgent : public MouseInputAgent
+{
+public:
+    CameraZoomAgent(float initialDistance, MouseInputModifier inputModifier):
+            MouseInputAgent{inputModifier, CameraZoom},
+            _shouldRefreshData{true},
+            _latestMouseY{-1.0},
+            _distance{initialDistance},
+            _zoom{1.0f}
+    {
+        ZoomCamera(0.0f);
+    }
+    mat4 GetZoomMatrix()
+    {
+        return _zoom;
+    }
+
+    void MouseUp(float x, float y, int w, int h) override{}
+    void MouseDown(float x, float y, int w, int h) override{}
+    void MouseMove(float x, float y, float smoothX, float smoothY, int w, int h) override
+    {
+        if(_shouldRefreshData)
+        {
+            _latestMouseY = smoothY;
+
+            _shouldRefreshData=false;
+        }
+
+        float dy = (smoothY-_latestMouseY)/h;
+
+        ZoomCamera(dy);
+
+        _latestMouseY = smoothY;
+    }
+
+    void Enable() override
+    {
+        _shouldRefreshData = true;
+        _manager->MuteAgents(CameraRotate);
+    }
+
+    void Disable() override
+    {
+        _manager->UnMuteAgents(CameraRotate);
+    }
+
+    void Mute() override
+    {
+    }
+
+    void UnMute() override
+    {
+        _shouldRefreshData = true;
+    }
+
+private:
+    bool  _shouldRefreshData;
+    float _latestMouseY;
+    float _distance;
+    mat4  _zoom;
+
+    void ZoomCamera(float dy)
+    {
+        const float kMinDst = 0.1;
+        const float kMaxDst = 30.0;
+        const float kSensitivity = 25.0f;
+
+        float f = mix(0.05f, 1.0f, (_distance-kMinDst)/(kMaxDst-kMinDst));
+        float newDst = _distance - dy * kSensitivity * f;
+        newDst = glm::clamp(newDst, kMinDst, kMaxDst);
+        _distance = newDst;
+
+        _zoom = translate(mat4{1.0}, _distance * vec3{0.0, 0.0, -1.0});
+    }
+};
+
+class CameraRotationAgent : public MouseInputAgent
+{
+public:
+    CameraRotationAgent(vec3 initialEyePosition, vec3 initialTarget, vec3 initialUp, MouseInputModifier inputModifier):
+    MouseInputAgent{inputModifier, CameraRotate},
+    _shouldRefreshData{true},
+    _latestMouseX{0.0f},
+    _latestMouseY{0.0f},
+    _eyePosition{initialEyePosition},
+    _target{initialTarget},
+    _up{initialUp},
+    _rotation{1.0f}
+    {
+        RotateCamera(0.0f, 0.0f);
+    }
+    mat4 GetRotationMatrix()
+    {
+        return _rotation;
+    }
+
+    void MouseUp(float x, float y, int w, int h) override{}
+    void MouseDown(float x, float y, int w, int h) override{}
+    void MouseMove(float x, float y, float smoothX, float smoothY, int w, int h) override
+    {
+        if(_shouldRefreshData)
+        {
+            _latestMouseX = smoothX;
+            _latestMouseY = smoothY;
+
+            _shouldRefreshData=false;
+        }
+
+        float dx = (smoothX-_latestMouseX)/w;
+        float dy = (smoothY-_latestMouseY)/h;
+
+        RotateCamera(dx, dy);
+
+        _latestMouseX = smoothX;
+        _latestMouseY = smoothY;
+    }
+
+    void Enable() override
+    {
+        _shouldRefreshData = true;
+        _manager->MuteAgents(CameraZoom);
+    }
+
+    void Disable() override
+    {
+        _manager->UnMuteAgents(CameraZoom);
+    }
+
+    void Mute() override
+    {
+    }
+
+    void UnMute() override
+    {
+        _shouldRefreshData = true;
+    }
+
+private:
+    bool  _shouldRefreshData;
+    float _latestMouseX;
+    float _latestMouseY;
+    vec3  _eyePosition;
+    vec3  _target;
+    vec3  _up;
+    mat4  _rotation;
+
+    void RotateCamera(float dx, float dy)
+    {
+        mat4 rotZ = glm::rotate(mat4(1.0f), -2.f * pi<float>() * dx, _up);
+        _eyePosition = rotZ * vec4(_eyePosition, 1.0);
+
+        vec3 right = cross(_up, _target - _eyePosition);
+        right = normalize(right);
+
+        mat4 rotX = glm::rotate(mat4(1.0f), -pi<float>() * dy, right);
+        vec3 newEyePos = rotX * vec4(_eyePosition, 1.0);
+
+        // ugly: limit the rotation so that eyePos-eyeTarget is never
+        // parallel to world Z.
+        if (abs(dot(normalize(newEyePos), _up)) <= 0.98f)_eyePosition = newEyePos;
+
+        _rotation = lookAt(_eyePosition, _target, _up);
+    }
+};
+
 static vec4 Gradient(float t, vec4 start, vec4 mid, vec4 end)
 {
 	t = glm::clamp(t, 0.f, 1.f);
@@ -39,35 +357,6 @@ static vec4 Gradient(float t, vec4 start, vec4 mid, vec4 end)
 	
 
 	return { rgb*2.f, 1.0f };
-}
-
-struct mouse_input_data
-{
-public:
-	float currMouseX = 0.0f;
-	float currMouseY = 0.0f;
-	float prevMouseX = 0.0f;
-	float prevMouseY = 0.0f;
-	bool  mouseDown = false;
-};
-
-
-void MouseInputUpdate(mouse_input_data& data, float newX, float newY, float& deltaX, float& deltaY)
-{
-	data.prevMouseX = data.currMouseX;
-	data.prevMouseY = data.currMouseY;
-	data.currMouseX = newX;
-	data.currMouseY = newY;
-	
-	if (data.mouseDown)
-	{
-		data.prevMouseX = data.currMouseX;
-		data.prevMouseY = data.currMouseY;
-		data.mouseDown = false;
-	}
-
-	deltaX = data.currMouseX - data.prevMouseX;
-	deltaY = data.currMouseY - data.prevMouseY;
 }
 
 vector<LineGizmoVertex> Circle(float radius, unsigned int subdv)
@@ -101,209 +390,6 @@ struct MyGizmoLayersVC
 	RenderLayer blendEqualLayer;
 	RenderLayer blendGreaterLayer;
 };
-
-
-std::function<void(long)> animation;
-std::function<void(std::optional<gizmo_instance_id>)> onSelection;
-
-void InitDynamicScene(GizmosRenderer& gr, const MyGizmoLayers& layers, std::function<void(long)>& animateFunc)
-{
-	/// Init Mesh Gizmo (cube)
-	//////////////////////////////
-	auto geom = tao_geometry::Mesh::Box(1, 1, 1);
-	auto positions		= geom.GetPositions();
-	auto normals		= geom.GetNormals();
-	auto indices						= geom.GetIndices();
-
-	// center to origin
-	std::for_each(positions.begin(), positions.end(), [](vec3& v) {v -= vec3{ 0.5 }; });
-
-	std::vector<MeshGizmoVertex> vertices(geom.NumVertices());
-	for(int i=0; i<vertices.size(); i++)
-	{
-		vertices[i] = MeshGizmoVertex{}
-			.Position(positions[i])
-			.Normal(normals[i])
-			.Color(vec4(1.0));
-	}
-
-	auto cubeId = gr.CreateMeshGizmo(mesh_gizmo_descriptor
-	{
-		.vertices = vertices,
-		.triangles = &indices,
-		.zoom_invariant = false,
-		.usage_hint = gizmo_usage_hint::usage_dynamic
-	}
-	);
-
-	gr.AssignGizmoToLayers(cubeId, { layers.opaqueLayer });
-
-	/// Instancing on a grid
-	//////////////////////////////
-	const int count = 10;
-	const float ext = 2.0f;
-
-	std::vector<gizmo_instance_descriptor> instances(count*count);
-
-	const float d = ext / count;
-	for (int y = 0; y < count; y++)
-	for (int x = 0; x < count; x++)
-	{
-		vec3 tr = vec3{ (x - count / 2) * d, (y - count / 2) * d , 0.0f};
-		instances[y * count + x].color = vec4{ 1.0f };
-		instances[y * count + x].transform = 
-			glm::scale(glm::translate(glm::mat4{1.0f}, tr), vec3{ d*0.7f});
-		instances[y * count + x].selectable = y>0;
-	}
-
-	auto instanceIDs = gr.InstanceMeshGizmo(cubeId, instances);
-
-	animateFunc = [&gr, cubeId, d, ext, count, instanceIDs](float time)
-	{
-		std::vector<std::pair<gizmo_instance_id, gizmo_instance_descriptor>> instances(count * count);
-
-		for (int y = 0; y < count; y++)
-		for (int x = 0; x < count; x++)
-		{
-			vec3 tr = vec3{ (x - count / 2) * d, (y - count / 2) * d , 0.0f };
-
-			float dst = glm::length(tr);
-			float sin = glm::sin((dst/ext)*15.0f-time*0.0025f);
-			sin = sin * 0.5f + 0.5f;
-			float h = sin * (1.0f - (dst / ext));
-			tr.z = h*0.45f;
-
-			vec4 color = vec4{0.0f, 0.0f, 0.0f, 1.0f};//vec4{ 0.3f+h*0.7f, 0.0f, 0.8f + h * 0.2f, 1.0f };
-			mat4 transform =
-				glm::translate(mat4{ 1.0f }, tr) *
-				//glm::rotate(mat4{ 1.0f }, glm::pi<float>() * time * 0.001f*(1.0f - dst/ext), vec3{ 1.0, 0.0, 0.0 })*
-				glm::scale(mat4{ 1.0f }, vec3{ d * 0.7f });
-
-			const int idx = y * count + x;
-			instances[idx] = std::make_pair(instanceIDs[idx], gizmo_instance_descriptor{ transform, color });
-		}
-
-		gr.SetGizmoInstances(cubeId, instances);
-	};
-
-	onSelection = [cubeId, instanceIDs, instances, &gr ](std::optional<gizmo_instance_id> selected)
-	{
-		vector<pair<gizmo_instance_id, gizmo_instance_descriptor>> newInstances(instances.size());
-
-		for(int i=0;i<instances.size();i++)
-		{
-			newInstances[i] = make_pair(instanceIDs[i], instances[i]);
-			if(selected.has_value() && selected==instanceIDs[i])	
-				newInstances[i].second.color = vec4{1.0f, 0.0f, 0.0f, 1.0f};
-			
-		}
-
-		gr.SetGizmoInstances(cubeId, newInstances);
-	};
-
-}
-
-void InitGrid(GizmosRenderer& gr, const MyGizmoLayers& layers)
-{
-	constexpr float width			= 10.0f;
-	constexpr float height			= 10.0f;
-	constexpr unsigned int subdvX	= 51;
-	constexpr unsigned int subdvY	= 51;
-	constexpr vec4 colDark			= vec4{ 0.7, 0.7, 0.7, 0.4 };
-	constexpr vec4 colLight			= vec4{ 0.4, 0.4, 0.4, 0.4 };
-
-	
-	vector<LineGizmoVertex> vertices{ (subdvX + subdvY) *2 };
-
-	for (unsigned int i = 0; i < subdvX; i++)
-	{
-		const vec4 color = i == subdvX / 2
-			? vec4(0.0, 1.0, 0.0, 1.0)
-			: i % 5 == 0 ? colDark : colLight;
-
-		vertices[i * 2 + 0] = 
-			LineGizmoVertex{}
-		.Position({ (-width / 2.0f) + (width / (subdvX - 1)) * i , -height / 2.0f , -0.001f })
-			.Color(color);
-
-		vertices[i * 2 + 1] =
-			LineGizmoVertex{}
-			.Position({ (-width / 2.0f) + (width / (subdvX - 1)) * i ,  height / 2.0f , -0.001f })
-			.Color(color);
-	}
-
-	for (unsigned int j = 0; j < subdvY; j++)
-	{
-		const vec4 color = j == subdvY / 2
-			? vec4(1.0, 0.0, 0.0, 1.0)
-			: j % 5 == 0 ? colDark : colLight;
-
-		vertices[(subdvX + j) * 2 + 0] =
-			LineGizmoVertex{}
-			.Position({ -width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j, -0.001f })
-			.Color(color);
-
-		vertices[(subdvX + j) * 2 + 1] =
-			LineGizmoVertex{}
-			.Position({ width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j , -0.001f })
-			.Color(color);
-	}
-	auto key = gr.CreateLineGizmo(line_list_gizmo_descriptor{
-		.vertices = vertices,
-		.line_size = 1,
-		.pattern_texture_descriptor = nullptr
-	});
-
-	// a single instance
-	vector<gizmo_instance_descriptor> instances
-	{
-		gizmo_instance_descriptor
-		{
-			.transform	= glm::mat4{1.0f},
-			.color		= vec4{1.0f}
-		}
-	};
-	gr.InstanceLineGizmo(key, instances);
-
-	gr.AssignGizmoToLayers(key, { layers.transparentLayer });
-}
-void InitWorldAxis(GizmosRenderer& gr, const MyGizmoLayers& layers)
-{
-	/// Create 3 dashed axis in X,Y and Z
-	//////////////////////////////////////////
-
-	constexpr unsigned int lineWidth  = 4;
-	constexpr unsigned int patternLen = 20;
-
-	// dashed pattern
-	tao_gizmos_procedural::TextureDataRgbaUnsignedByte patternTex
-	{
-		patternLen,
-		lineWidth,
-		tao_gizmos_procedural::TexelData<4,unsigned char>({0,0,0,0})
-	};
-
-	patternTex.FillWithFunction([](unsigned x, unsigned y)
-	{
-		float h = lineWidth / 2;
-		float v = tao_gizmos_sdf::SdfSegment(vec2(x,y), vec2(4, h), vec2(16, h));
-			  v = tao_gizmos_sdf::SdfInflate(v, 3.0f);
-
-		float a = glm::clamp(0.5f - v, 0.0f, 1.0f);
-		return vec<4, unsigned char>{255, 255, 255, static_cast<unsigned char>(a * 255)};
-	});
-
-	pattern_texture_descriptor patternDesc
-	{
-		.data			= patternTex.DataPtr(),
-		.data_format	= tex_for_rgba,
-		.data_type		= tex_typ_unsigned_byte,
-		.width			= patternLen,
-		.height			= lineWidth,
-		.pattern_length = patternLen
-	};
-	
-}
 
 void CreateDashedPatternVC(unsigned int patternLen, unsigned int patternWidth, tao_gizmos_procedural::TextureDataRgbaUnsignedByte& tex)
 {
@@ -438,284 +524,6 @@ void InitViewCube(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayersVC& lay
 	gizRdr.AssignGizmoToLayers(dashedEdgesKey, { layers.blendGreaterLayer });
 }
 
-void InitArrowTriad2D(tao_gizmos::GizmosRenderer& gizRdr, const MyGizmoLayers& layers)
-{
-	constexpr float axisLen = 0.8f;
-	constexpr float arrowWidth = 0.2f;
-	constexpr float arrowDepth = 0.4f;
-	constexpr glm::vec4 whi{ 0.8f , 0.8f, 0.8f, 1.0f };
-	constexpr glm::vec4 red{ 0.7f , 0.2f, 0.2f, 1.0f };
-	constexpr glm::vec4 gre{ 0.2f , 0.6f, 0.0f, 1.0f };
-	constexpr glm::vec4 blu{ 0.2f , 0.0f, 0.6f, 1.0f };
-	vector<LineGizmoVertex> verts{};
-	vector<LineGizmoVertex> axisVertsX{};
-	vector<LineGizmoVertex> axisVertsY{};
-	vector<LineGizmoVertex> axisVertsZ{};
-
-	/// X Axis
-	///////////////////////////////////
-	axisVertsX.push_back(LineGizmoVertex{}.Position({ 0.0f	 , 0.0f, 0.0f }).Color(whi));
-	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen, 0.0f, 0.0f }).Color(red));
-
-
-	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen, 0.0f,  arrowWidth * 0.5f }).Color(red));
-	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen, 0.0f, -arrowWidth * 0.5f }).Color(red));
-
-	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen			 ,0.0f, arrowWidth * 0.5f }).Color(red));
-	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen + arrowDepth,0.0f			  , 0.0f }).Color(red));
-
-	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen			 , 0.0f, -arrowWidth * 0.5f }).Color({ red }));
-	axisVertsX.push_back(LineGizmoVertex{}.Position({ axisLen + arrowDepth, 0.0f, 0.0f }).Color({ red }));
-
-	/// Y Axis
-	///////////////////////////////////
-	glm::mat4 rot = glm::rotate(glm::mat4{ 1.0f }, glm::pi<float>() * 0.5f, glm::vec3{ 0.0f, 0.0f, 1.0f });
-	for (int i = 0; i < axisVertsX.size(); i++)
-		axisVertsY.push_back(LineGizmoVertex{}.Position(rot * glm::vec4{ axisVertsX[i].GetPosition(), 1.0f }).Color(i > 0 ? gre : whi));
-
-	// Z Axis
-	///////////////////////////////////
-	rot = glm::rotate(glm::mat4{ 1.0f }, -glm::pi<float>() * 0.5f, glm::vec3{ 0.0f, 1.0f, 0.0f });
-	for (int i = 0; i < axisVertsX.size(); i++)
-		axisVertsZ.push_back(LineGizmoVertex{}.Position(rot * glm::vec4{ axisVertsX[i].GetPosition(), 1.0f }).Color(i > 0 ? blu : whi));
-
-	// batch
-	for (const auto& v : axisVertsX) verts.push_back(v);
-	for (const auto& v : axisVertsY) verts.push_back(v);
-	for (const auto& v : axisVertsZ) verts.push_back(v);
-
-	auto key = gizRdr.CreateLineGizmo(line_list_gizmo_descriptor
-	{
-		.vertices					= verts,
-		.line_size					= 3,
-		.zoom_invariant				= true,
-		.zoom_invariant_scale		= 0.1f,
-		.pattern_texture_descriptor = nullptr
-	});
-
-	gizRdr.InstanceLineGizmo(key,
-{
-		gizmo_instance_descriptor{ translate(mat4{ 1.0f }, vec3{ 1.0, -1.0, 0.25 }), vec4(1.0f) },
-		gizmo_instance_descriptor{ translate(mat4{ 1.0f }, vec3{-1.0, 1.0, 0.25 }), vec4(1.0f) }
-		});
-
-	gizRdr.AssignGizmoToLayers(key, { layers.opaqueLayer });
-}
-
-
-
-void CreateArrowTriad(
-	vector   <glm::vec3>& positions,
-	vector   <glm::vec3>& normals,
-	vector   <glm::vec4>& colors,
-	vector<int>& triangles)
-{
-	tao_geometry::Mesh x = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
-	tao_geometry::Mesh y = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
-	tao_geometry::Mesh z = tao_geometry::Mesh::Arrow(0.05f, 0.5f, 0.13f, 0.5f, 32);
-
-	glm::mat3 trX = glm::rotate(glm::mat4(1.0f), glm::pi<float>() * 0.5f, glm::vec3(0.0f, 1.0f, 0.0f));
-	glm::mat3 trY = glm::rotate(glm::mat4(1.0f), glm::pi<float>() * 0.5f, glm::vec3(-1.0f, 0.0f, 0.0f));
-	glm::mat3 trZ = glm::rotate(glm::mat4(1.0f), 0.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-
-	positions = vector   <glm::vec3>(x.NumVertices() + y.NumVertices() + z.NumVertices());
-	normals = vector   <glm::vec3>(x.NumVertices() + y.NumVertices() + z.NumVertices());
-	colors = vector   <glm::vec4>(x.NumVertices() + y.NumVertices() + z.NumVertices());
-	triangles = vector<int>(x.NumIndices() + y.NumIndices() + z.NumIndices());
-
-	// Positions
-	// ------------------------------------
-	auto xPos = x.GetPositions(); std::for_each(xPos.begin(), xPos.end(), [&trX](glm::vec3& pos) {pos = trX * pos; });
-	auto yPos = y.GetPositions(); std::for_each(yPos.begin(), yPos.end(), [&trY](glm::vec3& pos) {pos = trY * pos; });
-	auto zPos = z.GetPositions(); std::for_each(zPos.begin(), zPos.end(), [&trZ](glm::vec3& pos) {pos = trZ * pos; });
-
-	std::copy(xPos.begin(), xPos.end(), positions.begin());
-	std::copy(yPos.begin(), yPos.end(), positions.begin() + xPos.size());
-	std::copy(zPos.begin(), zPos.end(), positions.begin() + xPos.size() + yPos.size());
-
-	// Normals
-	// ------------------------------------
-	auto xNrm = x.GetNormals(); std::for_each(xNrm.begin(), xNrm.end(), [&trX](glm::vec3& nrm) {nrm = trX * nrm; }); // rotation only,
-	auto yNrm = y.GetNormals(); std::for_each(yNrm.begin(), yNrm.end(), [&trY](glm::vec3& nrm) {nrm = trY * nrm; }); // should be safe to 
-	auto zNrm = z.GetNormals(); std::for_each(zNrm.begin(), zNrm.end(), [&trZ](glm::vec3& nrm) {nrm = trZ * nrm; }); // transform the normal
-
-	std::copy(xNrm.begin(), xNrm.end(), normals.begin());
-	std::copy(yNrm.begin(), yNrm.end(), normals.begin() + xNrm.size());
-	std::copy(zNrm.begin(), zNrm.end(), normals.begin() + xNrm.size() + yNrm.size());
-
-	// Triangles
-	// ------------------------------------
-	unsigned int xVertCount = xPos.size();
-	unsigned int yVertCount = yPos.size();
-
-	// offset triangles (merge meshes)
-	auto xTri = x.GetIndices();
-	auto yTri = y.GetIndices(); std::for_each(yTri.begin(), yTri.end(), [xVertCount](int& i) {i += xVertCount; });
-	auto zTri = z.GetIndices(); std::for_each(zTri.begin(), zTri.end(), [xVertCount, yVertCount](int& i) {i += xVertCount + yVertCount; });
-
-	std::copy(xTri.begin(), xTri.end(), triangles.begin());
-	std::copy(yTri.begin(), yTri.end(), triangles.begin() + xTri.size());
-	std::copy(zTri.begin(), zTri.end(), triangles.begin() + xTri.size() + yTri.size());
-
-	// Color
-	// ------------------------------------
-	std::generate(colors.begin(), colors.begin() + xVertCount, []() { return glm::vec4(1.0, 0.0, 0.0, 1.0); });
-	std::generate(colors.begin() + xVertCount, colors.begin() + xVertCount + yVertCount, []() { return glm::vec4(0.0, 1.0, 0.0, 1.0); });
-	std::generate(colors.begin() + xVertCount + yVertCount, colors.end(), []() { return glm::vec4(0.0, 0.0, 1.0, 1.0); });
-
-}
-
-void InitArrowTriad3D(tao_gizmos::GizmosRenderer& gizRdr, const tao_gizmos::RenderLayer& layer)
-{
-	vector<glm::vec3> cubeMeshPos;
-	vector<glm::vec3> cubeMeshNrm;
-	vector<glm::vec2> cubeMeshTex;
-	vector<glm::vec4> cubeMeshCol;
-	vector<int> cubeMeshTris;
-
-	CreateArrowTriad(cubeMeshPos, cubeMeshNrm, cubeMeshCol, cubeMeshTris);
-
-	vector<MeshGizmoVertex> cubeMeshVertices{ cubeMeshPos.size() };
-
-	for (int i = 0; i < cubeMeshVertices.size(); i++)
-	{
-		cubeMeshVertices[i] =
-			MeshGizmoVertex{}
-			.Position(cubeMeshPos[i])
-			.Normal(cubeMeshNrm[i])
-			.Color(cubeMeshCol[i]);
-	}
-
-	auto key = gizRdr.CreateMeshGizmo(mesh_gizmo_descriptor
-		{
-			.vertices = cubeMeshVertices,
-			.triangles = &cubeMeshTris,
-			.zoom_invariant = true,
-			.zoom_invariant_scale = 0.1f
-		});
-
-	vector<gizmo_instance_descriptor> instances =
-		{
-			gizmo_instance_descriptor{ translate(mat4{ 1.0f }, vec3{-1.0,-1.0, 0.25 }), vec4(1.0f) },
-			gizmo_instance_descriptor{ translate(mat4{ 1.0f }, vec3{ 1.0, 1.0, 0.25 }), vec4(1.0f) },
-		};
-
-	auto keys= gizRdr.InstanceMeshGizmo(key, instances);
-
-
-	gizRdr.AssignGizmoToLayers(key, { layer });
-}
-
-void InitArrowTriad3DVC(tao_gizmos::GizmosRenderer& gizRdr, const tao_gizmos::RenderLayer& layer)
-{
-	vector<glm::vec3> cubeMeshPos;
-	vector<glm::vec3> cubeMeshNrm;
-	vector<glm::vec2> cubeMeshTex;
-	vector<glm::vec4> cubeMeshCol;
-	vector<int> cubeMeshTris;
-
-	CreateArrowTriad(cubeMeshPos, cubeMeshNrm, cubeMeshCol, cubeMeshTris);
-
-	vector<MeshGizmoVertex> cubeMeshVertices{ cubeMeshPos.size() };
-
-	for (int i = 0; i < cubeMeshVertices.size(); i++)
-	{
-		cubeMeshVertices[i] =
-			MeshGizmoVertex{}
-			.Position(cubeMeshPos[i])
-			.Normal(cubeMeshNrm[i])
-			.Color(cubeMeshCol[i]);
-	}
-
-	auto key = gizRdr.CreateMeshGizmo(mesh_gizmo_descriptor
-		{
-			.vertices = cubeMeshVertices,
-			.triangles = &cubeMeshTris,
-			.zoom_invariant = false,
-			.zoom_invariant_scale = 0.1f
-		});
-
-	gizRdr.InstanceMeshGizmo(key,
-		{
-			gizmo_instance_descriptor{ scale(mat4{ 1.0f }, vec3{1.5f}), vec4(1.0f) },
-		});
-
-	gizRdr.AssignGizmoToLayers(key, { layer });
-}
-
-RenderLayer InitOpaqueGizmoLayer(GizmosRenderer& gr)
-{
-	auto opaqueLayer = gr.CreateRenderLayer(
-		ogl_depth_state
-		{
-			.depth_test_enable = true,
-			.depth_write_enable = true,
-			.depth_func = depth_func_less_equal,
-			.depth_range_near = 0.0,
-			.depth_range_far = 1.0
-		},
-		ogl_blend_state
-		{
-			.blend_enable = false,
-		},
-		ogl_rasterizer_state
-		{
-			.culling_enable = false ,
-			.polygon_mode = polygon_mode_fill,
-			.multisample_enable = true,
-			.alpha_to_coverage_enable = true
-		}
-	);
-
-	return opaqueLayer;
-}
-RenderLayer InitTransparentGizmoLayer(GizmosRenderer& gr)
-{
-	auto blendLayer = gr.CreateRenderLayer(
-		ogl_depth_state
-		{
-			.depth_test_enable = true,
-			.depth_write_enable = false,
-			.depth_func = depth_func_less_equal,
-			.depth_range_near = 0.0,
-			.depth_range_far = 1.0
-		},
-		ogl_blend_state
-		{
-			.blend_enable = true,
-			.blend_equation_rgb = ogl_blend_equation{blend_func_add, blend_fac_src_alpha, blend_fac_one_minus_src_alpha},
-			.blend_equation_alpha = ogl_blend_equation{blend_func_add, blend_fac_one, blend_fac_one }
-		},
-		ogl_rasterizer_state
-		{
-			.culling_enable = false ,
-			.polygon_mode = polygon_mode_fill,
-			.multisample_enable = true,
-			.alpha_to_coverage_enable = false
-		}
-	);
-
-	return blendLayer;
-}
-
-MyGizmoLayers InitGizmosLayersAndPasses(GizmosRenderer& gr)
-{
-	auto opaqueLayer		= InitOpaqueGizmoLayer(gr);
-	auto transparentLayer	= InitTransparentGizmoLayer(gr);
-	auto opaquePass			= gr.CreateRenderPass({ opaqueLayer });
-	auto transparentPass	= gr.CreateRenderPass({ transparentLayer });
-
-	gr.SetRenderPasses({ opaquePass, transparentPass });
-
-	MyGizmoLayers layers
-	{
-		.opaqueLayer = opaqueLayer,
-		.transparentLayer = transparentLayer
-	};
-
-	return layers;
-}
-
 MyGizmoLayersVC InitGizmosLayersAndPassesVC(GizmosRenderer& gr)
 {
 	MyGizmoLayersVC myLayers
@@ -805,16 +613,575 @@ MyGizmoLayersVC InitGizmosLayersAndPassesVC(GizmosRenderer& gr)
 
 }
 
-void InitGizmos(GizmosRenderer& gr)
+glm::vec2 ClosestPointOnLine(const glm::vec2& pt, const glm::vec2& l0, const glm::vec2& l1)
 {
-	MyGizmoLayers layers = InitGizmosLayersAndPasses(gr);
-
-	//InitWorldAxis		(gr, layers);
-	InitGrid			(gr, layers);
-	InitArrowTriad3D	(gr, layers.opaqueLayer);
-	InitArrowTriad2D	(gr, layers);
-	InitDynamicScene	(gr, layers, animation);
+    vec2 l01Nrm = glm::normalize(l1-l0);
+    return  l0+dot(pt-l0, l01Nrm)*l01Nrm;
 }
+
+// from: https://paulbourke.net/geometry/pointlineplane/
+glm::vec3 RayClosestPointOnLine(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& lp, const glm::vec3& ld)
+{
+    // Algorithm is ported from the C algorithm of
+    // Paul Bourke at http://local.wasp.uwa.edu.au/~pbourke/geometry/lineline3d/
+
+    const float kE = 1e-5;
+
+    vec3 p1 = ro;
+    vec3 p2 = ro+rd;
+    vec3 p3 = lp;
+    vec3 p4 = lp+ld;
+    vec3 p13 = p1 - p3;
+    vec3 p43 = p4 - p3;
+
+    if (dot(p43, p43) < kE) {
+        return ro;
+    }
+    vec3 p21 = p2 - p1;
+    if (dot(p21, p21) < kE) {
+        return ro;
+    }
+
+    float d1343 = p13.x * p43.x + p13.y * p43.y + p13.z * p43.z;
+    float d4321 = p43.x * p21.x + p43.y * p21.y + p43.z * p21.z;
+    float d1321 = p13.x * p21.x + p13.y * p21.y + p13.z * p21.z;
+    float d4343 = p43.x * p43.x + p43.y * p43.y + p43.z * p43.z;
+    float d2121 = p21.x * p21.x + p21.y * p21.y + p21.z * p21.z;
+
+    float denom = d2121 * d4343 - d4321 * d4321;
+    if (abs(denom) < kE) {
+        return ro;
+    }
+    float numer = d1343 * d4321 - d1321 * d4343;
+
+    float mua = numer / denom;
+    float mub = (d1343 + d4321 * (mua)) / d4343;
+
+    return lp+mub*ld;
+}
+
+class GizmoManager
+{
+public:
+    GizmoManager(GizmosRenderer* gr)
+                    :   _gr{gr},
+                        _gizmoLayers{InitGizmosLayersAndPasses()},
+                        _transformManipulator(*gr, _gizmoLayers.opaqueLayer),
+                        _lightGizmos(gr, _gizmoLayers.opaqueLayer)
+    {
+        InitGrid();
+    }
+
+    /*void OnMouseMove(float x, float y, int windowWidth, int windowHeight, const glm::mat4& viewMatrix, const glm::mat4& projMatrix)
+    {
+        if(_dragging)
+        {
+            mat4 transl=mat4{1.0};
+            const float kInc=0.01f;
+            if(_latestClickedItem==_transformManipulator.AxisId(TransformManipulator::TmAxis::AxisX))
+            {
+                // Translate along X
+                glm::mat4 viewProjMatrix = projMatrix*viewMatrix;
+
+                // find the 2D closest point from the mouse
+                // position to the projected axis
+                vec4 l0 = viewProjMatrix*vec4{0.0, 0.0, 0.0, 1.0};
+                vec4 l1 = viewProjMatrix*vec4{1.0, 0.0, 0.0, 1.0};
+                vec2 l02d = l0;
+                l02d/=l0.w;
+
+                vec2 l12d = l1;
+                l12d/=l1.w;
+
+                vec2 closestPoint2D = ClosestPointOnLine(vec2((x/windowWidth)*2.0-1.0,(y/windowHeight)*2.0-1.0), l02d, l12d);
+
+                vec4 ndc = vec4{closestPoint2D, 0.0, 1.0f};
+                vec4 pw  = glm::inverse(viewProjMatrix)*ndc;
+                vec4 ow  = glm::inverse(viewMatrix)*vec4{0.0, 0.0, 0.0, 1.0};
+                vec3 rayO = ow;
+                vec3 rayDir = normalize(pw/pw.w-ow);
+                vec3 intersection = RayClosestPointOnLine(rayO, rayDir, vec3{0.0}, vec3{1.0, 0.0, 0.0});
+                transl = glm::translate(mat4{1.0}, intersection);
+            }
+            else if(_latestClickedItem==_transformManipulator.AxisId(TransformManipulator::TmAxis::AxisY))
+            {
+                // Translate along Y
+                transl = glm::translate(mat4{1.0}, vec3{0.0, kInc*y, 0.0f});
+            }
+            else if(_latestClickedItem==_transformManipulator.AxisId(TransformManipulator::TmAxis::AxisZ))
+            {
+                // Translate along Z
+                transl = glm::translate(mat4{1.0}, vec3{0.0f, 0.0f, 0.0f});
+            }
+
+            _transformManipulator.SetTransformation(transl);
+        }
+    }*/
+
+    class LightGizmos
+    {
+    public:
+        LightGizmos(GizmosRenderer* renderer, const RenderLayer& layer)
+        :_renderer{renderer}
+        {
+            PointGizmoVertex v;
+            v.Position(vec3{0.0f})
+            .Color(vec4{1.0f})
+            .TexCoordStart(vec2{0.0f})
+            .TexCoordEnd(vec2{1.0f});
+
+            std::vector<PointGizmoVertex> vertices={v};
+
+            _gizmoKey = renderer->CreatePointGizmo(point_gizmo_descriptor{8, false, vertices,false, 1.0f, nullptr, tao_gizmos::gizmo_usage_hint::usage_static});
+
+            renderer->AssignGizmoToLayers(_gizmoKey, {layer});
+        }
+
+        void AddLightGizmo(SphereLight* light)
+        {
+            _lights.push_back(light);
+            gizmo_instance_descriptor desc
+            {
+                .transform = light->transformation.matrix(),
+                .color     = vec4{light->intensity, 1.0f},
+                .visible   = true,
+                .selectable= true
+            };
+            _instances.push_back(desc);
+
+            _instanceKeys = _renderer->InstancePointGizmo(_gizmoKey, _instances);
+        }
+
+        void UpdateLightGizmo(SphereLight* light)
+        {
+            for(int i=0;i<_lights.size();i++)
+            {
+                // Lights,instances and instanceKeys should
+                // correspond 1 to 1 (same index refer to the same element).
+                if(light==_lights[i])
+                {
+                    gizmo_instance_descriptor desc
+                    {
+                            .transform = light->transformation.matrix(),
+                            .color     = vec4{light->intensity, 1.0f},
+                            .visible   = true,
+                            .selectable= true
+                    };
+                    _instances[i] = desc;
+                    _renderer->SetGizmoInstances(_gizmoKey, {make_pair(_instanceKeys[i], _instances[i])});
+
+                    break;
+                }
+            }
+        }
+
+        optional<SphereLight*> GetLightFromID(gizmo_instance_id id)
+        {
+            for(int i=0;i<_instanceKeys.size();i++)
+            {
+                if(id==_instanceKeys[i]) return _lights[i];
+            }
+
+            return nullopt;
+        }
+
+    private:
+        GizmosRenderer* _renderer;
+        gizmo_id        _gizmoKey;
+        std::vector<SphereLight*>               _lights;
+        std::vector<gizmo_instance_descriptor>  _instances;
+        std::vector<gizmo_instance_id>          _instanceKeys;
+    };
+
+    class TransformManipulator
+    {
+    public:
+        TransformManipulator(GizmosRenderer& gr, RenderLayer& layer)
+        :_gr{&gr}
+        {
+            const float
+                    kCylRadius  = 0.05f,
+                    kCylLength  = 0.6f,
+                    kConeRadius = 0.12f,
+                    kConeLength = 0.4f;
+            const int   kArrowSubdv = 16;
+
+            const vec4
+                    kAxisColorX = vec4{0.9, 0.1, 0.0, 1.0},
+                    kAxisColorY = vec4{0.1, 0.9, 0.0, 1.0},
+                    kAxisColorZ = vec4{0.1, 0.1, 0.9, 1.0};
+
+            auto arrowMesh = tao_geometry::Mesh::Arrow(kCylRadius, kCylLength, kConeRadius, kConeLength, kArrowSubdv);
+
+            vector<glm::vec3> arrowMeshPosition  = arrowMesh.GetPositions();
+            vector<glm::vec3> arrowMeshNormals   = arrowMesh.GetNormals();
+            vector<int>       arrowMeshTriangles = arrowMesh.GetIndices();
+            vector<MeshGizmoVertex> arrowMeshVertices(arrowMeshPosition.size());
+            for(int i=0;i<arrowMeshVertices.size(); i++)
+            {
+                arrowMeshVertices[i]
+                        .Position(arrowMeshPosition[i])
+                        .Normal(arrowMeshNormals[i])
+                        .Color({1.0, 1.0, 1.0, 1.0});
+            }
+
+            auto gizKey = gr.CreateMeshGizmo(mesh_gizmo_descriptor
+                                                       {
+                                                               .vertices = arrowMeshVertices,
+                                                               .triangles = &arrowMeshTriangles,
+                                                               .zoom_invariant = true,
+                                                               .zoom_invariant_scale = 0.1f
+                                                       });
+
+            mat4
+                    transformX = rotate(mat4{1.0}, 0.5f*pi<float>(), vec3{0.0, 1.0, 0.0}),
+                    transformY = rotate(mat4{1.0},-0.5f*pi<float>(), vec3{1.0, 0.0, 0.0}),
+                    transformZ = rotate(mat4{1.0}, 0.0f*pi<float>(), vec3{1.0, 0.0, 0.0});
+
+            vector<gizmo_instance_descriptor> instances =
+                    {
+                            /* X Axis */ gizmo_instance_descriptor{ transformX, kAxisColorX},
+                            /* Y Axis */ gizmo_instance_descriptor{ transformY, kAxisColorY},
+                            /* Z Axis */ gizmo_instance_descriptor{ transformZ, kAxisColorZ}
+                    };
+
+            auto allKeys = gr.InstanceMeshGizmo(gizKey, instances);
+
+            gr.AssignGizmoToLayers(gizKey, { layer });
+
+            _tmKey = gizKey;
+            _tmAxisX.id = allKeys[0];
+            _tmAxisX.transform = transformX;
+            _tmAxisX.defaultColor = kAxisColorX;
+            _tmAxisX.color = kAxisColorX;
+
+            _tmAxisY.id = allKeys[1];
+            _tmAxisY.transform = transformY;
+            _tmAxisY.defaultColor = kAxisColorY;
+            _tmAxisY.color = kAxisColorY;
+
+            _tmAxisZ.id = allKeys[2];
+            _tmAxisZ.transform = transformZ;
+            _tmAxisZ.defaultColor = kAxisColorZ;
+            _tmAxisZ.color = kAxisColorZ;
+        }
+
+        enum class TmAxis
+        {
+            AxisX,
+            AxisY,
+            AxisZ,
+        };
+
+        void SetAxisColor(TmAxis axis, vec4 color)
+        {
+            SetResetAxisColor(axis, color, true);
+        }
+
+        void ResetAxisColor(TmAxis axis)
+        {
+            SetResetAxisColor(axis, nullopt, false);
+        }
+
+        void SetTransformation(const mat4& transformation)
+        {
+            SetTransform(transformation);
+        }
+
+        gizmo_instance_id AxisId(TmAxis axis)
+        {
+            switch(axis)
+            {
+                case(TmAxis::AxisX): return _tmAxisX.id; break;
+                case(TmAxis::AxisY): return _tmAxisY.id; break;
+                case(TmAxis::AxisZ): return _tmAxisZ.id; break;
+            }
+        }
+
+    private:
+        struct TmAxisData
+        {
+            gizmo_instance_id id;
+            mat4 transform;
+            vec4 color;
+            vec4 defaultColor;
+        };
+        GizmosRenderer* _gr=nullptr;
+
+        gizmo_id    _tmKey;
+        TmAxisData _tmAxisX;
+        TmAxisData _tmAxisY;
+        TmAxisData _tmAxisZ;
+
+        mat4 _transformation=mat4{1.0};
+
+        void SetResetAxisColor(TmAxis axis, optional<vec4> color, bool set)
+        {
+            TmAxisData* axisData;
+            switch(axis)
+            {
+                case(TmAxis::AxisX): axisData = &_tmAxisX; break;
+                case(TmAxis::AxisY): axisData = &_tmAxisY; break;
+                case(TmAxis::AxisZ): axisData = &_tmAxisZ; break;
+            }
+            if(!set)        axisData->color = axisData->defaultColor;
+            else if(color)  axisData->color = color.value();
+            _gr->SetGizmoInstances(_tmKey,{make_pair(axisData->id, gizmo_instance_descriptor{_transformation*axisData->transform,axisData->color})});
+        }
+
+        void SetTransform(const mat4& transform)
+        {
+            _transformation = transform;
+            _gr->SetGizmoInstances(_tmKey, {
+                    make_pair(_tmAxisX.id,gizmo_instance_descriptor{_transformation * _tmAxisX.transform, _tmAxisX.color}),
+                    make_pair(_tmAxisY.id,gizmo_instance_descriptor{_transformation * _tmAxisY.transform, _tmAxisY.color}),
+                    make_pair(_tmAxisZ.id,gizmo_instance_descriptor{_transformation * _tmAxisZ.transform, _tmAxisZ.color})
+            });
+        }
+    };
+
+    LightGizmos& GetLightGizmos(){return _lightGizmos;}
+
+    void IssueMousePickRequest(int x, int y, const function<void(optional<gizmo_instance_id>)>& callback)
+    {
+        _gr->GetGizmoUnderCursor(x, y, _latestViewMatrix, _latestProjMatrix, _latestNearFar, callback);
+    }
+
+    OglTexture2D& Render(const mat4& viewMatrix, const mat4& projMatrix, const vec2& nearFar, OglTexture2D* depthBuffer)
+    {
+        _latestViewMatrix = viewMatrix;
+        _latestProjMatrix = projMatrix;
+        _latestNearFar    = nearFar;
+
+        return _gr->Render(viewMatrix, projMatrix, nearFar, depthBuffer);
+    }
+
+private:
+    typedef function<void(optional<gizmo_instance_id>)> selection_callback;
+    GizmosRenderer* _gr;
+    MyGizmoLayers   _gizmoLayers;
+    TransformManipulator _transformManipulator;
+    LightGizmos _lightGizmos;
+    mat4 _latestViewMatrix;
+    mat4 _latestProjMatrix;
+    vec2 _latestNearFar;
+
+    RenderLayer InitTransparentGizmoLayer()
+    {
+        auto blendLayer = _gr->CreateRenderLayer(
+    ogl_depth_state
+            {
+                .depth_test_enable = true,
+                .depth_write_enable = false,
+                .depth_func = depth_func_less_equal,
+                .depth_range_near = 0.0,
+                .depth_range_far = 1.0
+            },
+    ogl_blend_state
+            {
+                .blend_enable = true,
+                .blend_equation_rgb = ogl_blend_equation{blend_func_add, blend_fac_src_alpha, blend_fac_one_minus_src_alpha},
+                .blend_equation_alpha = ogl_blend_equation{blend_func_add, blend_fac_one, blend_fac_one }
+            },
+    ogl_rasterizer_state
+            {
+                .culling_enable = false ,
+                .polygon_mode = polygon_mode_fill,
+                .multisample_enable = true,
+                .alpha_to_coverage_enable = false
+            }
+        );
+
+        return blendLayer;
+    }
+
+    MyGizmoLayers InitGizmosLayersAndPasses()
+    {
+        auto opaqueLayer		= InitOpaqueGizmoLayer();
+        auto transparentLayer	= InitTransparentGizmoLayer();
+        auto opaquePass			= _gr->CreateRenderPass({ opaqueLayer });
+        auto transparentPass	= _gr->CreateRenderPass({ transparentLayer });
+
+        _gr->SetRenderPasses({ opaquePass, transparentPass });
+
+        MyGizmoLayers layers
+        {
+            .opaqueLayer = opaqueLayer,
+            .transparentLayer = transparentLayer
+        };
+
+        return layers;
+    }
+
+    RenderLayer InitOpaqueGizmoLayer()
+    {
+        auto opaqueLayer = _gr->CreateRenderLayer(
+        ogl_depth_state
+                {
+                    .depth_test_enable = true,
+                    .depth_write_enable = true,
+                    .depth_func = depth_func_less_equal,
+                    .depth_range_near = 0.0,
+                    .depth_range_far = 1.0
+                },
+        ogl_blend_state
+                {
+                    .blend_enable = false,
+                },
+        ogl_rasterizer_state
+                {
+                    .culling_enable = false ,
+                    .polygon_mode = polygon_mode_fill,
+                    .multisample_enable = true,
+                    .alpha_to_coverage_enable = true
+                }
+        );
+
+        return opaqueLayer;
+    }
+
+    void InitGrid()
+    {
+        constexpr float width			= 10.0f;
+        constexpr float height			= 10.0f;
+        constexpr unsigned int subdvX	= 51;
+        constexpr unsigned int subdvY	= 51;
+        constexpr vec4 colDark			= vec4{ 0.7, 0.7, 0.7, 0.4 };
+        constexpr vec4 colLight			= vec4{ 0.4, 0.4, 0.4, 0.4 };
+
+
+        vector<LineGizmoVertex> vertices{ (subdvX + subdvY) *2 };
+
+        for (unsigned int i = 0; i < subdvX; i++)
+        {
+            const vec4 color = i == subdvX / 2
+                               ? vec4(0.0, 1.0, 0.0, 1.0)
+                               : i % 5 == 0 ? colDark : colLight;
+
+            vertices[i * 2 + 0] =
+                    LineGizmoVertex{}
+                            .Position({ (-width / 2.0f) + (width / (subdvX - 1)) * i , -height / 2.0f , -0.001f })
+                            .Color(color);
+
+            vertices[i * 2 + 1] =
+                    LineGizmoVertex{}
+                            .Position({ (-width / 2.0f) + (width / (subdvX - 1)) * i ,  height / 2.0f , -0.001f })
+                            .Color(color);
+        }
+
+        for (unsigned int j = 0; j < subdvY; j++)
+        {
+            const vec4 color = j == subdvY / 2
+                               ? vec4(1.0, 0.0, 0.0, 1.0)
+                               : j % 5 == 0 ? colDark : colLight;
+
+            vertices[(subdvX + j) * 2 + 0] =
+                    LineGizmoVertex{}
+                            .Position({ -width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j, -0.001f })
+                            .Color(color);
+
+            vertices[(subdvX + j) * 2 + 1] =
+                    LineGizmoVertex{}
+                            .Position({ width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j , -0.001f })
+                            .Color(color);
+        }
+        auto key = _gr->CreateLineGizmo(line_list_gizmo_descriptor{
+                .vertices = vertices,
+                .line_size = 1,
+                .pattern_texture_descriptor = nullptr
+        });
+
+        // a single instance
+        vector<gizmo_instance_descriptor> instances
+                {
+                        gizmo_instance_descriptor
+                                {
+                                        .transform	= glm::mat4{1.0f},
+                                        .color		= vec4{1.0f}
+                                }
+                };
+        _gr->InstanceLineGizmo(key, instances);
+
+        _gr->AssignGizmoToLayers(key, { _gizmoLayers.transparentLayer });
+    }
+};
+
+class GizmoPickAgent:public MouseInputAgent
+{
+public:
+    GizmoPickAgent(GizmoManager* manager):
+            MouseInputAgent{MouseInputModifier{false, false, false, false, false}, None},
+            _gizmoManager{manager}
+    {
+        _selectionCallback = bind(&GizmoPickAgent::Selection, this, placeholders::_1);
+    }
+
+
+    void MouseUp(float d, float d1, int i, int i1) override
+    {
+
+    }
+
+    void MouseDown(float x, float y, int i, int i1) override
+    {
+        _gizmoManager->IssueMousePickRequest(x, y, _selectionCallback);
+    }
+
+    void MouseMove(float x, float y, float d2, float d3, int i, int i1) override
+    {
+
+    }
+
+    void Enable() override
+    {
+
+    }
+
+    void Disable() override
+    {
+
+    }
+
+    void Mute() override
+    {
+
+    }
+
+    void UnMute() override
+    {
+
+    }
+private:
+    GizmoManager* _gizmoManager;
+    function<void(optional<gizmo_instance_id>)> _selectionCallback;
+    optional<SphereLight*> _latestSelectedLight;
+    void Selection(optional<gizmo_instance_id> selectedItem)
+    {
+        if(_latestSelectedLight)
+        {
+            _latestSelectedLight.value()->intensity = vec3{1.0, 1.0, 1.0};
+            _gizmoManager->GetLightGizmos().UpdateLightGizmo(_latestSelectedLight.value());
+        }
+
+
+        // nothing has been picked
+        if(!selectedItem)
+        {
+            return;
+        }
+
+        optional<SphereLight*> selectedLight = _gizmoManager->GetLightGizmos().GetLightFromID(selectedItem.value());
+        if(selectedLight)
+        {
+            selectedLight.value()->intensity = vec3{1.0, 0.0, 1.0};
+            _gizmoManager->GetLightGizmos().UpdateLightGizmo(selectedLight.value());
+        }
+
+        _latestSelectedLight = selectedLight;
+
+    }
+};
+
 
 void InitGizmosVC(GizmosRenderer& gr)
 {
@@ -890,9 +1257,32 @@ int main()
 		int fboWidth = 0;
 		int fboHeight = 0;
 
+        vec2 nearFar = vec2(0.5f, 50.f);
+        vec3 eyePos = vec3(-2.5f, -2.5f, 2.f);
+        vec3 eyeTrg = vec3(0.f);
+        vec3 up = vec3(0.f, 0.f, 1.f);
+        mat4 viewMatrix;
+        mat4 projMatrix;
+
+        /// Initialization
+        //////////////////////////////////////////
+
+        // Render Context
 		RenderContext rc{ windowWidth, windowHeight };
 		rc.GetFramebufferSize(fboWidth, fboHeight);
 
+        // Input manager
+        MouseInputManager inputManager{&rc};
+
+        // Camera input
+        const MouseInputModifier rotMod {true, false, false, false, false};
+        const MouseInputModifier zoomMod{true, false, false, false, true};
+        CameraRotationAgent cameraRotation{eyePos, eyeTrg, up, rotMod};
+        CameraZoomAgent     cameraZoom    {10.0f, zoomMod};
+        inputManager.AddInputAgent(&cameraRotation);
+        inputManager.AddInputAgent(&cameraZoom);
+
+        // ImGui
         InitImGui(rc.GetWindow());
 
         // Window compositor
@@ -900,11 +1290,18 @@ int main()
 
         // GizmosRenderer
 		GizmosRenderer gizRdr{ rc, fboWidth, fboHeight };
+        GizmoManager gizmoManager(&gizRdr);
+
+        // Gizmos interaction
+        GizmoPickAgent gizmoPick{&gizmoManager};
+        inputManager.AddInputAgent(&gizmoPick);
+
 
         // View Cube Gizmos Renderer
 		int fboWidthVC  = 256;
 		int fboHeightVC = 256;
 		GizmosRenderer gizRdrVC{ rc, fboWidthVC, fboHeightVC };
+        InitGizmosVC(gizRdrVC);
 
         // Pbr Renderer
         PbrRenderer pbrRdr{rc, fboWidth, fboHeight};
@@ -951,9 +1348,9 @@ int main()
         auto matD3 = pbrRdr.AddMaterial(PbrMaterial{0.8f, 0.0f, dColor});
 
         GenKey<MeshRenderer> mr0 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, -1.0, 0.0}), sphereMeshKey, matD0);
-        GenKey<MeshRenderer> mr1 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, -1.0, 0.0}), sphereMeshKey, matD1);
-        GenKey<MeshRenderer> mr2 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, -1.0, 0.0}), sphereMeshKey, matD2);
-        GenKey<MeshRenderer> mr3 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, -1.0, 0.0}), sphereMeshKey, matD3);
+        GenKey<MeshRenderer> mr1 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, -1.0, 0.5}), sphereMeshKey, matD1);
+        GenKey<MeshRenderer> mr2 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, -1.0, 1.0}), sphereMeshKey, matD2);
+        GenKey<MeshRenderer> mr3 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, -1.0, 1.5}), sphereMeshKey, matD3);
 
         // metals
         // -------------------------------------------------------------------------------------------------------------
@@ -963,157 +1360,66 @@ int main()
         auto matM3 = pbrRdr.AddMaterial(PbrMaterial{0.8f, 1.0f, mColor});
 
         GenKey<MeshRenderer> mr4 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, 1.0, 0.0}), sphereMeshKey, matM0);
-        GenKey<MeshRenderer> mr5 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, 1.0, 0.0}), sphereMeshKey, matM1);
-        GenKey<MeshRenderer> mr6 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, 1.0, 0.0}), sphereMeshKey, matM2);
-        GenKey<MeshRenderer> mr7 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, 1.0, 0.0}), sphereMeshKey, matM3);
+        GenKey<MeshRenderer> mr5 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, 1.0, 0.5}), sphereMeshKey, matM1);
+        GenKey<MeshRenderer> mr6 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, 1.0, 1.0}), sphereMeshKey, matM2);
+        GenKey<MeshRenderer> mr7 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, 1.0, 1.5}), sphereMeshKey, matM3);
 
-        GenKey<MeshRenderer> mr8 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { -5.0, -5.0, -2.0}), cubeMeshKey, matD0);
+        GenKey<MeshRenderer> mr8 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { -5.0, -5.0, -1.2}), cubeMeshKey, matD0);
 
 
         auto env = EnvironmentLight("C:/Users/Admin/Downloads/brown_photostudio_05_1k.hdr");
         auto envKey = pbrRdr.AddEnvironmentTexture(env);
         pbrRdr.SetCurrentEnvironment(envKey);
 
-        auto dirLight = pbrRdr.AddDirectionalLight(
-    DirectionalLight
-                {
-                    .transformation = glm::rotate(glm::mat4(1.0), 2.8f, vec3{1.0, 1.0, 0.0}),
-                    .intensity = vec3(0.6)
-                });
+        DirectionalLight dirLight0
+        {
+            .transformation = glm::rotate(glm::mat4(1.0), 2.3f, vec3{1.0, 1.0, 0.0}),
+            .intensity = vec3(0.35)
+        };
 
-        auto sphereLight = pbrRdr.AddSphereLight(
-                SphereLight
-                {
-                    .transformation = glm::translate(glm::mat4(1.0), {0.0, 0.0, 1.5}),
-                    .intensity = vec3(7.0),
-                    .radius = 0.6
-                });
+        auto dirLightKey = pbrRdr.AddDirectionalLight(dirLight0);
 
+        SphereLight sphereLight0
+        {
+            .transformation = glm::translate(glm::mat4(1.0), {1.0, 0.5, 3.0}),
+            .intensity = vec3(8.0),
+            .radius = 0.6
+        };
+        auto sphereLight = pbrRdr.AddSphereLight(sphereLight0);
 
-        auto rectLight = pbrRdr.AddRectLight(
-            RectLight
-            {
-                .transformation =
-                        glm::translate(glm::mat4(1.0), {-3.0, 0.0, 1.6})*
-                        glm::rotate(glm::mat4(1.0), 2.2f, vec3{0.0, 1.0, 0.0}),
-                .intensity = vec3(7.0),
-                .size = vec2{2.0, 3.0}
-            });
+        /*auto rectLight = pbrRdr.AddRectLight(
+        RectLight
+        {
+            .transformation =
+                    glm::translate(glm::mat4(1.0), {-3.0, 0.0, 1.6})*
+                    glm::rotate(glm::mat4(1.0), 2.2f, vec3{0.0, 1.0, 0.0}),
+            .intensity = vec3(7.0),
+            .size = vec2{2.0, 3.0}
+        });*/
+
+        gizmoManager.GetLightGizmos().AddLightGizmo(&sphereLight0);
+
 
         // ----------------------------------------------------------------------------
 
-		mouse_input_data mouseRotateData;
-		mouse_input_data mouseZoomData;
-		bool enableRotate = false;
-		bool enableZoom = false;
-		MouseInputListener mouseRotate
-		{
-			[&rc]()
-			{
-				return
-					rc.Mouse().IsPressed(left_mouse_button) &&
-					!rc.Mouse().IsKeyPressed(left_shift_key);
-			},
-			[&mouseRotateData, &enableRotate]()
-			{
-				mouseRotateData.mouseDown = true;
-				enableRotate = true;
-			},
-			[]()
-			{
-			},
-			60.0f
-		};
-		MouseInputListener mouseZoom
-		{
-			[&rc]()
-			{
-				return
-					rc.Mouse().IsPressed(left_mouse_button) &&
-					rc.Mouse().IsKeyPressed(left_shift_key);
-			},
-			[&mouseZoomData, &enableZoom]()
-			{
-				mouseZoomData.mouseDown = true;
-				enableZoom = true;
-			},
-			[]()
-			{
-			},
-			60.0f
-		};
-		MouseInputListener mouseRawPosition
-		{
-			[](){return true;},
-			[](){},
-			[](){}
-		};
-		rc.Mouse().AddListener(mouseRotate);
-		rc.Mouse().AddListener(mouseZoom);
-		rc.Mouse().AddListener(mouseRawPosition);
+        const int kHover = 1;
+        const int kClick = 2;
 
-		vec2 nearFar = vec2(0.5f, 50.f);
-		vec3 eyePos = vec3(-2.5f, -2.5f, 2.f);
-		vec3 eyeTrg = vec3(0.f);
-		vec3 up = vec3(0.f, 0.f, 1.f);
-
-		float zoomDeltaX = 0.0f;
-		float zoomDeltaY = 0.0f;
-		float rotateDeltaX = 0.0f;
-		float rotateDeltaY = 0.0f;
 
 		time_point startTime = high_resolution_clock::now();
 
-		InitGizmos(gizRdr);
-		InitGizmosVC(gizRdrVC);
-
-		gizRdr.SetSelectionCallback(onSelection);
-
-
 		while (!rc.ShouldClose())
 		{
-            rc.PollEvents();
+            inputManager.PollMouseEvents();
 
             StartImGuiFrame(pbrRdr);
 
             // zoom and rotation
 			// ----------------------------------------------------------------------
-			float newX = 0.0f;
-			float newY = 0.0f;
+			viewMatrix = cameraZoom.GetZoomMatrix()*cameraRotation.GetRotationMatrix();
 
-			mouseRotate.PositionNormalized(newX, newY, true);
-			MouseInputUpdate(mouseRotateData, newX, newY, rotateDeltaX, rotateDeltaY);
 
-			mouseZoom.PositionNormalized(newX, newY, true);
-			MouseInputUpdate(mouseZoomData, newX, newY, zoomDeltaX, zoomDeltaY);
-
-			// rotation
-			if (enableRotate)
-			{
-				mat4 rotZ = glm::rotate(mat4(1.0f), -2.f * pi<float>() * rotateDeltaX, up);
-				eyePos = rotZ * vec4(eyePos, 1.0);
-
-				vec3 right = cross(up, eyeTrg - eyePos);
-					 right = normalize(right);
-
-				mat4 rotX = glm::rotate(mat4(1.0f), -pi<float>() * rotateDeltaY, right);
-				vec3 newEyePos = rotX * vec4(eyePos, 1.0);
-
-				// ugly: limit the rotation so that eyePos-eyeTarget is never
-				// parallel to world Z.
-				if (abs(dot(normalize(newEyePos), up)) <= 0.98f)eyePos = newEyePos;
-			}
-
-			// zoom
-			if (enableZoom)
-			{
-				float eyeDst = length(eyePos - eyeTrg) - zoomDeltaY * 20.0f;
-					  eyeDst = glm::clamp(eyeDst, 1.0f, 20.0f);
-					  eyePos = eyeTrg + eyeDst * normalize(eyePos - eyeTrg);
-			}
-
-            mat4 viewMatrix = glm::lookAt(eyePos, eyeTrg, up);
-            mat4 projMatrix = glm::perspective(radians<float>(60), static_cast<float>(fboWidth) / fboHeight, nearFar.x, nearFar.y);
+            projMatrix = glm::perspective(radians<float>(60), static_cast<float>(fboWidth) / fboHeight, nearFar.x, nearFar.y);
 			// ----------------------------------------------------------------------
 
 			time_point timeNow = high_resolution_clock::now();
@@ -1122,12 +1428,10 @@ int main()
 
             auto pbrOut = pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y);
 
-			float mouseX, mouseY;
-			mouseRawPosition.Position(mouseX, mouseY);
 
-            auto& gizOut = gizRdr.Render(viewMatrix, projMatrix, nearFar, pbrOut._depthTexture);
+            auto& gizOut = gizmoManager.Render(viewMatrix, projMatrix, nearFar, pbrOut._depthTexture);
 
-            gizRdr.GetGizmoUnderCursor(mouseX, mouseY, viewMatrix, projMatrix, nearFar);
+            //gizRdr.GetGizmoUnderCursor(mouseX, mouseY, viewMatrix, projMatrix, nearFar, GizmosRenderer::SelectionEventArgs{kHover});
 
 			mat4 viewMatrixVC = glm::lookAt(normalize(eyePos - eyeTrg)*3.5f, vec3{ 0.0f }, vec3{0.0, 0.0, 1.0});
 			mat4 projMatrixVC = glm::perspective(radians<float>(60), static_cast<float>(fboWidthVC) / fboHeightVC, 0.1f, 5.0f);
@@ -1139,7 +1443,7 @@ int main()
             // ------------------
             compositor
             .AddLayer(*pbrOut._colorTexture , WindowCompositor::location{.x = 0, .y = 0, .width = fboWidth, .height = fboHeight}, WindowCompositor::blend_option::copy)
-            //.AddLayer(gizOut                , WindowCompositor::location{.x = 0, .y = 0, .width = fboWidth, .height = fboHeight}, WindowCompositor::blend_option::alpha_blend)
+            .AddLayer(gizOut                , WindowCompositor::location{.x = 0, .y = 0, .width = fboWidth, .height = fboHeight}, WindowCompositor::blend_option::alpha_blend)
             .AddLayer(vcGizOut              , WindowCompositor::location{.x = fboWidth - fboWidthVC, .y = fboHeight - fboHeightVC, .width = fboWidthVC, .height = fboHeightVC}, WindowCompositor::blend_option::alpha_blend)
             .GetResult();
 

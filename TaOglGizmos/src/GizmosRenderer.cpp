@@ -754,9 +754,10 @@ namespace tao_gizmos
 		unsigned long long longKey = 0;
 		unsigned long long k = key & mask;
 		longKey =
-			(k << 48) | (k >> 16) |
-			(k << 32) | (k >> 32) |
-			(k << 16) | (k >> 48) ;
+                ((k >> 48) & 0xFFFF) |
+                ((k >> 32) & 0xFFFF) |
+                ((k >> 16) & 0xFFFF) |
+                ((k >> 00) & 0xFFFF) ;
 
 		return static_cast<unsigned short>(longKey);
 	}
@@ -911,7 +912,7 @@ namespace tao_gizmos
 			(kPoint>0)		+
 			(kLineStrip>0)	+
 			(kLineList>0)
-							>1) throw std::runtime_error{"Invlid key."};
+							>1) throw std::runtime_error{"Invalid key."};
 
 		if(kMesh)
 		{
@@ -1624,7 +1625,7 @@ namespace tao_gizmos
 					viewMatrix, projectionMatrix, mGzm.second._instanceData
 				);
 			mGzm.second._ssboInstanceTransform.OglBuffer().SetSubData(0, newTransf.size() * 16 * sizeof(float), newTransf.data());
-		}
+        }
 	}
 
 	void GizmosRenderer::RenderMeshGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
@@ -1757,7 +1758,7 @@ namespace tao_gizmos
 		_mainFramebuffer.Bind(fbo_read_draw);
 
 		_renderContext->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-		_renderContext->ClearDepthStencil();
+		_renderContext->ClearDepth();
 
         // the client could provide a depth buffer
         // used to mask the gizmo scene.
@@ -1841,7 +1842,7 @@ namespace tao_gizmos
 		return selectedItem;
 	}
 
-	void GizmosRenderer::IssueSelectionRequest(unsigned int imageWidth, unsigned int imageHeight, unsigned posX, unsigned posY, std::vector<std::pair<unsigned long long, glm::ivec2>> lut)
+	void GizmosRenderer::IssueSelectionRequest(unsigned int imageWidth, unsigned int imageHeight, unsigned posX, unsigned posY, std::vector<std::pair<unsigned long long, glm::ivec2>> lut, const std::function<void(std::optional<gizmo_instance_id>)>& callback)
 	{
 		// too many requests, issuing another one will mean
 		// binding a PBO that is still waiting for results
@@ -1862,12 +1863,12 @@ namespace tao_gizmos
 			._imageHeight = imageHeight,
 			._posX = posX,
 			._posY = posY,
-			._gizmoKeyIndicesLUT = lut
+			._gizmoKeyIndicesLUT = lut,
+            .callback = callback
 		});
 
 		_latestSelectionPBOIdx = (++_latestSelectionPBOIdx)%_selectionPBOsCount;
 	}
-
 
 	void GizmosRenderer::ProcessSelectionRequests()
 	{
@@ -1900,7 +1901,7 @@ namespace tao_gizmos
 					currentRequest._gizmoKeyIndicesLUT
 				);
 
-				if(_selectionCallback) (*_selectionCallback)(selectedItem);
+				currentRequest.callback(selectedItem);
 
 				currentRequest._pbo.UnmapBuffer();
 
@@ -1910,23 +1911,45 @@ namespace tao_gizmos
 		while(ready && !_selectionRequests.empty());
 	}
 
-	void GizmosRenderer::SetSelectionCallback(const std::function<void(std::optional<gizmo_instance_id>)>& callback)
-	{
-		_selectionCallback = &callback;
-	}
 
-	void GizmosRenderer::GetGizmoUnderCursor(const unsigned cursorX, const unsigned cursorY, const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const glm::vec2& nearFar)
+	void GizmosRenderer::GetGizmoUnderCursor(const unsigned cursorX, const unsigned cursorY, const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const glm::vec2& nearFar, const std::function<void(std::optional<gizmo_instance_id>)>& callback)
 	{
 		
 		/// Draw for selection
 		///--------------------------------------------------------------
+        // todo isCurrent()
+        // rc.MakeCurrent();
+
+        _renderContext->SetViewport(0, 0, _windowWidth, _windowHeight);
+
+        frame_data_block const frameData
+        {
+                .view_matrix = viewMatrix,
+                .projection_matrix = projectionMatrix,
+                .view_position = glm::inverse(viewMatrix) * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+                .view_direction = -viewMatrix[2],
+                .viewport_size = glm::vec2(_windowWidth, _windowHeight),
+                .viewport_size_inv = 1.0f / glm::vec2(_windowWidth, _windowHeight),
+                .near_far = nearFar //todo
+        };
+
+        _frameDataUbo.SetSubData(0, sizeof(frame_data_block), &frameData);
+        _frameDataUbo.Bind(FRAME_DATA_BINDING);
+
+        // TODO: could be optimized by allowing the selection
+        // TODO: drawing only when calling GizmosRenderer.Render()
+        ProcessPointGizmos(viewMatrix, projectionMatrix);
+        ProcessLineListGizmos(viewMatrix, projectionMatrix);
+        ProcessLineStripGizmos(viewMatrix, projectionMatrix);
+        ProcessMeshGizmos(viewMatrix, projectionMatrix);
+
 		_renderContext->SetDepthState		(SELECTION_DEPTH_STATE);
 		_renderContext->SetBlendState		(SELECTION_BLEND_STATE);
 		_renderContext->SetRasterizerState	(SELECTION_RASTERIZER_STATE);
 
 		_selectionFramebuffer.Bind(fbo_read_draw);
 		_renderContext->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-		_renderContext->ClearDepthStencil();
+		_renderContext->ClearDepth();
 
 		vector<vec4> falseColors{};
 		vector<pair<unsigned long long, ivec2>> lut;
@@ -1997,7 +2020,7 @@ namespace tao_gizmos
 		_pointsShaderForSelection.UseProgram();
 		RenderPointGizmosForSelection(viewMatrix, projectionMatrix, bindSsboRange);
 
-		IssueSelectionRequest(_windowWidth, _windowHeight, cursorX, cursorY, lut);
+		IssueSelectionRequest(_windowWidth, _windowHeight, cursorX, cursorY, lut, callback);
 
 		OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
 	}

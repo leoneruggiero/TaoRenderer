@@ -5,6 +5,7 @@
 //! #include "GPassHelper.glsl"
 //! #include "UboDefs.glsl"
 //! #include "PbrHelper.glsl"
+//! #include "ShadowHelper.glsl"
 
 out layout (location = 0) vec4 FragColor;
 
@@ -62,6 +63,8 @@ layout(binding = 9 ) uniform sampler2D       dirShadowMap;      // TODO: Array
 layout(binding = 10) uniform sampler2DShadow dirShadowMapComp;  // TODO: Array
                      uniform mat4            u_dirShadowMatrix; // TODO: Array
                      uniform bool            u_doDirShadow;
+                     uniform vec3            u_dirShadowPosition;
+                     uniform vec4            u_dirShadowSize;
 layout(std430, binding = 5) buffer buff_directional_lights
 {
     DirectionalLight directionalLights[];
@@ -69,6 +72,8 @@ layout(std430, binding = 5) buffer buff_directional_lights
 #endif
 
 #ifdef LIGHT_PASS_SPHERE
+layout(binding = 11) uniform samplerCube     sphereShadowMap;      // TODO: Array
+                     uniform bool            u_doSphereShadow;
 layout(std430, binding = 6) buffer buff_sphere_lights
 {
     SphereLight sphereLights[];
@@ -117,6 +122,16 @@ vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 lightDirection, vec3 surfP
         float visibility = texture(dirShadowMapComp, shadowPos.xyz, 0.0).r;
         //float visibility = float(texture(dirShadowMap, shadowPos.xy).r>shadowPos.z);
 
+
+
+        visibility =
+        PCSS_DirectionalLight(
+            surfPosition, surfNormal,
+            dirShadowMap, dirShadowMapComp,
+            u_dirShadowMatrix,
+            u_dirShadowSize, u_dirShadowPosition,
+            lightDirection, 0.03, 0.01);
+
         lightColor*=visibility;
     }
 
@@ -138,6 +153,22 @@ vec3 ComputeSphereLight(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal ,
 {
     // avoid problems with radius = 0.0
     lightRadius = max(lightRadius, 1e-4);
+
+    if(u_doSphereShadow)
+    {
+
+        vec3 dir = (surfPosition-lightPosition);
+        float dist = length(dir)-0.01;
+        float visibility = float(texture(sphereShadowMap, dir).r>dist);
+
+        visibility = PCSS_SphereLight
+        (
+          surfPosition, surfNormal, sphereShadowMap,
+          lightPosition, lightRadius, 0.1
+        );
+
+        lightColor*=visibility;
+    }
 
     // Diffuse
     // --------------------------------------------------
@@ -320,9 +351,9 @@ void main()
 #endif
 
 #ifdef LIGHT_PASS_ENVIRONMENT
-        //if(u_doEnvironment)
-            //col.rgb += ComputeAmbientLight(viewDir, nrmWorld, f0, albedo.rgb, roughness, metalness, u_environmentIntensity,
-                                           //u_envPrefilteredMinLod, u_envPrefilteredMaxLod, envIrradiance, envPrefiltered, envBrdfLut);
+        if(u_doEnvironment)
+            col.rgb += ComputeAmbientLight(viewDir, nrmWorld, f0, albedo.rgb, roughness, metalness, u_environmentIntensity,
+                                          u_envPrefilteredMinLod, u_envPrefilteredMaxLod, envIrradiance, envPrefiltered, envBrdfLut);
 #endif
     }
 

@@ -652,7 +652,7 @@ namespace tao_pbr
         ////////////////////////////////////////////
         _gBuffer.gBuff.Bind(ogl_framebuffer_binding::fbo_read_draw);
         _renderContext->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        _renderContext->ClearDepthStencil(1.0f, 0);
+        _renderContext->ClearDepth(1.0f);
 
         _shaders.gPass.UseProgram();
 
@@ -722,17 +722,33 @@ namespace tao_pbr
 
         // Bind lights SSBOs
         _shaderBuffers.directionalLightsSsbo.OglBuffer().Bind(LIGHTPASS_BUFFER_BINDING_DIR_LIGHTS);
-        _shaderBuffers.sphereLightsSsbo.OglBuffer().Bind(LIGHTPASS_BUFFER_BINDING_SPHERE_LIGHTS);
-        _shaderBuffers.rectLightsSsbo.OglBuffer().Bind(LIGHTPASS_BUFFER_BINDING_RECT_LIGHTS);
+        _shaderBuffers.sphereLightsSsbo.OglBuffer()     .Bind(LIGHTPASS_BUFFER_BINDING_SPHERE_LIGHTS);
+        _shaderBuffers.rectLightsSsbo.OglBuffer()       .Bind(LIGHTPASS_BUFFER_BINDING_RECT_LIGHTS);
 
 
-        // Shadow data
+        // Directional Shadow data
         _directionalShadowMap.shadowMap.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP));
         _directionalShadowMap.shadowMap.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP_COMP));
-        _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP));
+
+        _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP));
         _shadowSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP_COMP));
+
         _shaders.lightPass.SetUniformMatrix4(LIGHTPASS_NAME_DIR_SHADOW_MATRIX, glm::value_ptr(_directionalShadowMap.shadowMatrix));
         _shaders.lightPass.SetUniform(LIGHTPASS_NAME_DO_DIR_SHADOW, true);
+        _shaders.lightPass.SetUniform(LIGHTPASS_NAME_DIR_SHADOW_POS,
+                                      _directionalShadowMap.lightPos.x,
+                                      _directionalShadowMap.lightPos.y,
+                                      _directionalShadowMap.lightPos.z);
+        _shaders.lightPass.SetUniform(LIGHTPASS_NAME_DIR_SHADOW_SIZE,
+                                      _directionalShadowMap.shadowSize.x,
+                                      _directionalShadowMap.shadowSize.y,
+                                      _directionalShadowMap.shadowSize.z,
+                                      _directionalShadowMap.shadowSize.w);
+
+        // Sphere Shadow data
+        _sphereShadowMap.shadowMapColor.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP));
+        _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP));
+        _shaders.lightPass.SetUniform(LIGHTPASS_NAME_DO_SPHERE_SHADOW, true);
 
         _fsQuad.vao.Bind();
         _renderContext->DrawElements(pmt_type_triangles, 6, idx_typ_unsigned_int, nullptr);
@@ -756,6 +772,8 @@ namespace tao_pbr
             _ltcLut1.UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_LTC_LUT_1));
             _ltcLut2.UnBindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_LTC_LUT_2));
         }
+
+        // TODO: unbind all the textures and buffers !!!
 
         return pbrRendererOut
         {
@@ -959,6 +977,8 @@ namespace tao_pbr
         mat4  projMatrix = ortho(-sceneRadius, sceneRadius, -sceneRadius, sceneRadius, viewNear, viewFar);
 
         shadowMapData.shadowMatrix = projMatrix*viewMatrix;
+        shadowMapData.shadowSize   = glm::vec4(sceneRadius, sceneRadius, viewNear, viewFar);
+        shadowMapData.lightPos     = viewPos;
 
         // set view data
         camera_gl_data_block cameraGlDataBlock
@@ -1020,29 +1040,33 @@ namespace tao_pbr
 
     void PbrRenderer::CreateShadowMap(SphereShadowMap &shadowMapData, const tao_pbr::SphereLight &l, int shadowMapResolution)
     {
-        float rMax = ComputeSphereLightRadius(l);
         float rMin = glm::max(1e-3f, l.radius);
+        float rMax = rMin + ComputeSphereLightRadius(l);
         vec3 viewPos = glm::vec3(l.transformation.matrix()[3]);
         vec3 viewDirections[6] =
         {
         vec3{1.0, 0.0, 0.0},
         vec3{-1.0, 0.0, 0.0},
         vec3{0.0, 1.0, 0.0},
-        vec3{0.0, -1.0, 0.0},
+        vec3{0.0, -1.0,  0.0},
         vec3{0.0, 0.0, 1.0},
         vec3{0.0, 0.0, -1.0}
         };
 
         mat4 projMatrix = perspective(0.5f * pi<float>(), 1.0f, rMin, rMax);
 
+
+        // see: https://registry.khronos.org/OpenGL/specs/gl/glspec33.core.pdf
+        // page 169
+        // big LOL......
         mat4 shadowMatrices[6] =
         {
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[0], vec3(0.0, 1.0, 0.0)),
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[1], vec3(0.0, 1.0, 0.0)),
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[2], vec3(0.0, 1.0, -1.0)),
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[3], vec3(0.0, 0.0, 1.0)),
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[4], vec3(0.0, 1.0, 0.0)),
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[5], vec3(0.0, 1.0, 0.0)),
+        projMatrix * lookAt(viewPos, viewPos + viewDirections[0], vec3(0.0, -1.0, 0.0)),
+        projMatrix * lookAt(viewPos, viewPos + viewDirections[1], vec3(0.0, -1.0, 0.0)),
+        projMatrix * lookAt(viewPos, viewPos + viewDirections[2], vec3(0.0, 0.0, 1.0)),
+        projMatrix * lookAt(viewPos, viewPos + viewDirections[3], vec3(0.0, 0.0, -1.0)),
+        projMatrix * lookAt(viewPos, viewPos + viewDirections[4], vec3(0.0, -1.0, 0.0)),
+        projMatrix * lookAt(viewPos, viewPos + viewDirections[5], vec3(0.0, -1.0, 0.0)),
         };
 
         shadowMapData.shadowCenter = viewPos;

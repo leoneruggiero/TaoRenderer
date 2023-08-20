@@ -22,8 +22,8 @@ namespace tao_input
 
     enum modifier_key
     {
-       left_shift_key   = GLFW_KEY_LEFT_SHIFT,
-       left_control_key = GLFW_KEY_LEFT_CONTROL
+        left_shift_key   = GLFW_KEY_LEFT_SHIFT,
+        left_control_key = GLFW_KEY_LEFT_CONTROL
     };
 
     // from https://theorangeduck.com/page/spring-roll-call
@@ -46,13 +46,18 @@ namespace tao_input
         int   _surfaceWidth  = 0;
         int   _surfaceHeight = 0;
 
-        bool _newDataIn = false;
-
+        bool _enabled = false;
         float _halfTimeMilliseconds = 30.f;
 
-    	std::function<bool()> _shouldListen;
-        std::function<void()>   _mouseDown;
-        std::function<void()>   _mouseUp;
+        bool _lmbPressed = false;
+        bool _mmbPressed = false;
+        bool _rmbPressed = false;
+
+    	std::function<bool()>   _shouldListen;
+        std::function<void()>   _mouseEnable;
+        std::function<void()>   _mouseDisable;
+        std::function<void(float, float, int, int)>   _mouseDown;
+        std::function<void(float, float, int, int)>   _mouseUp;
         void Reset()
         {
             _cpXRaw     = -1.0;
@@ -61,28 +66,51 @@ namespace tao_input
             _cpYSmooth  = -1.0;
         }
 
-        void Update(float deltaTimeMilliseconds, int surfaceWidth, int surfaceHeight)
+        void UpdateDisabled(float deltaTimeMilliseconds, int surfaceWidth, int surfaceHeight)
         {
-            if(_newDataIn)
+            if(_enabled)
             {
-                _mouseUp();
+                _mouseDisable();
             }
 
-            _newDataIn = false;
+            _enabled = false;
             UpdatePositions(_cpXRaw, _cpYRaw, deltaTimeMilliseconds, surfaceWidth, surfaceHeight);
         }
 
-        void UpdateWithNewData(float newPosX, float newPosY, float deltaTimeMilliseconds, int surfaceWidth, int surfaceHeight)
+        void UpdateEnabled(float newPosX, float newPosY, float deltaTimeMilliseconds, int surfaceWidth, int surfaceHeight)
         {
             // It has not received new data the last time it was updated.
-            if (!_newDataIn) 
+            if (!_enabled)
             {
-                _mouseDown();
+                _mouseEnable();
                 Reset();
             }
 
-            _newDataIn = true;
+            _enabled = true;
             UpdatePositions(newPosX, newPosY, deltaTimeMilliseconds, surfaceWidth, surfaceHeight);
+        }
+
+        void UpdateButton(bool newVal, bool oldVal, float posX, float posY, int surfaceWidth, int surfaceHeight)
+        {
+            if(newVal!=oldVal)
+            {
+                if(newVal)_mouseDown(posX, posY, surfaceWidth, surfaceHeight);
+                else      _mouseUp  (posX, posY, surfaceWidth, surfaceHeight);
+            }
+        }
+
+        void UpdateButtons(bool lmb, bool mmb, bool rmb, int surfaceWidth, int surfaceHeight)
+        {
+            float posX, posY;
+            Position(posX, posY);
+
+            UpdateButton(lmb, _lmbPressed, posX, posY, surfaceWidth, surfaceHeight);
+            UpdateButton(mmb, _mmbPressed, posX, posY, surfaceWidth, surfaceHeight);
+            UpdateButton(rmb, _rmbPressed, posX, posY, surfaceWidth, surfaceHeight);
+
+            _lmbPressed = lmb;
+            _mmbPressed = mmb;
+            _rmbPressed = rmb;
         }
 
         void UpdatePositions(float rawPosX, float rawPosY, float deltaTimeMilliseconds, int surfaceWidth, int surfaceHeight)
@@ -118,14 +146,18 @@ namespace tao_input
         explicit
             MouseInputListener(
                 const std::function<bool()>& shouldListenPredicate,
-                const std::function<void()>& mouseDownAction,
-                const std::function<void()>& mouseUpAction,
+                const std::function<void()>& mouseEnableAction,
+                const std::function<void()>& mouseDisableAction,
+                const std::function<void(float, float, int, int)>& mouseDownAction,
+                const std::function<void(float, float, int, int)>& mouseUpAction,
                 float halfTimeMilliseconds = 30.f) :
 
-            _halfTimeMilliseconds(halfTimeMilliseconds),
-            _shouldListen   (shouldListenPredicate),
-            _mouseDown      (mouseDownAction),
-            _mouseUp        (mouseUpAction)
+                    _halfTimeMilliseconds(halfTimeMilliseconds),
+                    _shouldListen   (shouldListenPredicate),
+                    _mouseEnable     (mouseEnableAction),
+                    _mouseDisable    (mouseDisableAction),
+                    _mouseDown       (mouseDownAction),
+                    _mouseUp         (mouseUpAction)
         {
 
         }
@@ -153,7 +185,7 @@ namespace tao_input
     private:
         GLFWwindow* _window;
         
-        std::vector<MouseInputListener*> _mouseListeners;
+        std::vector<std::shared_ptr<MouseInputListener>> _mouseListeners;
         
         double _timems      = 0.0;
 
@@ -168,9 +200,9 @@ namespace tao_input
         {
         }
 
-        void AddListener(MouseInputListener& listener)
+        void AddListener(const std::shared_ptr<MouseInputListener>& listener)
         {
-            _mouseListeners.push_back(&listener);
+            _mouseListeners.push_back(listener);
         }
 
         bool IsPressed(mouse_button button) const
@@ -198,9 +230,11 @@ namespace tao_input
             for(auto& listener : _mouseListeners)
             {
                 if (listener->_shouldListen())
-                    listener->UpdateWithNewData(newXRaw, newYRaw, deltaTimeMs, newWinWidth, newWinHeight);
+                    listener->UpdateEnabled(newXRaw, newYRaw, deltaTimeMs, newWinWidth, newWinHeight);
                 else
-                    listener->Update(deltaTimeMs, newWinWidth, newWinHeight);
+                    listener->UpdateDisabled(deltaTimeMs, newWinWidth, newWinHeight);
+
+                listener->UpdateButtons(IsPressed(left_mouse_button), IsPressed(middle_mouse_button), IsPressed(right_mouse_button), newWinWidth, newWinHeight);
             }
         }
     };

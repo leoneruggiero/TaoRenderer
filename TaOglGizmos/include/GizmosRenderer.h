@@ -190,7 +190,6 @@ namespace tao_gizmos
 		unsigned int					point_half_size = 1;
 		bool							snap_to_pixel = false;
 		std::vector<PointGizmoVertex>&	vertices;
-		unsigned int					line_size = 1;
 		bool							zoom_invariant = false;
 		float							zoom_invariant_scale = 0.0f;
 		symbol_atlas_descriptor*		symbol_atlas_descriptor = nullptr;
@@ -498,20 +497,72 @@ namespace tao_gizmos
 		.alpha_to_coverage_enable = false
 		};
 	}
-	
-	struct SelectionRequest
-	{
-		tao_ogl_resources::OglPixelPackBuffer& _pbo;
-		tao_ogl_resources::OglFence _fence;
-		unsigned int _imageWidth;
-		unsigned int _imageHeight;
-		unsigned int _posX;
-		unsigned int _posY;
-		std::vector<std::pair<unsigned long long, glm::ivec2>> _gizmoKeyIndicesLUT;
-	};
 
 	class GizmosRenderer
 	{
+    public:
+        GizmosRenderer(tao_render_context::RenderContext& rc, int windowWidth, int windowHeight);
+
+        void Resize(int newWidth, int newHeight);
+
+        // TODO: projection matrix is not a parameter (near and far should be modified)
+        [[nodiscard]] tao_ogl_resources::OglTexture2D& Render(
+                const glm::mat4& viewMatrix,
+                const glm::mat4& projectionMatrix,
+                const glm::vec2& nearFar,
+                tao_ogl_resources::OglTexture2D* depthBuffer
+        );
+
+        void GetGizmoUnderCursor(
+                const unsigned int cursorX,
+                const unsigned int cursorY,
+                const glm::mat4& viewMatrix,
+                const glm::mat4& projectionMatrix,
+                const glm::vec2& nearFar,
+                const std::function<void(std::optional<gizmo_instance_id>)>& callback
+        );
+
+        ///////////////////////////////////////
+        /// Point Gizmos
+        [[nodiscard]] gizmo_id							CreatePointGizmo	   (const point_gizmo_descriptor& desc);
+        // TODO: InstanceGizmo
+        [[nodiscard]] std::vector<gizmo_instance_id>	InstancePointGizmo	   (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+        void											DestroyPointGizmo	   (const gizmo_id key);
+
+        ///////////////////////////////////////
+        /// Line Gizmos
+        [[nodiscard]] gizmo_id							CreateLineGizmo			  (const line_list_gizmo_descriptor& desc);
+        // TODO: InstanceGizmo
+        [[nodiscard]] std::vector<gizmo_instance_id>	InstanceLineGizmo		  (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+        void											DestroyLineGizmo		  (const gizmo_id key);
+
+        ///////////////////////////////////////
+        /// LineStrip Gizmos
+        [[nodiscard]] gizmo_id							CreateLineStripGizmo	   (const line_strip_gizmo_descriptor& desc);
+        // TODO: InstanceGizmo
+        [[nodiscard]] std::vector<gizmo_instance_id>	InstanceLineStripGizmo	   (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+        void											DestroyLineStripGizmo	   (const gizmo_id key);
+
+        ///////////////////////////////////////
+        /// Mesh Gizmos
+        [[nodiscard]] gizmo_id							CreateMeshGizmo		  (const mesh_gizmo_descriptor& desc);
+        // TODO: InstanceGizmo
+        [[nodiscard]] std::vector<gizmo_instance_id>	InstanceMeshGizmo	  (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+        void											DestroyMeshGizmo	  (const gizmo_id key);
+
+        void											SetGizmoInstances (const gizmo_id key, const std::vector<std::pair<gizmo_instance_id, gizmo_instance_descriptor>>& instances);
+
+        ///////////////////////////////////////
+        // Render Passes and Layers
+        [[nodiscard]] RenderLayer	CreateRenderLayer(
+                const tao_ogl_resources::ogl_depth_state&		depthState,
+                const tao_ogl_resources::ogl_blend_state&		blendState,
+                const tao_ogl_resources::ogl_rasterizer_state&	rasterizerState
+        );
+        [[nodiscard]] RenderPass	CreateRenderPass(std::initializer_list<RenderLayer> layers);
+        void						SetRenderPasses(std::initializer_list<RenderPass> passes);
+        void						AssignGizmoToLayers(gizmo_id key, std::initializer_list<RenderLayer> layers);
+
 	private:
 		static constexpr const char*       EXC_PREAMBLE   = "GizmosRenderer: ";
 		int                                _windowWidth, _windowHeight;
@@ -571,9 +622,21 @@ namespace tao_gizmos
         tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>	_depthFramebuffer;
 
 		unsigned int										_latestSelectionPBOIdx = 0;
-		static constexpr unsigned int						_selectionPBOsCount = 3;
+		static constexpr unsigned int						_selectionPBOsCount = 4;
 		std::vector<tao_ogl_resources::OglPixelPackBuffer>	_selectionPBOs;
 
+
+        struct SelectionRequest
+        {
+            tao_ogl_resources::OglPixelPackBuffer& _pbo;
+            tao_ogl_resources::OglFence _fence;
+            unsigned int _imageWidth;
+            unsigned int _imageHeight;
+            unsigned int _posX;
+            unsigned int _posY;
+            std::vector<std::pair<unsigned long long, glm::ivec2>> _gizmoKeyIndicesLUT;
+            const std::function<void(std::optional<gizmo_instance_id>)>& callback;
+        };
 
 		std::queue<SelectionRequest> _selectionRequests;
 
@@ -641,80 +704,14 @@ namespace tao_gizmos
 			std::vector<std::pair<unsigned long long, glm::ivec2>> lut
 		);
 
-
-		const std::function<void(std::optional<gizmo_instance_id>)>* _selectionCallback;
-
 		void IssueSelectionRequest(
 			unsigned int imageWidth, unsigned int imageHeight, unsigned int posX, unsigned int posY, 
-			std::vector<std::pair<unsigned long long, glm::ivec2>> lut
+			std::vector<std::pair<unsigned long long, glm::ivec2>> lut,
+            const std::function<void(std::optional<gizmo_instance_id>)>& callback
 		);
 
 		void ProcessSelectionRequests();
 
         void CopyDepthToMainFbo(tao_ogl_resources::OglTexture2D* depthTexture);
-
-	public:
-		GizmosRenderer(tao_render_context::RenderContext& rc, int windowWidth, int windowHeight);
-
-        void Resize(int newWidth, int newHeight);
-
-		// TODO: projection matrix is not a parameter (near and far should be modified)
-		[[nodiscard]] tao_ogl_resources::OglTexture2D& Render(
-			const glm::mat4& viewMatrix, 
-			const glm::mat4& projectionMatrix,
-			const glm::vec2& nearFar,
-            tao_ogl_resources::OglTexture2D* depthBuffer
-		);
-
-		void SetSelectionCallback(const std::function<void(std::optional<gizmo_instance_id>)>& callback);
-
-		void GetGizmoUnderCursor(
-			const unsigned int cursorX,
-			const unsigned int cursorY,
-			const glm::mat4& viewMatrix, 
-			const glm::mat4& projectionMatrix,
-			const glm::vec2& nearFar
-		);
-
-		///////////////////////////////////////
- 		// Point Gizmos
-		[[nodiscard]] gizmo_id							CreatePointGizmo	   (const point_gizmo_descriptor& desc);
-		// TODO: InstanceGizmo
-		[[nodiscard]] std::vector<gizmo_instance_id>	InstancePointGizmo	   (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
-		void											DestroyPointGizmo	   (const gizmo_id key);
-
-		///////////////////////////////////////
-		// Line Gizmos
-		[[nodiscard]] gizmo_id							CreateLineGizmo			  (const line_list_gizmo_descriptor& desc);
-		// TODO: InstanceGizmo
-		[[nodiscard]] std::vector<gizmo_instance_id>	InstanceLineGizmo		  (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
-		void											DestroyLineGizmo		  (const gizmo_id key);
-
-		///////////////////////////////////////
-		// LineStrip Gizmos
-		[[nodiscard]] gizmo_id							CreateLineStripGizmo	   (const line_strip_gizmo_descriptor& desc);
-		// TODO: InstanceGizmo
-		[[nodiscard]] std::vector<gizmo_instance_id>	InstanceLineStripGizmo	   (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
-		void											DestroyLineStripGizmo	   (const gizmo_id key);
-
-		///////////////////////////////////////
-		// Mesh Gizmos
-		[[nodiscard]] gizmo_id							CreateMeshGizmo		  (const mesh_gizmo_descriptor& desc);
-		// TODO: InstanceGizmo
-		[[nodiscard]] std::vector<gizmo_instance_id>	InstanceMeshGizmo	  (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
-		void											DestroyMeshGizmo	  (const gizmo_id key);
-
-		void											SetGizmoInstances (const gizmo_id key, const std::vector<std::pair<gizmo_instance_id, gizmo_instance_descriptor>>& instances);
-
-		///////////////////////////////////////
-		// Render Passes and Layers
-		[[nodiscard]] RenderLayer	CreateRenderLayer(
-			const tao_ogl_resources::ogl_depth_state&		depthState,
-			const tao_ogl_resources::ogl_blend_state&		blendState,
-			const tao_ogl_resources::ogl_rasterizer_state&	rasterizerState
-		);
-		[[nodiscard]] RenderPass	CreateRenderPass(std::initializer_list<RenderLayer> layers);
-		void						SetRenderPasses(std::initializer_list<RenderPass> passes);
-		void						AssignGizmoToLayers(gizmo_id key, std::initializer_list<RenderLayer> layers);
 	};
 }
