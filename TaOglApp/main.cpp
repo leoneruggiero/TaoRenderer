@@ -29,7 +29,7 @@ using namespace tao_pbr;
 
 enum MouseInputAgentTag
 {
-    None           = 1u<<0,
+    None           = 0x0,
     CameraRotate   = 1u<<1,
     CameraZoom     = 1u<<2
 };
@@ -77,6 +77,7 @@ public:
     MouseInputAgentTag  GetTag()      const{return _tag;}
     MouseInputModifier  GetModifier() const{return _mod;}
 
+
     void SetInputManager(MouseInputManager* manager)
     {
         _manager = manager;
@@ -85,6 +86,7 @@ public:
 private:
     MouseInputAgentTag _tag = MouseInputAgentTag::None;
     MouseInputModifier _mod;
+
 protected:
     MouseInputManager* _manager;
 };
@@ -116,7 +118,12 @@ public:
             _mouseListeners[i]->Position(posX, posY, false, tao_input::mouse_origin::bottom_left);
             _mouseListeners[i]->Position(smoothPosX, smoothPosY, true, tao_input::mouse_origin::bottom_left);
 
-            _agents[i]->MouseMove(posX, posY, smoothPosX, smoothPosY, surfaceWidth, surfaceHeight);
+            _agents[i]->MouseMove(
+                    glm::min(static_cast<float>(surfaceWidth), glm::max(0.0f, posX)),
+                    glm::min(static_cast<float>(surfaceHeight), glm::max(0.0f, posY)),
+                    glm::min(static_cast<float>(surfaceWidth), glm::max(0.0f, smoothPosX)),
+                    glm::min(static_cast<float>(surfaceHeight), glm::max(0.0f, smoothPosY)),
+                    surfaceWidth, surfaceHeight);
         }
 
     }
@@ -246,7 +253,7 @@ private:
     {
         const float kMinDst = 0.1;
         const float kMaxDst = 30.0;
-        const float kSensitivity = 25.0f;
+        const float kSensitivity = 45.0f;
 
         float f = mix(0.05f, 1.0f, (_distance-kMinDst)/(kMaxDst-kMinDst));
         float newDst = _distance - dy * kSensitivity * f;
@@ -602,12 +609,13 @@ MyGizmoLayersVC InitGizmosLayersAndPassesVC(GizmosRenderer& gr)
 		)
 	};
 
-	gr.SetRenderPasses({
-			gr.CreateRenderPass({ myLayers.depthPrePassLayer }),
-			gr.CreateRenderPass({ myLayers.blendGreaterLayer}),
-			gr.CreateRenderPass({ myLayers.opaqueLayer }),
-			gr.CreateRenderPass({ myLayers.blendEqualLayer })
-		});
+	gr.AddRenderPass
+    ({
+        gr.CreateRenderPass({ myLayers.depthPrePassLayer }),
+        gr.CreateRenderPass({ myLayers.blendGreaterLayer}),
+        gr.CreateRenderPass({ myLayers.opaqueLayer }),
+        gr.CreateRenderPass({ myLayers.blendEqualLayer })
+    });
 
 	return myLayers;
 
@@ -660,526 +668,664 @@ glm::vec3 RayClosestPointOnLine(const glm::vec3& ro, const glm::vec3& rd, const 
     return lp+mub*ld;
 }
 
-class GizmoManager
+class GizmoPickAgent : public MouseInputAgent
 {
 public:
-    GizmoManager(GizmosRenderer* gr)
-                    :   _gr{gr},
-                        _gizmoLayers{InitGizmosLayersAndPasses()},
-                        _transformManipulator(*gr, _gizmoLayers.opaqueLayer),
-                        _lightGizmos(gr, _gizmoLayers.opaqueLayer)
+    GizmoPickAgent(const MouseInputModifier& modifier, GizmosRenderer* gizmosRenderer):
+            MouseInputAgent{modifier, MouseInputAgentTag::None},
+            _gr{gizmosRenderer},
+            _clientSelectionCallbacks{},
+            _clientMouseMoveCallbacks{}
     {
-        InitGrid();
+        _selectionCallback = bind(&GizmoPickAgent::OnSelection, this, placeholders::_1);
     }
-
-    /*void OnMouseMove(float x, float y, int windowWidth, int windowHeight, const glm::mat4& viewMatrix, const glm::mat4& projMatrix)
-    {
-        if(_dragging)
-        {
-            mat4 transl=mat4{1.0};
-            const float kInc=0.01f;
-            if(_latestClickedItem==_transformManipulator.AxisId(TransformManipulator::TmAxis::AxisX))
-            {
-                // Translate along X
-                glm::mat4 viewProjMatrix = projMatrix*viewMatrix;
-
-                // find the 2D closest point from the mouse
-                // position to the projected axis
-                vec4 l0 = viewProjMatrix*vec4{0.0, 0.0, 0.0, 1.0};
-                vec4 l1 = viewProjMatrix*vec4{1.0, 0.0, 0.0, 1.0};
-                vec2 l02d = l0;
-                l02d/=l0.w;
-
-                vec2 l12d = l1;
-                l12d/=l1.w;
-
-                vec2 closestPoint2D = ClosestPointOnLine(vec2((x/windowWidth)*2.0-1.0,(y/windowHeight)*2.0-1.0), l02d, l12d);
-
-                vec4 ndc = vec4{closestPoint2D, 0.0, 1.0f};
-                vec4 pw  = glm::inverse(viewProjMatrix)*ndc;
-                vec4 ow  = glm::inverse(viewMatrix)*vec4{0.0, 0.0, 0.0, 1.0};
-                vec3 rayO = ow;
-                vec3 rayDir = normalize(pw/pw.w-ow);
-                vec3 intersection = RayClosestPointOnLine(rayO, rayDir, vec3{0.0}, vec3{1.0, 0.0, 0.0});
-                transl = glm::translate(mat4{1.0}, intersection);
-            }
-            else if(_latestClickedItem==_transformManipulator.AxisId(TransformManipulator::TmAxis::AxisY))
-            {
-                // Translate along Y
-                transl = glm::translate(mat4{1.0}, vec3{0.0, kInc*y, 0.0f});
-            }
-            else if(_latestClickedItem==_transformManipulator.AxisId(TransformManipulator::TmAxis::AxisZ))
-            {
-                // Translate along Z
-                transl = glm::translate(mat4{1.0}, vec3{0.0f, 0.0f, 0.0f});
-            }
-
-            _transformManipulator.SetTransformation(transl);
-        }
-    }*/
-
-    class LightGizmos
-    {
-    public:
-        LightGizmos(GizmosRenderer* renderer, const RenderLayer& layer)
-        :_renderer{renderer}
-        {
-            PointGizmoVertex v;
-            v.Position(vec3{0.0f})
-            .Color(vec4{1.0f})
-            .TexCoordStart(vec2{0.0f})
-            .TexCoordEnd(vec2{1.0f});
-
-            std::vector<PointGizmoVertex> vertices={v};
-
-            _gizmoKey = renderer->CreatePointGizmo(point_gizmo_descriptor{8, false, vertices,false, 1.0f, nullptr, tao_gizmos::gizmo_usage_hint::usage_static});
-
-            renderer->AssignGizmoToLayers(_gizmoKey, {layer});
-        }
-
-        void AddLightGizmo(SphereLight* light)
-        {
-            _lights.push_back(light);
-            gizmo_instance_descriptor desc
-            {
-                .transform = light->transformation.matrix(),
-                .color     = vec4{light->intensity, 1.0f},
-                .visible   = true,
-                .selectable= true
-            };
-            _instances.push_back(desc);
-
-            _instanceKeys = _renderer->InstancePointGizmo(_gizmoKey, _instances);
-        }
-
-        void UpdateLightGizmo(SphereLight* light)
-        {
-            for(int i=0;i<_lights.size();i++)
-            {
-                // Lights,instances and instanceKeys should
-                // correspond 1 to 1 (same index refer to the same element).
-                if(light==_lights[i])
-                {
-                    gizmo_instance_descriptor desc
-                    {
-                            .transform = light->transformation.matrix(),
-                            .color     = vec4{light->intensity, 1.0f},
-                            .visible   = true,
-                            .selectable= true
-                    };
-                    _instances[i] = desc;
-                    _renderer->SetGizmoInstances(_gizmoKey, {make_pair(_instanceKeys[i], _instances[i])});
-
-                    break;
-                }
-            }
-        }
-
-        optional<SphereLight*> GetLightFromID(gizmo_instance_id id)
-        {
-            for(int i=0;i<_instanceKeys.size();i++)
-            {
-                if(id==_instanceKeys[i]) return _lights[i];
-            }
-
-            return nullopt;
-        }
-
-    private:
-        GizmosRenderer* _renderer;
-        gizmo_id        _gizmoKey;
-        std::vector<SphereLight*>               _lights;
-        std::vector<gizmo_instance_descriptor>  _instances;
-        std::vector<gizmo_instance_id>          _instanceKeys;
-    };
-
-    class TransformManipulator
-    {
-    public:
-        TransformManipulator(GizmosRenderer& gr, RenderLayer& layer)
-        :_gr{&gr}
-        {
-            const float
-                    kCylRadius  = 0.05f,
-                    kCylLength  = 0.6f,
-                    kConeRadius = 0.12f,
-                    kConeLength = 0.4f;
-            const int   kArrowSubdv = 16;
-
-            const vec4
-                    kAxisColorX = vec4{0.9, 0.1, 0.0, 1.0},
-                    kAxisColorY = vec4{0.1, 0.9, 0.0, 1.0},
-                    kAxisColorZ = vec4{0.1, 0.1, 0.9, 1.0};
-
-            auto arrowMesh = tao_geometry::Mesh::Arrow(kCylRadius, kCylLength, kConeRadius, kConeLength, kArrowSubdv);
-
-            vector<glm::vec3> arrowMeshPosition  = arrowMesh.GetPositions();
-            vector<glm::vec3> arrowMeshNormals   = arrowMesh.GetNormals();
-            vector<int>       arrowMeshTriangles = arrowMesh.GetIndices();
-            vector<MeshGizmoVertex> arrowMeshVertices(arrowMeshPosition.size());
-            for(int i=0;i<arrowMeshVertices.size(); i++)
-            {
-                arrowMeshVertices[i]
-                        .Position(arrowMeshPosition[i])
-                        .Normal(arrowMeshNormals[i])
-                        .Color({1.0, 1.0, 1.0, 1.0});
-            }
-
-            auto gizKey = gr.CreateMeshGizmo(mesh_gizmo_descriptor
-                                                       {
-                                                               .vertices = arrowMeshVertices,
-                                                               .triangles = &arrowMeshTriangles,
-                                                               .zoom_invariant = true,
-                                                               .zoom_invariant_scale = 0.1f
-                                                       });
-
-            mat4
-                    transformX = rotate(mat4{1.0}, 0.5f*pi<float>(), vec3{0.0, 1.0, 0.0}),
-                    transformY = rotate(mat4{1.0},-0.5f*pi<float>(), vec3{1.0, 0.0, 0.0}),
-                    transformZ = rotate(mat4{1.0}, 0.0f*pi<float>(), vec3{1.0, 0.0, 0.0});
-
-            vector<gizmo_instance_descriptor> instances =
-                    {
-                            /* X Axis */ gizmo_instance_descriptor{ transformX, kAxisColorX},
-                            /* Y Axis */ gizmo_instance_descriptor{ transformY, kAxisColorY},
-                            /* Z Axis */ gizmo_instance_descriptor{ transformZ, kAxisColorZ}
-                    };
-
-            auto allKeys = gr.InstanceMeshGizmo(gizKey, instances);
-
-            gr.AssignGizmoToLayers(gizKey, { layer });
-
-            _tmKey = gizKey;
-            _tmAxisX.id = allKeys[0];
-            _tmAxisX.transform = transformX;
-            _tmAxisX.defaultColor = kAxisColorX;
-            _tmAxisX.color = kAxisColorX;
-
-            _tmAxisY.id = allKeys[1];
-            _tmAxisY.transform = transformY;
-            _tmAxisY.defaultColor = kAxisColorY;
-            _tmAxisY.color = kAxisColorY;
-
-            _tmAxisZ.id = allKeys[2];
-            _tmAxisZ.transform = transformZ;
-            _tmAxisZ.defaultColor = kAxisColorZ;
-            _tmAxisZ.color = kAxisColorZ;
-        }
-
-        enum class TmAxis
-        {
-            AxisX,
-            AxisY,
-            AxisZ,
-        };
-
-        void SetAxisColor(TmAxis axis, vec4 color)
-        {
-            SetResetAxisColor(axis, color, true);
-        }
-
-        void ResetAxisColor(TmAxis axis)
-        {
-            SetResetAxisColor(axis, nullopt, false);
-        }
-
-        void SetTransformation(const mat4& transformation)
-        {
-            SetTransform(transformation);
-        }
-
-        gizmo_instance_id AxisId(TmAxis axis)
-        {
-            switch(axis)
-            {
-                case(TmAxis::AxisX): return _tmAxisX.id; break;
-                case(TmAxis::AxisY): return _tmAxisY.id; break;
-                case(TmAxis::AxisZ): return _tmAxisZ.id; break;
-            }
-        }
-
-    private:
-        struct TmAxisData
-        {
-            gizmo_instance_id id;
-            mat4 transform;
-            vec4 color;
-            vec4 defaultColor;
-        };
-        GizmosRenderer* _gr=nullptr;
-
-        gizmo_id    _tmKey;
-        TmAxisData _tmAxisX;
-        TmAxisData _tmAxisY;
-        TmAxisData _tmAxisZ;
-
-        mat4 _transformation=mat4{1.0};
-
-        void SetResetAxisColor(TmAxis axis, optional<vec4> color, bool set)
-        {
-            TmAxisData* axisData;
-            switch(axis)
-            {
-                case(TmAxis::AxisX): axisData = &_tmAxisX; break;
-                case(TmAxis::AxisY): axisData = &_tmAxisY; break;
-                case(TmAxis::AxisZ): axisData = &_tmAxisZ; break;
-            }
-            if(!set)        axisData->color = axisData->defaultColor;
-            else if(color)  axisData->color = color.value();
-            _gr->SetGizmoInstances(_tmKey,{make_pair(axisData->id, gizmo_instance_descriptor{_transformation*axisData->transform,axisData->color})});
-        }
-
-        void SetTransform(const mat4& transform)
-        {
-            _transformation = transform;
-            _gr->SetGizmoInstances(_tmKey, {
-                    make_pair(_tmAxisX.id,gizmo_instance_descriptor{_transformation * _tmAxisX.transform, _tmAxisX.color}),
-                    make_pair(_tmAxisY.id,gizmo_instance_descriptor{_transformation * _tmAxisY.transform, _tmAxisY.color}),
-                    make_pair(_tmAxisZ.id,gizmo_instance_descriptor{_transformation * _tmAxisZ.transform, _tmAxisZ.color})
-            });
-        }
-    };
-
-    LightGizmos& GetLightGizmos(){return _lightGizmos;}
-
-    void IssueMousePickRequest(int x, int y, const function<void(optional<gizmo_instance_id>)>& callback)
-    {
-        _gr->GetGizmoUnderCursor(x, y, _latestViewMatrix, _latestProjMatrix, _latestNearFar, callback);
-    }
-
-    OglTexture2D& Render(const mat4& viewMatrix, const mat4& projMatrix, const vec2& nearFar, OglTexture2D* depthBuffer)
-    {
-        _latestViewMatrix = viewMatrix;
-        _latestProjMatrix = projMatrix;
-        _latestNearFar    = nearFar;
-
-        return _gr->Render(viewMatrix, projMatrix, nearFar, depthBuffer);
-    }
-
-private:
-    typedef function<void(optional<gizmo_instance_id>)> selection_callback;
-    GizmosRenderer* _gr;
-    MyGizmoLayers   _gizmoLayers;
-    TransformManipulator _transformManipulator;
-    LightGizmos _lightGizmos;
-    mat4 _latestViewMatrix;
-    mat4 _latestProjMatrix;
-    vec2 _latestNearFar;
-
-    RenderLayer InitTransparentGizmoLayer()
-    {
-        auto blendLayer = _gr->CreateRenderLayer(
-    ogl_depth_state
-            {
-                .depth_test_enable = true,
-                .depth_write_enable = false,
-                .depth_func = depth_func_less_equal,
-                .depth_range_near = 0.0,
-                .depth_range_far = 1.0
-            },
-    ogl_blend_state
-            {
-                .blend_enable = true,
-                .blend_equation_rgb = ogl_blend_equation{blend_func_add, blend_fac_src_alpha, blend_fac_one_minus_src_alpha},
-                .blend_equation_alpha = ogl_blend_equation{blend_func_add, blend_fac_one, blend_fac_one }
-            },
-    ogl_rasterizer_state
-            {
-                .culling_enable = false ,
-                .polygon_mode = polygon_mode_fill,
-                .multisample_enable = true,
-                .alpha_to_coverage_enable = false
-            }
-        );
-
-        return blendLayer;
-    }
-
-    MyGizmoLayers InitGizmosLayersAndPasses()
-    {
-        auto opaqueLayer		= InitOpaqueGizmoLayer();
-        auto transparentLayer	= InitTransparentGizmoLayer();
-        auto opaquePass			= _gr->CreateRenderPass({ opaqueLayer });
-        auto transparentPass	= _gr->CreateRenderPass({ transparentLayer });
-
-        _gr->SetRenderPasses({ opaquePass, transparentPass });
-
-        MyGizmoLayers layers
-        {
-            .opaqueLayer = opaqueLayer,
-            .transparentLayer = transparentLayer
-        };
-
-        return layers;
-    }
-
-    RenderLayer InitOpaqueGizmoLayer()
-    {
-        auto opaqueLayer = _gr->CreateRenderLayer(
-        ogl_depth_state
-                {
-                    .depth_test_enable = true,
-                    .depth_write_enable = true,
-                    .depth_func = depth_func_less_equal,
-                    .depth_range_near = 0.0,
-                    .depth_range_far = 1.0
-                },
-        ogl_blend_state
-                {
-                    .blend_enable = false,
-                },
-        ogl_rasterizer_state
-                {
-                    .culling_enable = false ,
-                    .polygon_mode = polygon_mode_fill,
-                    .multisample_enable = true,
-                    .alpha_to_coverage_enable = true
-                }
-        );
-
-        return opaqueLayer;
-    }
-
-    void InitGrid()
-    {
-        constexpr float width			= 10.0f;
-        constexpr float height			= 10.0f;
-        constexpr unsigned int subdvX	= 51;
-        constexpr unsigned int subdvY	= 51;
-        constexpr vec4 colDark			= vec4{ 0.7, 0.7, 0.7, 0.4 };
-        constexpr vec4 colLight			= vec4{ 0.4, 0.4, 0.4, 0.4 };
-
-
-        vector<LineGizmoVertex> vertices{ (subdvX + subdvY) *2 };
-
-        for (unsigned int i = 0; i < subdvX; i++)
-        {
-            const vec4 color = i == subdvX / 2
-                               ? vec4(0.0, 1.0, 0.0, 1.0)
-                               : i % 5 == 0 ? colDark : colLight;
-
-            vertices[i * 2 + 0] =
-                    LineGizmoVertex{}
-                            .Position({ (-width / 2.0f) + (width / (subdvX - 1)) * i , -height / 2.0f , -0.001f })
-                            .Color(color);
-
-            vertices[i * 2 + 1] =
-                    LineGizmoVertex{}
-                            .Position({ (-width / 2.0f) + (width / (subdvX - 1)) * i ,  height / 2.0f , -0.001f })
-                            .Color(color);
-        }
-
-        for (unsigned int j = 0; j < subdvY; j++)
-        {
-            const vec4 color = j == subdvY / 2
-                               ? vec4(1.0, 0.0, 0.0, 1.0)
-                               : j % 5 == 0 ? colDark : colLight;
-
-            vertices[(subdvX + j) * 2 + 0] =
-                    LineGizmoVertex{}
-                            .Position({ -width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j, -0.001f })
-                            .Color(color);
-
-            vertices[(subdvX + j) * 2 + 1] =
-                    LineGizmoVertex{}
-                            .Position({ width / 2.0f, (-height / 2.0f) + (height / (subdvY - 1)) * j , -0.001f })
-                            .Color(color);
-        }
-        auto key = _gr->CreateLineGizmo(line_list_gizmo_descriptor{
-                .vertices = vertices,
-                .line_size = 1,
-                .pattern_texture_descriptor = nullptr
-        });
-
-        // a single instance
-        vector<gizmo_instance_descriptor> instances
-                {
-                        gizmo_instance_descriptor
-                                {
-                                        .transform	= glm::mat4{1.0f},
-                                        .color		= vec4{1.0f}
-                                }
-                };
-        _gr->InstanceLineGizmo(key, instances);
-
-        _gr->AssignGizmoToLayers(key, { _gizmoLayers.transparentLayer });
-    }
-};
-
-class GizmoPickAgent:public MouseInputAgent
-{
-public:
-    GizmoPickAgent(GizmoManager* manager):
-            MouseInputAgent{MouseInputModifier{false, false, false, false, false}, None},
-            _gizmoManager{manager}
-    {
-        _selectionCallback = bind(&GizmoPickAgent::Selection, this, placeholders::_1);
-    }
-
 
     void MouseUp(float d, float d1, int i, int i1) override
     {
-
+        // Trigger the selection callback
+        // to deselect everything
+        OnSelection(nullopt);
     }
-
-    void MouseDown(float x, float y, int i, int i1) override
+    void MouseDown(float x, float y, int w, int h) override
     {
-        _gizmoManager->IssueMousePickRequest(x, y, _selectionCallback);
+        _gr->GetGizmoUnderCursor(x,y,_selectionCallback);
     }
-
-    void MouseMove(float x, float y, float d2, float d3, int i, int i1) override
+    void MouseMove(float x, float y, float sx, float sy, int w, int h) override
     {
-
+        for(const auto* c : _clientMouseMoveCallbacks )
+        {
+            if (c) (*c)(x, y, w, h);
+        }
     }
 
-    void Enable() override
+    void Enable() override{}
+    void Disable() override{}
+    void Mute() override{}
+    void UnMute() override{}
+
+    void SubscribeToMouseMove(const function<void(float, float, int, int)>* onMouseMove)
     {
-
+        _clientMouseMoveCallbacks.push_back(onMouseMove);
     }
 
-    void Disable() override
+    void SubscribeToSelection(const function<void(optional<gizmo_instance_id>)>* onSelection)
     {
-
+        _clientSelectionCallbacks.push_back(onSelection);
     }
 
-    void Mute() override
+    void MuteCameraInput()
     {
-
+        _manager->MuteAgents(static_cast<MouseInputAgentTag>(CameraRotate|CameraZoom));
     }
-
-    void UnMute() override
+    void UnMuteCameraInput()
     {
-
+        _manager->UnMuteAgents(static_cast<MouseInputAgentTag>(CameraRotate|CameraZoom));
     }
+
 private:
-    GizmoManager* _gizmoManager;
-    function<void(optional<gizmo_instance_id>)> _selectionCallback;
-    optional<SphereLight*> _latestSelectedLight;
-    void Selection(optional<gizmo_instance_id> selectedItem)
+    GizmosRenderer* _gr = nullptr;
+    vector<const function<void(optional<gizmo_instance_id>)>*> _clientSelectionCallbacks;
+    vector<const function<void(float, float, int, int)>*> _clientMouseMoveCallbacks;
+    function<void(optional<gizmo_instance_id>)>  _selectionCallback;
+
+    void OnSelection(optional<gizmo_instance_id> selectedItem)
     {
-        if(_latestSelectedLight)
+        for(const auto* c : _clientSelectionCallbacks )
         {
-            _latestSelectedLight.value()->intensity = vec3{1.0, 1.0, 1.0};
-            _gizmoManager->GetLightGizmos().UpdateLightGizmo(_latestSelectedLight.value());
+            if (c) (*c)(selectedItem);
         }
-
-
-        // nothing has been picked
-        if(!selectedItem)
-        {
-            return;
-        }
-
-        optional<SphereLight*> selectedLight = _gizmoManager->GetLightGizmos().GetLightFromID(selectedItem.value());
-        if(selectedLight)
-        {
-            selectedLight.value()->intensity = vec3{1.0, 0.0, 1.0};
-            _gizmoManager->GetLightGizmos().UpdateLightGizmo(selectedLight.value());
-        }
-
-        _latestSelectedLight = selectedLight;
-
     }
+};
+
+
+class TransformManipulator
+{
+public:
+    TransformManipulator(GizmosRenderer& gr, GizmoPickAgent& inputAgent):
+            _gr{&gr},
+            _selectionCallback{bind(&TransformManipulator::OnSelection, this, placeholders::_1)},
+            _mouseMoveCallback{bind(&TransformManipulator::OnMouseMove, this, placeholders::_1, placeholders::_2, placeholders::_3, placeholders::_4)},
+            _transformationChanged{nullptr},
+            _enabled{false},
+            _inputAgent{inputAgent}
+    {
+
+        _inputAgent.SubscribeToMouseMove(&_mouseMoveCallback);
+        _inputAgent.SubscribeToSelection(&_selectionCallback);
+
+        const float
+                kCylRadius  = 0.04f,
+                kCylLength  = 0.6f,
+                kConeRadius = 0.10f,
+                kConeLength = 0.4f;
+        const int   kArrowSubdv = 16;
+
+        const vec4
+                kAxisColorX = vec4{0.9, 0.1, 0.0, 1.0},
+                kAxisColorY = vec4{0.1, 0.9, 0.0, 1.0},
+                kAxisColorZ = vec4{0.1, 0.1, 0.9, 1.0};
+
+        auto arrowMesh = tao_geometry::Mesh::Arrow(kCylRadius, kCylLength, kConeRadius, kConeLength, kArrowSubdv);
+
+        vector<glm::vec3> arrowMeshPosition  = arrowMesh.GetPositions();
+        vector<glm::vec3> arrowMeshNormals   = arrowMesh.GetNormals();
+        vector<int>       arrowMeshTriangles = arrowMesh.GetIndices();
+        vector<MeshGizmoVertex> arrowMeshVertices(arrowMeshPosition.size());
+        for(int i=0;i<arrowMeshVertices.size(); i++)
+        {
+            arrowMeshVertices[i]
+                    .Position(arrowMeshPosition[i])
+                    .Normal(arrowMeshNormals[i])
+                    .Color({1.0, 1.0, 1.0, 1.0});
+        }
+
+        auto gizKey = gr.CreateMeshGizmo(mesh_gizmo_descriptor
+                                                 {
+                                                         .vertices = arrowMeshVertices,
+                                                         .triangles = &arrowMeshTriangles,
+                                                         .zoom_invariant = true,
+                                                         .zoom_invariant_scale = 0.1f
+                                                 });
+
+        mat4
+                transformX = rotate(mat4{1.0}, 0.5f*pi<float>(), vec3{0.0, 1.0, 0.0}),
+                transformY = rotate(mat4{1.0},-0.5f*pi<float>(), vec3{1.0, 0.0, 0.0}),
+                transformZ = rotate(mat4{1.0}, 0.0f*pi<float>(), vec3{1.0, 0.0, 0.0});
+
+        vector<gizmo_instance_descriptor> instances =
+                {
+                        /* X Axis */ gizmo_instance_descriptor{ .transform = transformX, .color = kAxisColorX, .visible = false, .selectable = false},
+                        /* Y Axis */ gizmo_instance_descriptor{ .transform = transformY, .color = kAxisColorY, .visible = false, .selectable = false},
+                        /* Z Axis */ gizmo_instance_descriptor{ .transform = transformZ, .color = kAxisColorZ, .visible = false, .selectable = false}
+                };
+
+        auto allKeys = gr.InstanceMeshGizmo(gizKey, instances);
+
+
+        auto renderPasses = CreateRenderLayersAndPasses();
+
+        gr.AssignGizmoToLayers(gizKey, { renderPasses.depthPrePassLayer, renderPasses.colorLayer });
+
+        _tmKey = gizKey;
+        _tmAxisX.id = allKeys[0];
+        _tmAxisX.transform = transformX;
+        _tmAxisX.defaultColor = kAxisColorX;
+        _tmAxisX.color = kAxisColorX;
+
+        _tmAxisY.id = allKeys[1];
+        _tmAxisY.transform = transformY;
+        _tmAxisY.defaultColor = kAxisColorY;
+        _tmAxisY.color = kAxisColorY;
+
+        _tmAxisZ.id = allKeys[2];
+        _tmAxisZ.transform = transformZ;
+        _tmAxisZ.defaultColor = kAxisColorZ;
+        _tmAxisZ.color = kAxisColorZ;
+    }
+
+    enum class TmAxis
+    {
+        AxisX,
+        AxisY,
+        AxisZ,
+    };
+
+    void Enable(const mat4& initialTransformation, const function<void(const mat4&)>* transformChangedCallback)
+    {
+        _transformationChanged = transformChangedCallback;
+        _enabled = true;
+        SetInstancesProperties(initialTransformation, true, true);
+    }
+
+    void Disable()
+    {
+        _transformationChanged = nullptr;
+        _enabled = false;
+        SetInstancesProperties(mat4{1.0f}, false, false);
+    }
+
+    void SetAxisColor(TmAxis axis, vec4 color)
+    {
+        SetResetAxisColor(axis, color, true);
+    }
+
+    void ResetAxisColor(TmAxis axis)
+    {
+        SetResetAxisColor(axis, nullopt, false);
+    }
+
+    gizmo_instance_id AxisId(TmAxis axis)
+    {
+        switch(axis)
+        {
+            case(TmAxis::AxisX): return _tmAxisX.id; break;
+            case(TmAxis::AxisY): return _tmAxisY.id; break;
+            case(TmAxis::AxisZ): return _tmAxisZ.id; break;
+        }
+    }
+
+private:
+    struct TmAxisData
+    {
+        gizmo_instance_id id;
+        mat4 transform;
+        vec4 color;
+        vec4 defaultColor;
+    };
+    GizmosRenderer* _gr=nullptr;
+
+    gizmo_id    _tmKey;
+    TmAxisData _tmAxisX;
+    TmAxisData _tmAxisY;
+    TmAxisData _tmAxisZ;
+
+    mat4 _transformation = mat4{1.0};
+    bool _enabled = false;
+    const function<void(optional<gizmo_instance_id>)> _selectionCallback;
+    const function<void(float, float, int, int)> _mouseMoveCallback;
+    const function<void(const mat4&)>* _transformationChanged=nullptr;
+
+    TmAxisData& GetAxisData(TmAxis axis)
+    {
+        // TODO: a dictionary?
+        switch(axis)
+        {
+            case(TmAxis::AxisX): return _tmAxisX; break;
+            case(TmAxis::AxisY): return _tmAxisY; break;
+            case(TmAxis::AxisZ): return _tmAxisZ; break;
+        }
+    }
+
+    void SetResetAxisColor(TmAxis axis, optional<vec4> color, bool set)
+    {
+        TmAxisData* axisData;
+        switch(axis)
+        {
+            case(TmAxis::AxisX): axisData = &_tmAxisX; break;
+            case(TmAxis::AxisY): axisData = &_tmAxisY; break;
+            case(TmAxis::AxisZ): axisData = &_tmAxisZ; break;
+        }
+        if(!set)        axisData->color = axisData->defaultColor;
+        else if(color)  axisData->color = color.value();
+        _gr->SetGizmoInstances(_tmKey,{make_pair(axisData->id, gizmo_instance_descriptor{_transformation*axisData->transform,axisData->color})});
+    }
+
+    void SetInstancesProperties(const mat4& transform, bool visible, bool selectable)
+    {
+        _transformation = transform;
+        _gr->SetGizmoInstances(_tmKey, {
+                make_pair(_tmAxisX.id,gizmo_instance_descriptor{.transform = _transformation * _tmAxisX.transform, .color = _tmAxisX.color, .visible = visible, .selectable = selectable}),
+                make_pair(_tmAxisY.id,gizmo_instance_descriptor{.transform = _transformation * _tmAxisY.transform, .color = _tmAxisY.color, .visible = visible, .selectable = selectable}),
+                make_pair(_tmAxisZ.id,gizmo_instance_descriptor{.transform = _transformation * _tmAxisZ.transform, .color = _tmAxisZ.color, .visible = visible, .selectable = selectable}),
+        });
+    }
+
+    struct renderPasses
+    {
+        RenderLayer depthPrePassLayer;
+        RenderPass depthPrePass;
+
+        RenderLayer colorLayer;
+        RenderPass colorPass;
+    };
+
+    renderPasses CreateRenderLayersAndPasses()
+    {
+        ogl_depth_state dsPre
+        {
+            .depth_test_enable = true,
+            .depth_write_enable = true,
+            .depth_func = depth_func_less_equal,
+            .depth_range_near = 0.0f,
+            .depth_range_far = 1.0f
+        };
+        ogl_depth_state dsCol
+        {
+                .depth_test_enable = true,
+                .depth_write_enable = false,
+                .depth_func = depth_func_equal,
+                .depth_range_near = 0.0f,
+                .depth_range_far = 1.0f
+        };
+        ogl_rasterizer_state rs
+        {
+            .culling_enable=false,
+            .front_face=front_face_ccw,
+            .cull_mode=cull_mode_back,
+            .polygon_mode=polygon_mode_fill,
+            .multisample_enable=true,
+            .alpha_to_coverage_enable=true,
+        };
+        ogl_blend_state bsPre
+        {
+            .blend_enable=false,
+            .color_mask = mask_none
+        };
+        ogl_blend_state bsCol
+        {
+            .blend_enable=true,
+            .blend_equation_rgb=ogl_blend_equation
+            {
+                    .blend_func=blend_func_add,
+                    .blend_factor_src=blend_fac_src_alpha,
+                    .blend_factor_dst=blend_fac_one_minus_src_alpha,
+            },
+            .blend_equation_alpha=ogl_blend_equation
+            {
+                    .blend_func=blend_func_add,
+                    .blend_factor_src=blend_fac_one,
+                    .blend_factor_dst=blend_fac_one_minus_src_alpha,
+            },
+            .color_mask = mask_all
+        };
+
+        auto depthPrePassLayer = _gr->CreateRenderLayer(dsPre, bsPre, rs);
+        auto colorLayer      = _gr->CreateRenderLayer(dsCol, bsCol, rs);
+        auto depthPrePass     = _gr->CreateRenderPass({depthPrePassLayer});
+        auto colorPass         = _gr->CreateRenderPass({colorLayer});
+
+        _gr->AddRenderPass({depthPrePass, colorPass});
+
+        return renderPasses
+        {
+           .depthPrePassLayer = depthPrePassLayer,
+           .depthPrePass = depthPrePass,
+           .colorLayer=colorLayer,
+           .colorPass = colorPass,
+        };
+    }
+
+
+    optional<TmAxis> _selectedItem;
+    void OnSelectionEnter(TmAxis axis)
+    {
+        _inputAgent.MuteCameraInput();
+
+        const vec4 kGhostCol{0.5, 0.5, 0.5, 0.5};
+        SetResetAxisColor(TmAxis::AxisX, axis==TmAxis::AxisX ? _tmAxisX.color : kGhostCol , true);
+        SetResetAxisColor(TmAxis::AxisY, axis==TmAxis::AxisY ? _tmAxisY.color : kGhostCol , true);
+        SetResetAxisColor(TmAxis::AxisZ, axis==TmAxis::AxisZ ? _tmAxisZ.color : kGhostCol , true);
+
+        ResetInputData();
+    }
+
+    void OnSelectionExit(TmAxis axis)
+    {
+        _inputAgent.UnMuteCameraInput();
+
+        SetResetAxisColor(TmAxis::AxisX, nullopt, false);
+        SetResetAxisColor(TmAxis::AxisY, nullopt, false);
+        SetResetAxisColor(TmAxis::AxisZ, nullopt, false);
+    }
+
+    void OnSelection(optional<gizmo_instance_id> newItem)
+    {
+        if( (newItem == nullopt && _selectedItem == nullopt) ||
+            (newItem.has_value()&& _selectedItem.has_value() && newItem.value() == GetAxisData(_selectedItem.value()).id))
+            return;
+
+        if(_selectedItem)
+        {
+            OnSelectionExit(_selectedItem.value());
+            _selectedItem = nullopt;
+        }
+
+        if(newItem)
+        {
+            TmAxis selectedAxis;
+            if      (newItem.value() == _tmAxisX.id) selectedAxis = TmAxis::AxisX;
+            else if (newItem.value() == _tmAxisY.id) selectedAxis = TmAxis::AxisY;
+            else if (newItem.value() == _tmAxisZ.id) selectedAxis = TmAxis::AxisZ;
+
+            _selectedItem = selectedAxis;
+            OnSelectionEnter(selectedAxis);
+        }
+    }
+
+    float _latestX=0.0f;
+    float _latestY=0.0f;
+    bool  _hasMouseData=false;
+    void ResetInputData()
+    {
+        _latestX=0.0f;
+        _latestY=0.0f;
+        _hasMouseData=false;
+    }
+    void SetInputData(float x, float y)
+    {
+        _latestX=x;
+        _latestY=y;
+        _hasMouseData=true;
+    }
+
+    mat4 TranslateOnAxis(float x, float y, float prevX, float prevY, int w, int h, vec3 localAxis)
+    {
+        mat4 viewMatrix;
+        mat4 projMatrix;
+        vec2 nearFar;
+        _gr->GetView(viewMatrix, projMatrix, nearFar);
+
+        glm::mat4 viewProjMatrix = projMatrix * viewMatrix;
+
+        // Find the world position of the
+        // triad origin and axis
+        vec3 worldAxis   = _transformation*vec4{localAxis, 0.0f};
+        vec3 worldOrigin = _transformation*vec4{0.0f, 0.0f, 0.0f, 1.0f};
+
+
+        // find the 2D closest point from the mouse
+        // position to the projected axis
+        vec4 l0 = viewProjMatrix * vec4{worldOrigin, 1.0};
+        vec4 l1 = viewProjMatrix * vec4{worldOrigin + worldAxis, 1.0};
+        vec2 l02d = l0;
+        l02d /= l0.w;
+        vec2 l12d = l1;
+        l12d /= l1.w;
+
+        vec2 closestPoint2D0 = ClosestPointOnLine(vec2((prevX / w) * 2.0 - 1.0, (prevY / h) * 2.0 - 1.0), l02d, l12d);
+        vec2 closestPoint2D1 = ClosestPointOnLine(vec2((x / w) * 2.0 - 1.0, (y / h) * 2.0 - 1.0), l02d, l12d);
+
+
+        // find the world position of the 2D point computed above
+        // by projecting onto the 3D axis
+        vec4 ndc0 = vec4{closestPoint2D0, 0.0, 1.0f};
+        vec4 ndc1 = vec4{closestPoint2D1, 0.0, 1.0f};
+        mat4 viewProjInverse = glm::inverse(viewProjMatrix);
+        vec4 pw0 = viewProjInverse * ndc0;
+        vec4 pw1 = viewProjInverse * ndc1;
+        vec4 ow = glm::inverse(viewMatrix) * vec4{0.0, 0.0, 0.0, 1.0};
+
+        vec3 rayDir0 = normalize(pw0 / pw0.w - ow);
+        vec3 intersection0 = RayClosestPointOnLine(ow, rayDir0, worldOrigin, worldAxis);
+
+        vec3 rayDir1 = normalize(pw1 / pw1.w - ow);
+        vec3 intersection1 = RayClosestPointOnLine(ow, rayDir1, worldOrigin, worldAxis);
+
+        vec3 translation = intersection1 - intersection0;
+        return translate(mat4{1.0f}, translation);
+    }
+
+    void OnDrag(float x, float y, float prevX, float prevY, int w, int h, TmAxis selectedAxis)
+    {
+        vec3 localAxis;
+             if(selectedAxis==TmAxis::AxisX) localAxis = vec3{1.0, 0.0, 0.0};
+        else if(selectedAxis==TmAxis::AxisY) localAxis = vec3{0.0, 1.0, 0.0};
+        else if(selectedAxis==TmAxis::AxisZ) localAxis = vec3{0.0, 0.0, 1.0};
+
+        mat4 transl = TranslateOnAxis(x,y,prevX, prevY, w, h, localAxis);
+
+        SetInstancesProperties(transl*_transformation, true, true);
+
+        if(_transformationChanged)(*_transformationChanged)(transl);
+    }
+    void OnMouseMove(float x, float y, int w, int h)
+    {
+        if(_selectedItem)
+        {
+            // Dragging
+
+            if(!_hasMouseData)
+                SetInputData(x,y);
+
+            OnDrag(x, y, _latestX, _latestY, w, h,_selectedItem.value());
+
+            SetInputData(x,y);
+        }
+    }
+
+    GizmoPickAgent& _inputAgent;
+};
+
+
+class LightGizmos
+{
+public:
+    LightGizmos(GizmosRenderer* renderer, GizmoPickAgent* inputAgent)
+            :_renderer{renderer}
+    {
+        PointGizmoVertex v;
+        v.Position(vec3{0.0f})
+                .Color(vec4{1.0f})
+                .TexCoordStart(vec2{0.0f})
+                .TexCoordEnd(vec2{1.0f});
+
+        std::vector<PointGizmoVertex> vertices={v};
+
+        _lightGizmoData._selectableGizmoId = renderer->CreatePointGizmo(point_gizmo_descriptor{8, false, vertices,false, 1.0f, nullptr, tao_gizmos::gizmo_usage_hint::usage_static});
+        _lightGizmoData._lightGizmo0Id = CreateLightGizmo(renderer);
+        _lightGizmoData._lightGizmo1Id = renderer->CreatePointGizmo(point_gizmo_descriptor{1, false, vertices,false, 1.0f, nullptr, tao_gizmos::gizmo_usage_hint::usage_static});
+
+        auto layer = renderer->CreateRenderLayer(DEPTH_LESS_EQUAL, NO_BLEND, RASTERIZER_MS_ATOC);
+
+        renderer->AssignGizmoToLayers(_lightGizmoData._selectableGizmoId, {layer});
+        renderer->AssignGizmoToLayers(_lightGizmoData._lightGizmo0Id, {layer});
+        renderer->AssignGizmoToLayers(_lightGizmoData._lightGizmo1Id, {layer});
+
+        renderer->AddRenderPass({renderer->CreateRenderPass({layer})});
+    }
+
+    void AddLightGizmo(const SphereLight& light)
+    {
+        _lights.insert({&light, _selectableInstances.size()});
+
+        _selectableInstances.push_back(GetSelectableInstanceDesc(&light));
+        _selectableInstancesKeys = _renderer->InstancePointGizmo(_lightGizmoData._selectableGizmoId, _selectableInstances);
+
+        _gizmo0Instances.push_back(GetGizmoInstanceDesc(&light));
+        _gizmo0InstancesKeys = _renderer->InstancePointGizmo(_lightGizmoData._lightGizmo0Id, _gizmo0Instances);
+
+        _gizmo1Instances.push_back(GetGizmoInstanceDesc(&light));
+        _gizmo1InstancesKeys = _renderer->InstancePointGizmo(_lightGizmoData._lightGizmo1Id, _gizmo1Instances);
+    }
+
+    void UpdateLightGizmo(const SphereLight& light)
+    {
+        size_t idx = _lights.at(&light);
+
+        _selectableInstances[idx]=GetSelectableInstanceDesc(&light);
+        _gizmo0Instances    [idx]=GetGizmoInstanceDesc(&light);
+        _gizmo1Instances    [idx]=GetGizmoInstanceDesc(&light);
+
+        _renderer->SetGizmoInstances(_lightGizmoData._selectableGizmoId, {make_pair(_selectableInstancesKeys[idx], _selectableInstances[idx])});
+        _renderer->SetGizmoInstances(_lightGizmoData._lightGizmo0Id, {make_pair(_gizmo0InstancesKeys[idx], _gizmo0Instances[idx])});
+        _renderer->SetGizmoInstances(_lightGizmoData._lightGizmo1Id, {make_pair(_gizmo1InstancesKeys[idx], _gizmo1Instances[idx])});
+    }
+
+
+private:
+    GizmosRenderer* _renderer;
+    GizmoPickAgent* _inputAgent;
+
+    struct LightGizmoData
+    {
+        gizmo_id _selectableGizmoId;
+        gizmo_id _lightGizmo0Id;
+        gizmo_id _lightGizmo1Id;
+    };
+
+
+    LightGizmoData _lightGizmoData;
+    map<const SphereLight*, size_t> _lights;
+    vector<gizmo_instance_descriptor> _selectableInstances;
+    vector<gizmo_instance_id> _selectableInstancesKeys;
+    vector<gizmo_instance_descriptor> _gizmo0Instances;
+    vector<gizmo_instance_id> _gizmo0InstancesKeys;
+    vector<gizmo_instance_descriptor> _gizmo1Instances;
+    vector<gizmo_instance_id> _gizmo1InstancesKeys;
+
+
+    gizmo_instance_descriptor GetSelectableInstanceDesc(const SphereLight* l)
+    {
+        return
+            gizmo_instance_descriptor
+            {
+                .transform = l->transformation.matrix(),
+                .color     = vec4{l->intensity, 1.0f},
+                .visible   = false,
+                .selectable= true
+            };
+    }
+    gizmo_instance_descriptor GetGizmoInstanceDesc(const SphereLight* l)
+    {
+        return
+            gizmo_instance_descriptor
+            {
+                .transform = l->transformation.matrix(),
+                .color     = vec4{1.0f},
+                .visible   = true,
+                .selectable= false
+            };
+    }
+
+    static constexpr ogl_depth_state DEPTH_LESS_EQUAL
+    {
+        .depth_test_enable		= true,
+        .depth_write_enable		= true,
+        .depth_func	            = depth_func_less_equal,
+        .depth_range_near		= 0.0,
+        .depth_range_far		= 1.0,
+    };
+    static constexpr ogl_blend_state NO_BLEND
+    {
+        .blend_enable = false,
+        .color_mask = mask_all,
+    };
+    static constexpr ogl_rasterizer_state RASTERIZER_MS_ATOC
+    {
+        .culling_enable             = false,
+        .front_face                 = front_face_ccw,
+        .cull_mode                  = cull_mode_back,
+        .polygon_mode               = polygon_mode_fill,
+        .multisample_enable         = true,
+        .alpha_to_coverage_enable   = true
+    };
+
+    static constexpr int kGizmoSize = 32;
+    static gizmo_id CreateLightGizmo(GizmosRenderer* gr)
+    {
+        PointGizmoVertex v;
+        v.Position(vec3{0.0f})
+                .Color(vec4{1.0f})
+                .TexCoordStart(vec2{0.0f})
+                .TexCoordEnd(vec2{1.0f});
+
+        std::vector<PointGizmoVertex> vertices={v};
+
+        tao_gizmos_procedural::TextureDataRgbaUnsignedByte tex{kGizmoSize, kGizmoSize, {0, 0, 0, 0}};
+
+        tex.FillWithFunction([](unsigned int x, unsigned int y)
+         {
+            float u=static_cast<float>(x);
+            float v=static_cast<float>(y);
+            vec2  uv{u,v};
+
+            // light symbol sdf (sun)
+            float radius  = kGizmoSize*0.25f;
+            vec2  center  = vec2{kGizmoSize*0.5f};
+            float sphere=tao_gizmos_sdf::SdfCircle(uv, radius)
+                .Translate(center);
+
+            float val = tao_gizmos_sdf::SdfShell(sphere, 1.0f);
+
+            // rays
+            for(int i=0;i<8;i++)
+            {
+                vec2 start = vec2{radius*1.4f, 0.0f};
+                float len = radius*0.4f;
+                float ray = tao_gizmos_sdf::SdfSegment{uv, start, start+vec2{len, 0.0f} }
+                .Rotate(pi<float>()*2.0f*i/8.0f)
+                .Translate(center);
+
+                val = tao_gizmos_sdf::SdfAdd(val, tao_gizmos_sdf::SdfInflate(ray, 1.5f));
+            }
+
+            val = glm::clamp(mix(1.0f, 0.0f, val*2.0f), 0.0f, 1.0f);
+
+            return vec<4, unsigned char>{255, 255, 255, val*255};
+         });
+
+        symbol_atlas_descriptor texDesc
+        {
+            .data=tex.DataPtr(),
+            .data_format = tex_for_rgba,
+            .data_type = tex_typ_unsigned_byte,
+            .width = kGizmoSize,
+            .height = kGizmoSize,
+            .filter_smooth = true,
+        };
+        point_gizmo_descriptor descriptor
+        {
+             .point_half_size=kGizmoSize/2,
+             .snap_to_pixel=false,
+             .vertices = vertices,
+             .zoom_invariant = false,
+             .symbol_atlas_descriptor = &texDesc,
+             .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
+        };
+
+        return gr->CreatePointGizmo(descriptor);
+    }
+
 };
 
 
@@ -1288,14 +1434,18 @@ int main()
         // Window compositor
         WindowCompositor compositor{rc, fboWidth, fboHeight};
 
-        // GizmosRenderer
+        // Gizmos renderer
 		GizmosRenderer gizRdr{ rc, fboWidth, fboHeight };
-        GizmoManager gizmoManager(&gizRdr);
 
         // Gizmos interaction
-        GizmoPickAgent gizmoPick{&gizmoManager};
-        inputManager.AddInputAgent(&gizmoPick);
+        GizmoPickAgent gizmoPickAgent{MouseInputModifier{true, false, false, false, false}, &gizRdr};
+        inputManager.AddInputAgent(&gizmoPickAgent);
 
+        // Transform manipulator gizmo
+        TransformManipulator tmGizmo(gizRdr,  gizmoPickAgent);
+
+        // Light gizmos
+        LightGizmos lightGizmos{&gizRdr, &gizmoPickAgent};
 
         // View Cube Gizmos Renderer
 		int fboWidthVC  = 256;
@@ -1374,7 +1524,7 @@ int main()
         DirectionalLight dirLight0
         {
             .transformation = glm::rotate(glm::mat4(1.0), 2.3f, vec3{1.0, 1.0, 0.0}),
-            .intensity = vec3(0.35)
+            .intensity = vec3(0.1)
         };
 
         auto dirLightKey = pbrRdr.AddDirectionalLight(dirLight0);
@@ -1382,10 +1532,12 @@ int main()
         SphereLight sphereLight0
         {
             .transformation = glm::translate(glm::mat4(1.0), {1.0, 0.5, 3.0}),
-            .intensity = vec3(8.0),
-            .radius = 0.6
+            .intensity = vec3(15.0),
+            .radius = 0.25
         };
-        auto sphereLight = pbrRdr.AddSphereLight(sphereLight0);
+        auto sphereLight0Key = pbrRdr.AddSphereLight(sphereLight0);
+
+        lightGizmos.AddLightGizmo(sphereLight0);
 
         /*auto rectLight = pbrRdr.AddRectLight(
         RectLight
@@ -1397,8 +1549,14 @@ int main()
             .size = vec2{2.0, 3.0}
         });*/
 
-        gizmoManager.GetLightGizmos().AddLightGizmo(&sphereLight0);
-
+        function<void(const mat4&)> transformLightCallbackDEBUG =
+        [&sphereLight0Key, &sphereLight0, &lightGizmos, &pbrRdr](const mat4& tr)
+        {
+            sphereLight0.transformation.Transform(tr);
+            pbrRdr.UpdateSphereLight(sphereLight0Key, sphereLight0);
+            lightGizmos.UpdateLightGizmo(sphereLight0);
+        };
+        tmGizmo.Enable(sphereLight0.transformation.matrix(), &transformLightCallbackDEBUG);
 
         // ----------------------------------------------------------------------------
 
@@ -1429,14 +1587,18 @@ int main()
             auto pbrOut = pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y);
 
 
-            auto& gizOut = gizmoManager.Render(viewMatrix, projMatrix, nearFar, pbrOut._depthTexture);
+            gizRdr.SetView(viewMatrix, projMatrix, nearFar);
+            gizRdr.SetDepthMask(*pbrOut._depthTexture);
+            auto& gizOut = gizRdr.Render();
 
             //gizRdr.GetGizmoUnderCursor(mouseX, mouseY, viewMatrix, projMatrix, nearFar, GizmosRenderer::SelectionEventArgs{kHover});
 
-			mat4 viewMatrixVC = glm::lookAt(normalize(eyePos - eyeTrg)*3.5f, vec3{ 0.0f }, vec3{0.0, 0.0, 1.0});
+			mat4 viewMatrixVC = viewMatrix;
+            viewMatrixVC[3] = vec4{0.0, 0.0, -3.5, 1.0};
 			mat4 projMatrixVC = glm::perspective(radians<float>(60), static_cast<float>(fboWidthVC) / fboHeightVC, 0.1f, 5.0f);
 
-			auto& vcGizOut = gizRdrVC.Render(viewMatrixVC, projMatrixVC, vec2{0.1f, 3.0f}, nullptr);
+            gizRdrVC.SetView(viewMatrixVC, projMatrixVC, vec2{0.1f, 3.0f});
+			auto& vcGizOut = gizRdrVC.Render();
 
 
             // composite windows

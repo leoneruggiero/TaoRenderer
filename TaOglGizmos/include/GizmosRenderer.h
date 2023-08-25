@@ -87,7 +87,7 @@ namespace tao_gizmos
 
 		// instance data (transform, visibility, color, ...)
 		// ---------------------------------------------------
-		unsigned int							_instanceCount;
+		unsigned int							_instanceCount = 0;
 		std::vector<gizmo_instance_descriptor>	_instanceData;
 
 		virtual void									SetInstanceData(const std::vector<gizmo_instance_descriptor>& instances)
@@ -503,22 +503,19 @@ namespace tao_gizmos
     public:
         GizmosRenderer(tao_render_context::RenderContext& rc, int windowWidth, int windowHeight);
 
+        void SetView(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const glm::vec2& nearFar);
+
+        void GetView(glm::mat4& viewMatrix, glm::mat4& projectionMatrix, glm::vec2& nearFar);
+
+        void SetDepthMask(tao_ogl_resources::OglTexture2D& depthBuffer);
+
         void Resize(int newWidth, int newHeight);
 
-        // TODO: projection matrix is not a parameter (near and far should be modified)
-        [[nodiscard]] tao_ogl_resources::OglTexture2D& Render(
-                const glm::mat4& viewMatrix,
-                const glm::mat4& projectionMatrix,
-                const glm::vec2& nearFar,
-                tao_ogl_resources::OglTexture2D* depthBuffer
-        );
+        [[nodiscard]] tao_ogl_resources::OglTexture2D& Render();
 
         void GetGizmoUnderCursor(
                 const unsigned int cursorX,
                 const unsigned int cursorY,
-                const glm::mat4& viewMatrix,
-                const glm::mat4& projectionMatrix,
-                const glm::vec2& nearFar,
                 const std::function<void(std::optional<gizmo_instance_id>)>& callback
         );
 
@@ -560,13 +557,17 @@ namespace tao_gizmos
                 const tao_ogl_resources::ogl_rasterizer_state&	rasterizerState
         );
         [[nodiscard]] RenderPass	CreateRenderPass(std::initializer_list<RenderLayer> layers);
-        void						SetRenderPasses(std::initializer_list<RenderPass> passes);
+        void						AddRenderPass(std::initializer_list<RenderPass> passes);
         void						AssignGizmoToLayers(gizmo_id key, std::initializer_list<RenderLayer> layers);
 
 	private:
 		static constexpr const char*       EXC_PREAMBLE   = "GizmosRenderer: ";
 		int                                _windowWidth, _windowHeight;
 		tao_render_context::RenderContext* _renderContext;
+        glm::mat4                          _viewMatrix;
+        glm::mat4                          _projectionMatrix;
+        glm::vec2                          _nearFar;
+        tao_ogl_resources::OglTexture2D*   _clientDepthBuffer;
 
 		tao_ogl_resources::OglShaderProgram _pointsShader;
 		tao_ogl_resources::OglShaderProgram _linesShader;

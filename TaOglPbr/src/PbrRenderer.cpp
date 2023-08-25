@@ -510,7 +510,18 @@ namespace tao_pbr
 
         return key;
     }
+    // TODO: this "CPU-GPU synced buffer" should become an entity on its own
+    template<typename T, typename G>
+    void WriteToCollectionSyncGpu(GenKeyVector<T>& genKeyedCollection, GenKey<T>& where, ResizableSsbo& gpuBuffer, const T& newVal, std::function<G(const T&)> converter)
+    {
+        if(where.Index>=genKeyedCollection.vector().size())
+            throw runtime_error("Invalid index");
 
+        genKeyedCollection.at(where) = newVal;
+
+        G elem = converter(newVal);
+        gpuBuffer.OglBuffer().SetSubData((where.Index)*sizeof(G), sizeof(G), &elem);
+    }
 
 
     GenKey<DirectionalLight> PbrRenderer::AddDirectionalLight(const tao_pbr::DirectionalLight &directionalLight)
@@ -529,19 +540,16 @@ namespace tao_pbr
         return AddToCollectionSyncGpu(_directionalLights, _shaderBuffers.directionalLightsSsbo, directionalLight, converter);
     }
 
+    void PbrRenderer::UpdateSphereLight(GenKey<SphereLight> key, const SphereLight& value)
+    {
+        std::function<sphere_light_gl_data_block(const SphereLight&)> converter = ToGraphicsData;
+
+        WriteToCollectionSyncGpu(_sphereLights, key, _shaderBuffers.sphereLightsSsbo, value, converter);
+    }
+
     GenKey<SphereLight> PbrRenderer::AddSphereLight(const tao_pbr::SphereLight &sphereLight)
     {
-        std::function<sphere_light_gl_data_block(const SphereLight&)> converter =
-        // Converts a directional light into its graphics data
-        [](const SphereLight& l)
-        {
-            return sphere_light_gl_data_block
-            {
-                    .position =  l.transformation.matrix()[3],
-                    .intensity = vec4(l.intensity, 0.0),
-                    .radius    = l.radius
-            };
-        };
+        std::function<sphere_light_gl_data_block(const SphereLight&)> converter = ToGraphicsData;
 
         return AddToCollectionSyncGpu(_sphereLights, _shaderBuffers.sphereLightsSsbo, sphereLight, converter);
     }

@@ -298,9 +298,9 @@ namespace tao_pbr
         }
 
         inline const glm::mat4& matrix() const {return _matrix;}
-        void Translate(const glm::vec3& v)
+        void Transform(const glm::mat4& t)
         {
-            _matrix  = glm::translate(_matrix, v);
+            _matrix  = t*_matrix;
         }
 
     private:
@@ -462,6 +462,8 @@ namespace tao_pbr
         [[nodiscard]] GenKey<DirectionalLight>    AddDirectionalLight(const DirectionalLight& directionalLight);
         [[nodiscard]] GenKey<SphereLight>         AddSphereLight(const SphereLight& sphereLight);
         [[nodiscard]] GenKey<RectLight>           AddRectLight(const RectLight& rectLigth);
+
+        void UpdateSphereLight(GenKey<SphereLight> key, const SphereLight& value);
 
         void SetCurrentEnvironment(const GenKey<EnvironmentLight>& environment);
 
@@ -690,6 +692,16 @@ namespace tao_pbr
             glm::vec3 intensity;
             float     radius;
         };
+
+        static sphere_light_gl_data_block ToGraphicsData(const tao_pbr::SphereLight &sphereLight)
+        {
+            return sphere_light_gl_data_block
+            {
+                .position =  sphereLight.transformation.matrix()[3],
+                .intensity = glm::vec4(sphereLight.intensity, 0.0),
+                .radius    = sphereLight.radius
+            };
+        }
 
         struct rect_light_gl_data_block
         {

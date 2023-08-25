@@ -612,9 +612,13 @@ namespace tao_gizmos
 	 }
 
 	 GizmosRenderer::GizmosRenderer(RenderContext& rc, int windowWidth, int windowHeight) :
-		 _windowWidth  (windowWidth),
-		 _windowHeight (windowHeight),
-		 _renderContext(&rc),
+		 _windowWidth       (windowWidth),
+		 _windowHeight      (windowHeight),
+		 _renderContext     (&rc),
+         _viewMatrix        {1.0f},
+         _projectionMatrix  {1.0f},
+         _nearFar           {0.0f, 1.0f},
+         _clientDepthBuffer {nullptr},
 		 _pointsShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::points      , gizmos_shader_modifier::none      , SHADER_SRC_DIR)),
 		 _linesShader				  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lines       , gizmos_shader_modifier::none      , SHADER_SRC_DIR)),
 		 _lineStripShader			  (GizmosShaderLib::CreateShaderProgram(rc, gizmos_shader_type::lineStrip   , gizmos_shader_modifier::none      , SHADER_SRC_DIR)),
@@ -816,9 +820,9 @@ namespace tao_gizmos
 		return r;
 	}
 
-	void GizmosRenderer::SetRenderPasses(std::initializer_list<RenderPass> passes)
+	void GizmosRenderer::AddRenderPass(std::initializer_list<RenderPass> passes)
 	{
-		_renderPasses = passes;
+		_renderPasses.insert(_renderPasses.end(), passes.begin(), passes.end());
 	}
 
 
@@ -1189,7 +1193,9 @@ namespace tao_gizmos
 
 		for (auto& pGzm : _pointGizmos)
 		{
-			const bool hasTexture = pGzm.second._symbolAtlas.has_value();
+            if (pGzm.second._instanceCount == 0)continue;
+
+            const bool hasTexture = pGzm.second._symbolAtlas.has_value();
 			if (hasTexture)
 			{
 				pGzm.second._symbolAtlas->BindToTextureUnit(tex_unit_0);
@@ -1722,6 +1728,25 @@ namespace tao_gizmos
 			ri<<16 ;
 	}
 
+    void GizmosRenderer::SetView(const glm::mat4 &viewMatrix, const glm::mat4 &projectionMatrix,const glm::vec2 &nearFar)
+    {
+        _viewMatrix = viewMatrix,
+        _projectionMatrix = projectionMatrix,
+        _nearFar = nearFar;
+    }
+
+    void GizmosRenderer::GetView(glm::mat4 &viewMatrix, glm::mat4 &projectionMatrix,glm::vec2 &nearFar)
+    {
+        viewMatrix = _viewMatrix;
+        projectionMatrix = _projectionMatrix;
+        nearFar = _nearFar;
+    }
+
+    void GizmosRenderer::SetDepthMask(tao_ogl_resources::OglTexture2D &depthBuffer)
+    {
+        _clientDepthBuffer = &depthBuffer;
+    }
+
     void GizmosRenderer::Resize(int newWidth, int newHeight)
     {
         if(newWidth <= 0 || newHeight <= 0)
@@ -1738,11 +1763,7 @@ namespace tao_gizmos
         ResizeOutFramebuffer        (_windowWidth, _windowHeight);
     }
 
-	OglTexture2D& GizmosRenderer::Render(
-		const glm::mat4& viewMatrix,
-		const glm::mat4& projectionMatrix,
-		const glm::vec2& nearFar,
-        OglTexture2D* depthBuffer)
+	OglTexture2D& GizmosRenderer::Render()
 	{
 		// todo isCurrent()
 		// rc.MakeCurrent();
@@ -1762,35 +1783,35 @@ namespace tao_gizmos
 
         // the client could provide a depth buffer
         // used to mask the gizmo scene.
-        if(depthBuffer)
-            CopyDepthToMainFbo(depthBuffer);
+        if(_clientDepthBuffer)
+            CopyDepthToMainFbo(_clientDepthBuffer);
 
 
         frame_data_block const frameData
 		{
-			.view_matrix = viewMatrix,
-			.projection_matrix = projectionMatrix,
-			.view_position = glm::inverse(viewMatrix) * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
-			.view_direction = -viewMatrix[2],
+			.view_matrix = _viewMatrix,
+			.projection_matrix = _projectionMatrix,
+			.view_position = glm::inverse(_viewMatrix) * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+			.view_direction = -_viewMatrix[2],
 			.viewport_size = glm::vec2(_windowWidth, _windowHeight),
 			.viewport_size_inv = 1.0f / glm::vec2(_windowWidth, _windowHeight),
-			.near_far = nearFar //todo 
+			.near_far = _nearFar
 		};
 
 		_frameDataUbo.SetSubData(0, sizeof(frame_data_block), &frameData);
 		_frameDataUbo.Bind(FRAME_DATA_BINDING);
 
-		ProcessPointGizmos(viewMatrix, projectionMatrix);
-		ProcessLineListGizmos(viewMatrix, projectionMatrix);
-		ProcessLineStripGizmos(viewMatrix, projectionMatrix);
-		ProcessMeshGizmos(viewMatrix, projectionMatrix);
+		ProcessPointGizmos(_viewMatrix, _projectionMatrix);
+		ProcessLineListGizmos(_viewMatrix, _projectionMatrix);
+		ProcessLineStripGizmos(_viewMatrix, _projectionMatrix);
+		ProcessMeshGizmos(_viewMatrix, _projectionMatrix);
 
 		for (const RenderPass& pass : _renderPasses)
 		{
-			_meshShader		.UseProgram(); RenderMeshGizmos		(viewMatrix, projectionMatrix, pass);
-			_linesShader	.UseProgram(); RenderLineGizmos		(viewMatrix, projectionMatrix, pass);
-			_lineStripShader.UseProgram(); RenderLineStripGizmos(viewMatrix, projectionMatrix, pass);
-			_pointsShader	.UseProgram(); RenderPointGizmos	(viewMatrix, projectionMatrix, pass);
+			_meshShader		.UseProgram(); RenderMeshGizmos		(_viewMatrix, _projectionMatrix, pass);
+			_linesShader	.UseProgram(); RenderLineGizmos		(_viewMatrix, _projectionMatrix, pass);
+			_lineStripShader.UseProgram(); RenderLineStripGizmos(_viewMatrix, _projectionMatrix, pass);
+			_pointsShader	.UseProgram(); RenderPointGizmos	(_viewMatrix, _projectionMatrix, pass);
 		}
 
 		// TODO: here???
@@ -1912,7 +1933,7 @@ namespace tao_gizmos
 	}
 
 
-	void GizmosRenderer::GetGizmoUnderCursor(const unsigned cursorX, const unsigned cursorY, const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const glm::vec2& nearFar, const std::function<void(std::optional<gizmo_instance_id>)>& callback)
+	void GizmosRenderer::GetGizmoUnderCursor(const unsigned cursorX, const unsigned cursorY, const std::function<void(std::optional<gizmo_instance_id>)>& callback)
 	{
 		
 		/// Draw for selection
@@ -1924,13 +1945,13 @@ namespace tao_gizmos
 
         frame_data_block const frameData
         {
-                .view_matrix = viewMatrix,
-                .projection_matrix = projectionMatrix,
-                .view_position = glm::inverse(viewMatrix) * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
-                .view_direction = -viewMatrix[2],
+                .view_matrix = _viewMatrix,
+                .projection_matrix = _projectionMatrix,
+                .view_position = glm::inverse(_viewMatrix) * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f),
+                .view_direction = -_viewMatrix[2],
                 .viewport_size = glm::vec2(_windowWidth, _windowHeight),
                 .viewport_size_inv = 1.0f / glm::vec2(_windowWidth, _windowHeight),
-                .near_far = nearFar //todo
+                .near_far = _nearFar
         };
 
         _frameDataUbo.SetSubData(0, sizeof(frame_data_block), &frameData);
@@ -1938,10 +1959,10 @@ namespace tao_gizmos
 
         // TODO: could be optimized by allowing the selection
         // TODO: drawing only when calling GizmosRenderer.Render()
-        ProcessPointGizmos(viewMatrix, projectionMatrix);
-        ProcessLineListGizmos(viewMatrix, projectionMatrix);
-        ProcessLineStripGizmos(viewMatrix, projectionMatrix);
-        ProcessMeshGizmos(viewMatrix, projectionMatrix);
+        ProcessPointGizmos      (_viewMatrix, _projectionMatrix);
+        ProcessLineListGizmos   (_viewMatrix, _projectionMatrix);
+        ProcessLineStripGizmos  (_viewMatrix, _projectionMatrix);
+        ProcessMeshGizmos       (_viewMatrix, _projectionMatrix);
 
 		_renderContext->SetDepthState		(SELECTION_DEPTH_STATE);
 		_renderContext->SetBlendState		(SELECTION_BLEND_STATE);
@@ -2009,16 +2030,16 @@ namespace tao_gizmos
 		};
 
 		_meshShaderForSelection.UseProgram();
-		RenderMeshGizmosForSelection(viewMatrix, projectionMatrix, bindSsboRange);
+		RenderMeshGizmosForSelection(_viewMatrix, _projectionMatrix, bindSsboRange);
 
 		_linesShaderForSelection.UseProgram();
-		RenderLineGizmosForSelection(viewMatrix, projectionMatrix, bindSsboRange);
+		RenderLineGizmosForSelection(_viewMatrix, _projectionMatrix, bindSsboRange);
 		
 		_lineStripShaderForSelection.UseProgram();
-		RenderLineStripGizmosForSelection(viewMatrix, projectionMatrix, bindSsboRange);
+		RenderLineStripGizmosForSelection(_viewMatrix, _projectionMatrix, bindSsboRange);
 		
 		_pointsShaderForSelection.UseProgram();
-		RenderPointGizmosForSelection(viewMatrix, projectionMatrix, bindSsboRange);
+		RenderPointGizmosForSelection(_viewMatrix, _projectionMatrix, bindSsboRange);
 
 		IssueSelectionRequest(_windowWidth, _windowHeight, cursorX, cursorY, lut, callback);
 
