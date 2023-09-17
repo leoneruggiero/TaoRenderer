@@ -301,8 +301,16 @@ namespace tao_gizmos
 		unsigned int _lineSize;
 		unsigned int _patternSize;
 
+        // constants
+        // ------------------------------
+        // vbo layout:
+        // pos(vec3)-color(vec4)
+        constexpr static unsigned int kVertNumComponents = 7;
+        constexpr static unsigned int kVertSize = kVertNumComponents * sizeof(float);
+
 		// this will be called by GizomsRenderer instances
 		LineListGizmo(tao_render_context::RenderContext& rc, const line_list_gizmo_descriptor& desc);
+        void SetGizmoVertices(const std::vector<LineGizmoVertex>& instances);
 		void SetInstanceData(const std::vector<gizmo_instance_descriptor>& instances) override;
 
 	};
@@ -429,9 +437,13 @@ namespace tao_gizmos
 		
 		// graphics data
 		// --------------------------------------------------------
-		std::vector<glm::vec3>	   _vertices;
-		std::vector<int>  _triangles;
-		
+		std::vector<glm::vec3>	         _vertices;
+		std::optional<std::vector<int>>  _triangles;
+
+        // VAO layout for mesh:
+        // vbo 0: Position (vec3) - Normal (vec3) - Color (vec4) - TexCoord (vec2)
+        //--------------------------------------------
+        constexpr static unsigned int kVertexSize = 12 * sizeof(float);
 
 		tao_render_context::ResizableVbo		    _vboVertices;
 		tao_render_context::ResizableEbo			_ebo;
@@ -443,6 +455,7 @@ namespace tao_gizmos
 
 		// this will be called by GizomsRenderer instances
 		MeshGizmo(tao_render_context::RenderContext& rc, const mesh_gizmo_descriptor& desc);
+        void SetGizmoVertices(const std::vector<MeshGizmoVertex>& vertices, const std::vector<int>* triangles);
 		void SetInstanceData(const std::vector<gizmo_instance_descriptor>& instances) override;
 
 	};
@@ -519,6 +532,8 @@ namespace tao_gizmos
                 const std::function<void(std::optional<gizmo_instance_id>)>& callback
         );
 
+        [[nodiscard]]glm::mat4 GetZoomInvariantTransformation(const gizmo_instance_id& gizmoKey);
+
         ///////////////////////////////////////
         /// Point Gizmos
         [[nodiscard]] gizmo_id							CreatePointGizmo	   (const point_gizmo_descriptor& desc);
@@ -531,6 +546,7 @@ namespace tao_gizmos
         [[nodiscard]] gizmo_id							CreateLineGizmo			  (const line_list_gizmo_descriptor& desc);
         // TODO: InstanceGizmo
         [[nodiscard]] std::vector<gizmo_instance_id>	InstanceLineGizmo		  (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+        void                                        	SetLineGizmoVertices      (const gizmo_id key, const std::vector<LineGizmoVertex>& vertices);
         void											DestroyLineGizmo		  (const gizmo_id key);
 
         ///////////////////////////////////////
@@ -545,6 +561,7 @@ namespace tao_gizmos
         [[nodiscard]] gizmo_id							CreateMeshGizmo		  (const mesh_gizmo_descriptor& desc);
         // TODO: InstanceGizmo
         [[nodiscard]] std::vector<gizmo_instance_id>	InstanceMeshGizmo	  (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+        void                                        	SetMeshGizmoVertices  (const gizmo_id key, const std::vector<MeshGizmoVertex>& vertices, const std::vector<int>* triangles);
         void											DestroyMeshGizmo	  (const gizmo_id key);
 
         void											SetGizmoInstances (const gizmo_id key, const std::vector<std::pair<gizmo_instance_id, gizmo_instance_descriptor>>& instances);

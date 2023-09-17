@@ -3,6 +3,7 @@
 #include "stb_image/stb_image.h"
 #include "gli/gli.hpp"
 #include "glm/gtc/type_ptr.hpp"
+
 namespace tao_pbr
 {
 
@@ -95,19 +96,34 @@ namespace tao_pbr
 
         // Point and Rect Shadow Map
         // ---------------------------------------------------
-        for(int f=0;f<6;f++)
+        for(int i=0; i<MAX_SPHERE_SHADOW_COUNT; i++)
         {
-            _sphereShadowMap.shadowMapDepth.TexImage(static_cast<ogl_texture_cube_target>(tex_tar_cube_map_positive_x+f), 0, tex_int_for_depth, POINT_SHADOW_RES, POINT_SHADOW_RES, 0,tex_for_depth, tex_typ_float, nullptr);
-            _sphereShadowMap.shadowMapColor.TexImage(static_cast<ogl_texture_cube_target>(tex_tar_cube_map_positive_x+f), 0,tex_int_for_r16f, POINT_SHADOW_RES, POINT_SHADOW_RES, 0,tex_for_red, tex_typ_float, nullptr);
-            _sphereShadowMap.shadowMapColor.SetFilterParams(pointFilter);
-        }
-        _sphereShadowMap.shadowFbo.AttachTexture(fbo_attachment_color0, _sphereShadowMap.shadowMapColor, 0);
-        _sphereShadowMap.shadowFbo.AttachTexture(fbo_attachment_depth, _sphereShadowMap.shadowMapDepth, 0);
+            _sphereShadowMaps.push_back(SphereShadowMap
+            {
+                .shadowMapColor = _renderContext->CreateTextureCube(),
+                .shadowMapDepth = _renderContext->CreateTextureCube(),
+                .shadowFbo = _renderContext->CreateFramebuffer<OglTextureCube>(),
+                .shadowCenter = vec3{0.0f}
+            });
 
-        // don't write to any color buffer
-        ogl_framebuffer_read_draw_buffs buffs1[] = {fbo_read_draw_buff_color0};
-        _sphereShadowMap.shadowFbo.SetDrawBuffers(1, buffs1);
-        _sphereShadowMap.shadowFbo.SetReadBuffer (buffs1[0]);
+            for (int f = 0; f < 6; f++)
+            {
+                _sphereShadowMaps[i].shadowMapDepth.TexImage(
+                        static_cast<ogl_texture_cube_target>(tex_tar_cube_map_positive_x + f), 0, tex_int_for_depth,
+                        POINT_SHADOW_RES, POINT_SHADOW_RES, 0, tex_for_depth, tex_typ_float, nullptr);
+                _sphereShadowMaps[i].shadowMapColor.TexImage(
+                        static_cast<ogl_texture_cube_target>(tex_tar_cube_map_positive_x + f), 0, tex_int_for_r16f,
+                        POINT_SHADOW_RES, POINT_SHADOW_RES, 0, tex_for_red, tex_typ_float, nullptr);
+                _sphereShadowMaps[i].shadowMapColor.SetFilterParams(pointFilter);
+            }
+            _sphereShadowMaps[i].shadowFbo.AttachTexture(fbo_attachment_color0, _sphereShadowMaps[i].shadowMapColor, 0);
+            _sphereShadowMaps[i].shadowFbo.AttachTexture(fbo_attachment_depth, _sphereShadowMaps[i].shadowMapDepth, 0);
+
+            // don't write to any color buffer
+            ogl_framebuffer_read_draw_buffs buffs1[] = {fbo_read_draw_buff_color0};
+            _sphereShadowMaps[i].shadowFbo.SetDrawBuffers(1, buffs1);
+            _sphereShadowMaps[i].shadowFbo.SetReadBuffer(buffs1[0]);
+        }
     }
 
     void PbrRenderer::InitSamplers()
@@ -163,11 +179,12 @@ namespace tao_pbr
                 ShaderLoader::LoadShader(LIGHTPASS_VERT_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR).c_str(),
                 ShaderLoader::DefineConditional(
             ShaderLoader::LoadShader(LIGHTPASS_FRAG_SOURCE, SHADER_SRC_DIR, SHADER_SRC_DIR),
-                        // Uber-shader approach: contains the code (and branching) for
-                        // all the supported light types.
+                // Uber-shader approach: contains the code (and branching) for
+                // all the supported light types.
                 {
                             LIGHTPASS_DIR_LIGHTS_SYMBOL,
                             LIGHTPASS_ENV_LIGHTS_SYMBOL,
+                            string{LIGHTPASS_MAX_SPHERE_SHADOW_CNT_SYMBOL}.append(" ").append(to_string(MAX_SPHERE_SHADOW_COUNT)),
                             LIGHTPASS_SPHERE_LIGHTS_SYMBOL,
                             LIGHTPASS_RECT_LIGHTS_SYMBOL
                 }).c_str()
@@ -622,9 +639,13 @@ namespace tao_pbr
         {
             CreateShadowMap(_directionalShadowMap,_directionalLights.vector()[0], DIR_SHADOW_RES, DIR_SHADOW_RES);
         }
-        if(_sphereLights.vector().size()>0 && _sphereLights.indexValid(0))
+        if(_sphereLights.vector().size()>0)
         {
-            CreateShadowMap(_sphereShadowMap,_sphereLights.vector()[0], POINT_SHADOW_RES);
+            for(int i=0;i<MAX_SPHERE_SHADOW_COUNT;i++)
+            {
+                if(_sphereLights.indexValid(i))
+                CreateShadowMap(_sphereShadowMaps[i],_sphereLights.vector()[i], POINT_SHADOW_RES);
+            }
         }
 
         _renderContext->SetViewport(0, 0, _windowWidth, _windowHeight);
@@ -754,10 +775,12 @@ namespace tao_pbr
                                       _directionalShadowMap.shadowSize.w);
 
         // Sphere Shadow data
-        _sphereShadowMap.shadowMapColor.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP));
-        _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP));
-        _shaders.lightPass.SetUniform(LIGHTPASS_NAME_DO_SPHERE_SHADOW, true);
-
+        for(int i=0;i<MAX_SPHERE_SHADOW_COUNT; i++)
+        {
+            _shaders.lightPass.SetUniform(string(LIGHTPASS_NAME_DO_SPHERE_SHADOW).append("[").append(to_string(i).append("]")).c_str(), true);
+            _sphereShadowMaps[i].shadowMapColor.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP + i));
+            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP + i));
+        }
         _fsQuad.vao.Bind();
         _renderContext->DrawElements(pmt_type_triangles, 6, idx_typ_unsigned_int, nullptr);
 

@@ -7,7 +7,8 @@ set(MY_SOURCE
 	"src/Resources.cpp"
 	"src/Instrumentation.cpp"
 	"src/glad.c"
-	"src/RenderContextUtils.cpp")
+	"src/RenderContextUtils.cpp"
+	"src/TaoMath.cpp" )
 	
 add_library(${LIB_NAME} STATIC ${MY_SOURCE})
 	

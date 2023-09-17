@@ -5,6 +5,7 @@
 #include <cmath>
 #include "GLFW/glfw3.h"
 
+/*
 namespace tao_input
 {
     enum class mouse_origin
@@ -94,8 +95,8 @@ namespace tao_input
         {
             if(newVal!=oldVal)
             {
-                if(newVal)_mouseDown(posX, posY, surfaceWidth, surfaceHeight);
-                else      _mouseUp  (posX, posY, surfaceWidth, surfaceHeight);
+                if(newVal&&_enabled) _mouseDown(posX, posY, surfaceWidth, surfaceHeight);
+                else                 _mouseUp  (posX, posY, surfaceWidth, surfaceHeight);
             }
         }
 
@@ -230,7 +231,9 @@ namespace tao_input
             for(auto& listener : _mouseListeners)
             {
                 if (listener->_shouldListen())
+                {
                     listener->UpdateEnabled(newXRaw, newYRaw, deltaTimeMs, newWinWidth, newWinHeight);
+                }
                 else
                     listener->UpdateDisabled(deltaTimeMs, newWinWidth, newWinHeight);
 
@@ -241,3 +244,4 @@ namespace tao_input
 
   
 }
+*/

@@ -40,7 +40,7 @@ namespace tao_pbr
 
         bool indexValid(int index) const
         {
-            return !_free[index];
+            return index<_vector.size() && !_free[index];
         }
 
         T& at(const GenKey<T>& key)
@@ -300,7 +300,7 @@ namespace tao_pbr
         inline const glm::mat4& matrix() const {return _matrix;}
         void Transform(const glm::mat4& t)
         {
-            _matrix  = t*_matrix;
+            _matrix  =  _matrix * t;
         }
 
     private:
@@ -384,12 +384,6 @@ namespace tao_pbr
                 {
                         .shadowMap{_renderContext->CreateTexture2D()},
                         .shadowFbo{_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
-                },
-                _sphereShadowMap
-                {
-                        .shadowMapColor {_renderContext->CreateTextureCube()},
-                        .shadowMapDepth {_renderContext->CreateTextureCube()},
-                        .shadowFbo      {_renderContext->CreateFramebuffer<tao_ogl_resources::OglTextureCube>()},
                 },
                 _shaders
                 {
@@ -512,6 +506,7 @@ namespace tao_pbr
         static constexpr const char* LIGHTPASS_DIR_LIGHTS_SYMBOL            = "LIGHT_PASS_DIRECTIONAL";
         static constexpr const char* LIGHTPASS_SPHERE_LIGHTS_SYMBOL         = "LIGHT_PASS_SPHERE";
         static constexpr const char* LIGHTPASS_RECT_LIGHTS_SYMBOL           = "LIGHT_PASS_RECT";
+        static constexpr const char* LIGHTPASS_MAX_SPHERE_SHADOW_CNT_SYMBOL = "MAX_SPHERE_LIGHT_SHADOW_COUNT";
 
         static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF0              = 0;
         static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF1              = 1;
@@ -558,6 +553,7 @@ namespace tao_pbr
         static constexpr int PRE_CUBE_RES = 128;
         static constexpr int PRE_CUBE_MIN_LOD = 0;
         static constexpr int PRE_CUBE_MAX_LOD = 4;
+        static constexpr int MAX_SPHERE_SHADOW_COUNT = 6;
 
 
         static constexpr tao_ogl_resources::ogl_depth_state DEFAULT_DEPTH_STATE  =
@@ -762,7 +758,7 @@ namespace tao_pbr
         OutputFramebuffer _outBuffer;
 
         DirectionalShadowMap _directionalShadowMap;
-        SphereShadowMap      _sphereShadowMap;
+        std::vector<SphereShadowMap> _sphereShadowMaps;
 
         Shaders _shaders;
         ShaderBuffers _shaderBuffers;

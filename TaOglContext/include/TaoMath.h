@@ -6,9 +6,80 @@
 #include <limits>
 #include <vector>
 #include <algorithm>
+#include <optional>
 
 namespace tao_math
 {
+
+    class Ray
+    {
+    public:
+        Ray(const glm::vec3& origin, const glm::vec3& direction):
+                _origin{origin}, _direction{normalize(direction)}
+        {
+
+        }
+
+        const glm::vec3& Origin() const {return _origin;}
+        const glm::vec3& Direction() const {return _direction;}
+
+    private:
+        glm::vec3 _origin;
+        glm::vec3 _direction;
+    };
+
+    class Plane
+    {
+    public:
+        Plane(const glm::vec3& origin, const glm::vec3& normal):
+        _origin{origin}
+        {
+            _axisZ = normalize(normal);
+            _axisX =
+                    abs(glm::dot(_axisZ, glm::vec3{0.0f,0.0f,1.0f})) > (1.0f-1e-3f)
+                    ? glm::cross(_axisZ, glm::vec3{1.0f, 0.0f, 0.0f})
+                    : glm::cross(_axisZ, glm::vec3{0.0f, 0.0f, 1.0f});
+
+            _axisX  = normalize(_axisX);
+
+            _axisY = cross(_axisZ, _axisX);
+        }
+
+        glm::vec2 ProjectPoint(const glm::vec3& p) const
+        {
+            glm::vec3 diff = p - _origin;
+
+            return glm::vec2
+            {
+                glm::dot(diff, _axisX),
+                glm::dot(diff, _axisY)
+            };
+        }
+
+        glm::mat4 Transformation() const
+        {
+            return glm::mat4
+                    {
+                        glm::vec4{_axisX, 0.0f},
+                        glm::vec4{_axisY, 0.0f},
+                        glm::vec4{_axisZ, 0.0f},
+                        glm::vec4{_origin, 1.0f}
+                    };
+        }
+
+        const glm::vec3 &Origin() const{return _origin;}
+        const glm::vec3 &AxisX() const{return _axisX;}
+        const glm::vec3 &AxisY() const{return _axisY;}
+        const glm::vec3 &AxisZ() const{return _axisZ;}
+
+    private:
+        glm::vec3 _origin;
+        glm::vec3 _axisX;
+        glm::vec3 _axisY;
+        glm::vec3 _axisZ;
+    };
+
+    std::optional<glm::vec3> RayPlaneIntersection(const Ray& r, const Plane& pl);
 
     template<typename T, int N>
     class BoundingBox
@@ -150,5 +221,8 @@ namespace tao_math
         vec_type _min, _max, _center, _diagonal;
         typename value_type _size;
     };
+
+    // from https://theorangeduck.com/page/spring-roll-call
+    float DamperMotion(float current, float goal, float halfTime, float timeStep);
 
 }

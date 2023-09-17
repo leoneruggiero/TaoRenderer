@@ -125,9 +125,12 @@ namespace tao_render_context
     void RenderContext::InitGlInfo()
     {
         int res;
-        GL_CALL(glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &res));
 
+        GL_CALL(glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &res));
         _uniformBufferOffsetAlignment = res;
+
+        GL_CALL(glGetIntegerv(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, &res));
+        _shaderStorageBufferOffsetAlignment = res;
     }
 
     void RenderContext::SetupGl()

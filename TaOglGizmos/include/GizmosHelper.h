@@ -3,12 +3,10 @@
 #include <vector>
 #include <functional>
 #include <glm/glm.hpp>
+#include <memory>
 
 namespace tao_gizmos_sdf
 {
-	// From: https://iquilezles.org/articles/distfunctions2d/
-	///////////////////////////////////////////////////////////
-	
 	template<std::floating_point T>
 	T Remap(T val, glm::vec<2, T> oldRange, glm::vec<2, T> newRange)
 	{
@@ -28,157 +26,288 @@ namespace tao_gizmos_sdf
 		};
 	}
 
-	template<std::floating_point T>
-	[[nodiscard]] T SdfShell(T v, T thickness)
-	{
-		return glm::abs(v) - thickness;
-	}
+    /// From: https://iquilezles.org/articles/distfunctions2d/
+    ///////////////////////////////////////////////////////////
+    template<std::floating_point T>
+    class SdfNode;
+    template<std::floating_point T>
+    class SdfOpTransform;
+    template<std::floating_point T>
+    class SdfOpInflate;
+    template<std::floating_point T>
+    class SdfOpShell;
+    template<std::floating_point T>
+    class SdfOpAdd;
 
-	template<std::floating_point T>
-	[[nodiscard]] T SdfInflate(T v, T thickness)
-	{
-		return v - thickness;
-	}
+    template<std::floating_point T>
+    class SdfNode
+    {
+    public:
 
-	template<std::floating_point T>
-	[[nodiscard]] T SdfAdd(T v1, T v2)
-	{
-		return glm::min(v1, v2);
-	}
+        virtual T Evaluate(glm::vec<2, T> p) const = 0;
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const = 0;
+        virtual ~SdfNode() = default;
 
-	template<std::floating_point T>
-	T SdfSubtract(T v1, T v2)
-	{
-		return glm::max(-v1, v2);
-	}
+        SdfOpTransform<T> Transform(const glm::mat<3, 3, T>& t);
+        SdfOpTransform<T> Translate(const glm::vec<2, T>& t)
+        {
+            glm::mat<3,3,T> tr = glm::mat<3,3,T>(static_cast<T>(1.0));
+            tr[2][0] = t.x;
+            tr[2][1] = t.y;
 
-	template<std::floating_point T>
-	[[nodiscard]] T SdfIntersect(T v1, T v2)
-	{
-		return glm::max(v1, v2);
-	}
+            return Transform(tr);
+        };
+        SdfOpTransform<T> Rotate(T a)
+        {
+            glm::mat<3,3,T> tr = glm::mat<3,3,T>(static_cast<T>(1.0));
 
-	template<std::floating_point T>
-	class Sdf
-	{
-	public:
-		Sdf(glm::vec<2, T> p) : _p(p), _t(static_cast<T>(1.0))
-		{
-		}
+            T cosA = glm::cos(a);
+            T sinA = glm::sin(a);
 
-		Sdf<T>& Rotate(T rad)
-		{
-			glm::mat<4, 4, T> rot{1};
-			_t =  _t * glm::rotate(rot, -rad, { 0, 0, 1 });
+            tr[0][0] = cosA;
+            tr[0][1] = sinA;
+            tr[1][0] = -sinA;;
+            tr[1][1] = cosA;
 
-			return *this;
-		}
+            return Transform(tr);
+        };
+        SdfOpTransform<T> Scale(const glm::vec<2, T>& s)
+        {
+            glm::mat<3,3,T> tr = glm::mat<3,3,T>(static_cast<T>(1.0));
+            tr[0][0] = s.x;
+            tr[1][1] = s.y;
 
-		Sdf<T>& Translate(glm::vec<2, T> t)
-		{
-			glm::mat<4, 4, T> tr{1};
-			_t = _t * glm::translate(tr, glm::vec<3, T>{-t, 0});
+            return Transform(tr);
+        };
+        SdfOpInflate<T> Inflate(T i);
+        SdfOpShell<T> Shell(T t);
+        SdfOpAdd<T> Add(const SdfNode& other);
+    };
 
-			return *this;
-		}
+    template<std::floating_point T>
+    class SdfOpTransform: public SdfNode<T>
+    {
+    public:
+        SdfOpTransform(std::shared_ptr<SdfNode<T>> op1, const glm::mat<3,3,T>& t):
+                _transformation{glm::inverse(t)},
+                _operand1{op1}
+        {
+        }
 
-		Sdf<T>& Scale(glm::vec<2, T> s)
-		{
-			glm::mat<4, 4, T> scale{ 1 };
-			_t = _t * glm::scale(scale, glm::vec<3, T>{1.0/s.x, 1.0/s.y, 0});
+        virtual ~SdfOpTransform() override = default;
 
-			return *this;
-		}
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfOpTransform<T>{_operand1, glm::inverse(_transformation) /* ugly? see the constructor */});
+        }
 
-		// implicit conversion to T so that
-		// you can write T val = Sdf{...params };
-		operator T() const
-		{
-			auto p = _t * glm::vec<4, T>{_p, 0, 1};
-			return Evaluate(glm::vec<2, T>{p.x, p.y});
-		}
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            glm::vec<2, T> newP = _transformation * glm::vec<3, T>{p, static_cast<T>(1.0)};
+            return _operand1->Evaluate(newP);
+        }
 
-	private:
-		glm::vec<2, T>		_p; // sampling location
-		glm::mat<4, 4, T>	_t;	// transformation
-		virtual T Evaluate(glm::vec<2, T> p) const = 0;
-	};
+    private:
+        glm::mat<3,3,T> _transformation = glm::mat<3,3,T>{static_cast<T>(1.0)};
+        std::shared_ptr<SdfNode<T>> _operand1;
+    };
 
-	template<std::floating_point T>
-	class SdfCircle : public Sdf<T>
-	{
-	public:
-		SdfCircle(glm::vec<2, T> p, T radius) : Sdf<T>{p}, radius(radius)
-		{
-		}
-	private:
-		T radius;
-		T Evaluate(glm::vec<2, T> p) const override
-		{
-			return glm::length(p) - radius;
-		}
-	};
+    template<std::floating_point T>
+    class SdfOpInflate: public SdfNode<T>
+    {
+    public:
+        SdfOpInflate(std::shared_ptr<SdfNode<T>> op1, T i):
+                _thickness{i},
+                _operand1{op1}
+        {
+        }
 
-	template<std::floating_point T>
-	class SdfBox : public Sdf<T>
-	{
-	public:
-		SdfBox(glm::vec<2, T> p, glm::vec<2, T> size) : Sdf<T>{ p }, size{size}
-		{
-		}
-	private:
-		glm::vec<2, T> size;
-		T Evaluate(glm::vec<2, T> p) const override
-		{
-			glm::vec<2, T> d = glm::abs(p) - size;
-			return glm::length(glm::max(d, { 0.0 })) + glm::min(glm::max(d.x, d.y), { 0.0 });
-		}
-	};
+        virtual ~SdfOpInflate() override = default;
 
-	template<std::floating_point T>
-	class SdfTriangle : public Sdf<T>
-	{
-	public:
-		SdfTriangle(glm::vec<2, T> p, glm::vec<2, T> size) : Sdf<T>{ p }, size{ size }
-		{
-		}
-	private:
-		glm::vec<2, T> size;
-		T Evaluate(glm::vec<2, T> p) const override
-		{
-			p.x = glm::abs(p.x);
-			glm::vec<2, T> a = p - size * glm::clamp<T>(glm::dot(p, size) / glm::dot(size, size), 0.0, 1.0);
-			glm::vec<2, T> b = p - size * glm::vec<2, T>(glm::clamp<T>(p.x / size.x, 0.0, 1.0), 1.0);
-			float s = -glm::sign(size.y);
-			glm::vec<2, T> d = glm::min(
-				glm::vec<2, T>(glm::dot(a, a), s * (p.x * size.y - p.y * size.x)),
-				glm::vec<2, T>(glm::dot(b, b), s * (p.y - size.y))
-			);
-			return -glm::sqrt(d.x) * glm::sign(d.y);
-		}
-	};
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfOpInflate<T>{_operand1, _thickness});
+        }
 
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            return _operand1->Evaluate(p) - _thickness;
+        }
 
-	template<std::floating_point T>
-	class SdfSegment : public Sdf<T>
-	{
-	public:
-		SdfSegment(glm::vec<2, T> p, glm::vec<2, T> start, glm::vec<2, T> end)
-		: Sdf<T>{ p }, start{start}, end{end}
-		{
-		}
-	private:
-		glm::vec<2, T> start;
-		glm::vec<2, T> end;
-		T Evaluate(glm::vec<2, T> p) const override
-		{
-			glm::vec<2, T> pa =   p - start;
-			glm::vec<2, T> ba = end - start;
-			float h = glm::clamp<T>(glm::dot(pa, ba) / glm::dot(ba, ba), 0.0, 1.0);
-			return glm::length(pa - ba * h);
-		}
-	};
+    private:
+        T _thickness = static_cast<T>(0.0);
+        std::shared_ptr<SdfNode<T>> _operand1;
+    };
 
+    template<std::floating_point T>
+    class SdfOpShell: public SdfNode<T>
+    {
+    public:
+        SdfOpShell(std::shared_ptr<SdfNode<T>> op1, T i):
+                _thickness{i},
+                _operand1{op1}
+        {
+        }
+
+        virtual ~SdfOpShell() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfOpShell<T>{_operand1, _thickness});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            return glm::abs<T>(_operand1->Evaluate(p)) - _thickness;
+        }
+
+    private:
+        T _thickness = static_cast<T>(0.0);
+        std::shared_ptr<SdfNode<T>> _operand1;
+    };
+
+    template<std::floating_point T>
+    class SdfOpAdd: public SdfNode<T>
+    {
+    public:
+        SdfOpAdd(std::shared_ptr<SdfNode<T>> op1, std::shared_ptr<SdfNode<T>> op2):
+                _operand1{op1},
+                _operand2{op2}
+        {
+        }
+
+        virtual ~SdfOpAdd() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfOpAdd<T>{_operand1, _operand2});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            return glm::min<T>(_operand1->Evaluate(p), _operand2->Evaluate(p));
+        }
+
+    private:
+        std::shared_ptr<SdfNode<T>> _operand1;
+        std::shared_ptr<SdfNode<T>> _operand2;
+    };
+
+    template<std::floating_point T>
+    SdfOpAdd<T> SdfNode<T>::Add(const SdfNode<T> &other)
+    {
+        return SdfOpAdd<T>{this->MakeNode(), other.MakeNode()};
+    }
+
+    template<std::floating_point T>
+    SdfOpInflate<T> SdfNode<T>::Inflate(T i)
+    {
+        return SdfOpInflate<T>{this->MakeNode(),i};
+    }
+
+    template<std::floating_point T>
+    SdfOpShell<T> SdfNode<T>::Shell(T t)
+    {
+        return SdfOpShell<T>{this->MakeNode(),t};
+    }
+
+    template<std::floating_point T>
+    SdfOpTransform<T> SdfNode<T>::Transform(const glm::mat<3,3,T>& t)
+    {
+        return SdfOpTransform<T>{this->MakeNode(), t};
+    }
+
+    template<std::floating_point T>
+    class SdfCircle: public SdfNode<T>
+    {
+    public:
+        SdfCircle(glm::vec<2, T> center, T radius): _center{center}, _radius{radius}
+        {
+
+        }
+
+        ~SdfCircle() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfCircle<T>{_center, _radius});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            return glm::length(p-_center) - _radius;
+        }
+
+    private:
+        glm::vec<2, T> _center = glm::vec<2, T>{static_cast<T>(0.0)};
+        T _radius = static_cast<T>(0.0);
+    };
+
+    template<std::floating_point T>
+    class SdfSegment: public SdfNode<T>
+    {
+    public:
+        SdfSegment(glm::vec<2, T> s, glm::vec<2, T> e): _start{s}, _end{e}
+        {
+
+        }
+
+        ~SdfSegment() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfSegment<T>{_start, _end});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            glm::vec<2, T> pa =   p - _start;
+            glm::vec<2, T> ba = _end - _start;
+            float h = glm::clamp<T>(glm::dot(pa, ba) / glm::dot(ba, ba), 0.0, 1.0);
+            return glm::length(pa - ba * h);
+        }
+
+    private:
+        glm::vec<2, T> _start = glm::vec<2, T>{static_cast<T>(0.0)};
+        glm::vec<2, T> _end = glm::vec<2, T>{static_cast<T>(0.0)};
+    };
+
+    template<std::floating_point T>
+    class SdfTrapezoid: public SdfNode<T>
+    {
+    public:
+        SdfTrapezoid(T l0, T l1, T h): _l0{l0}, _l1{l1}, _h{h}
+        {
+
+        }
+
+        ~SdfTrapezoid() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfTrapezoid<T>{_l0, _l1, _h});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            T l0 = _l0*static_cast<T>(0.5);
+            T l1 = _l1*static_cast<T>(0.5);
+            T h  = _h *static_cast<T>(0.5);
+            
+            glm::vec<2, T> k1{l1,h};
+            glm::vec<2, T> k2{l1-l0,2.0*h};
+            p.x = abs(p.x);
+            glm::vec<2, T> ca = glm::vec<2, T>(p.x-glm::min(p.x,(p.y<0.0)?l0:l1), glm::abs(p.y)-h);
+            glm::vec<2, T> cb = p - k1 + k2*glm::clamp<T>( glm::dot(k1-p,k2)/glm::dot(k2, k2), 0.0, 1.0 );
+            float s = (cb.x<0.0 && ca.y<0.0) ? -1.0 : 1.0;
+            return s*sqrt( glm::min<T>(glm::dot(ca, ca),glm::dot(cb, cb)) );
+        }
+
+    private:
+        T _l0 = static_cast<T>(0.0);
+        T _l1 = static_cast<T>(0.0);
+        T _h  = static_cast<T>(0.0);
+    };
 
 }
 
@@ -201,7 +330,7 @@ namespace tao_gizmos_procedural
 		typedef TexelData<N, P> texel_type;
 
 	public:
-		TextureData(unsigned int width, unsigned int height, TexelData<N, P> initialValue)
+		TextureData(unsigned int width, unsigned int height, texel_type initialValue)
 			:_width(width), _height(height)
 		{
 			if(CheckValidSize()) throw std::runtime_error("TODO, is it better to have something linke TaoGizmosException?");

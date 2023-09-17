@@ -116,15 +116,6 @@ rule RERUN_CMAKE
 
 
 #############################################
-# Rule for re-checking globbed directories.
-
-rule VERIFY_GLOBS
-  command = "C:\Program Files\JetBrains\CLion 2023.1.4\bin\cmake\win\x64\bin\cmake.exe" -P C:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\cmake-build-debug-visual-studio\CMakeFiles\VerifyGlobs.cmake
-  description = Re-checking globbed directories...
-  generator = 1
-
-
-#############################################
 # Rule for cleaning all built files.
 
 rule CLEAN

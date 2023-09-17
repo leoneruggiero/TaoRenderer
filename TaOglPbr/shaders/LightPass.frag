@@ -72,8 +72,8 @@ layout(std430, binding = 5) buffer buff_directional_lights
 #endif
 
 #ifdef LIGHT_PASS_SPHERE
-layout(binding = 11) uniform samplerCube     sphereShadowMap;      // TODO: Array
-                     uniform bool            u_doSphereShadow;
+layout(binding = 11) uniform samplerCube    sphereShadowMap[MAX_SPHERE_LIGHT_SHADOW_COUNT];
+                     uniform bool           u_doSphereShadow[MAX_SPHERE_LIGHT_SHADOW_COUNT];
 layout(std430, binding = 6) buffer buff_sphere_lights
 {
     SphereLight sphereLights[];
@@ -149,26 +149,28 @@ vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 surfPosition, vec3 surfNor
 
 // Sphere Light (area)
 // -------------------------------------------------------------------------------------------------------------------------
-vec3 ComputeSphereLight(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal , vec3 surfDiffuse, float surfRoughness, float surfMetalness, vec3 surfF0, vec3 lightPosition, vec3 lightColor, float lightRadius)
+vec3 ComputeSphereLight(
+    vec3 viewDirection, vec3 surfPosition, vec3 surfNormal , vec3 surfDiffuse, float surfRoughness, float surfMetalness, vec3 surfF0,
+    vec3 lightPosition, vec3 lightColor, float lightRadius, samplerCube shadowMap, bool doShadows)
 {
     // avoid problems with radius = 0.0
     lightRadius = max(lightRadius, 1e-4);
 
-    if(u_doSphereShadow)
-    {
+     if(doShadows)
+     {
 
-        vec3 dir = (surfPosition-lightPosition);
-        float dist = length(dir)-0.01;
-        float visibility = float(texture(sphereShadowMap, dir).r>dist);
+         vec3 dir = (surfPosition-lightPosition);
+         float dist = length(dir)-0.01;
+         float visibility = float(texture(shadowMap, dir).r>dist);
 
-        visibility = PCSS_SphereLight
-        (
-          surfPosition, surfNormal, sphereShadowMap,
-          lightPosition, lightRadius, 0.1
-        );
+         visibility = PCSS_SphereLight
+         (
+           surfPosition, surfNormal, shadowMap,
+           lightPosition, lightRadius, 0.1
+         );
 
-        lightColor*=visibility;
-    }
+         lightColor*=visibility;
+     }
 
     // Diffuse
     // --------------------------------------------------
@@ -201,9 +203,11 @@ vec3 ComputeSphereLight(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal ,
 
 }
 
-vec3 ComputeSphereLight(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal , vec3 surfDiffuse, float surfRoughness, float surfMetalness, vec3 surfF0, SphereLight l)
+vec3 ComputeSphereLight(
+    vec3 viewDirection, vec3 surfPosition, vec3 surfNormal , vec3 surfDiffuse, float surfRoughness, float surfMetalness, vec3 surfF0,
+    SphereLight l, samplerCube shadowMap, bool doShadows)
 {
-    return ComputeSphereLight(viewDirection,surfPosition,surfNormal,surfDiffuse,surfRoughness,surfMetalness,surfF0, l.position, l.intensity, l.radius);
+    return ComputeSphereLight(viewDirection,surfPosition,surfNormal,surfDiffuse,surfRoughness,surfMetalness,surfF0, l.position, l.intensity, l.radius, shadowMap, doShadows);
 }
 
 // Rect Light (area)
@@ -342,7 +346,7 @@ void main()
 
 #ifdef LIGHT_PASS_SPHERE
         for(int i=0;i<u_sphereLightsCnt;i++)
-            col.rgb += ComputeSphereLight(viewDir, posWorld, nrmWorld , albedo.rgb, roughness, metalness, f0, sphereLights[i]);
+            col.rgb += ComputeSphereLight(viewDir, posWorld, nrmWorld , albedo.rgb, roughness, metalness, f0, sphereLights[i], sphereShadowMap[i], u_doSphereShadow[i]);
 #endif
 
 #ifdef LIGHT_PASS_RECT

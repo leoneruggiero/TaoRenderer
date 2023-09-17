@@ -139,6 +139,14 @@ namespace tao_gizmos
 		 _ssboInstanceSelectability.OglBuffer().SetSubData(0, dataSize, selectability.data());
 	 }
 
+    void LineListGizmo::SetGizmoVertices(const std::vector<LineGizmoVertex> &vertices)
+    {
+        _vertexCount = static_cast<unsigned int>(vertices.size());
+
+        _vbo.Resize(kVertSize*_vertexCount);
+        _vbo.OglBuffer().SetSubData(0, kVertSize* _vertexCount, vertices.data());
+    }
+
 	 LineListGizmo::LineListGizmo(RenderContext& rc, const line_list_gizmo_descriptor& desc) :
 		 _vertexCount			{ static_cast<unsigned int>(desc.vertices.size())},
 		 _vbo					{rc, 0,
@@ -151,7 +159,7 @@ namespace tao_gizmos
 			? buf_usg_static_draw
 			: buf_usg_dynamic_draw, ResizeBufferPolicy },
 
-		 _ssboInstanceTransform	{rc, 0,													// Zoom invariance means we must update
+		 _ssboInstanceTransform	{rc, 0,													    // Zoom invariance means we must update
 			desc.zoom_invariant || desc.usage_hint == gizmo_usage_hint::usage_dynamic		// the transform list whenever the view/proj  
 			? ogl_buffer_usage::buf_usg_dynamic_draw										// matrix changes -> `dynamic` hint.
 		 	: ogl_buffer_usage::buf_usg_static_draw, ResizeBufferPolicy },
@@ -177,16 +185,12 @@ namespace tao_gizmos
 		 // vbo layout for points:
 		 // pos(vec3)-color(vec4)
 		 //--------------------------------------------
-		 const unsigned int vertexComponents = 7;
-		 const unsigned int vertexSize = vertexComponents * sizeof(float);
-		 _vao.SetVertexAttribPointer(_vbo.OglBuffer(), 0, 3, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(0));
-		 _vao.SetVertexAttribPointer(_vbo.OglBuffer(), 1, 4, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(3 * sizeof(float)));
+		 _vao.SetVertexAttribPointer(_vbo.OglBuffer(), 0, 3, vao_typ_float, false, kVertSize, reinterpret_cast<void*>(0));
+		 _vao.SetVertexAttribPointer(_vbo.OglBuffer(), 1, 4, vao_typ_float, false, kVertSize, reinterpret_cast<void*>(3 * sizeof(float)));
 		 _vao.EnableVertexAttrib(0);
 		 _vao.EnableVertexAttrib(1);
 
-		 unsigned int vertexCount = desc.vertices.size();
-		 _vbo.Resize(vertexSize*vertexCount);
-		 _vbo.OglBuffer().SetSubData(0, vertexSize* vertexCount, desc.vertices.data());
+          SetGizmoVertices(desc.vertices);
 
 		 // pattern texture
 		 // --------------------------------------------
@@ -378,11 +382,42 @@ namespace tao_gizmos
 		 _ssboInstanceSelectability.OglBuffer().SetSubData(0, dataSize, selectability.data());
 	 }
 
+    void MeshGizmo::SetGizmoVertices(const std::vector<MeshGizmoVertex> &vertices, const std::vector<int>* triangles)
+    {
+        bool hasTriangles = triangles;
+
+        _vertexCount = vertices.size();
+        _trisCount   = hasTriangles ? triangles->size() : 0;
+        if(hasTriangles) _triangles = *triangles;
+
+        // store vertex position (needed later)
+        _vertices = std::vector<vec3>(vertices.size());
+        for(int i=0;i<_vertices.size();i++)
+        {
+            _vertices[i] = vertices[i].GetPosition();
+        }
+
+        // allocate memory and fill VBO
+        // --------------------------------------------
+        _vboVertices.Resize(_vertices.size()* kVertexSize);
+        _vboVertices.OglBuffer().SetSubData(0, _vertices.size()* kVertexSize, vertices.data());
+
+
+        if(!hasTriangles) return;
+
+        // allocate memory and fill EBO
+        // --------------------------------------------
+        _ebo.Resize(_triangles.value().size() * sizeof(int));
+        _ebo.OglBuffer().SetSubData(0, _triangles.value().size() * sizeof(int) , _triangles.value().data());
+
+        _vao.SetIndexBuffer(_ebo.OglBuffer());
+    }
+
 	 MeshGizmo::MeshGizmo(RenderContext& rc, const mesh_gizmo_descriptor& desc) :
 		 _vertexCount	{ static_cast<unsigned int>(desc.vertices.size())},
-		 _trisCount		{ static_cast<unsigned int>((*desc.triangles).size())},
+		 _trisCount		{ 0 },
 		 _vertices		{  desc.vertices.size() },
-		 _triangles		{  *desc.triangles },
+		 _triangles		{},
 
 		 _vboVertices				{rc, 0,
 			 desc.usage_hint == gizmo_usage_hint::usage_static
@@ -420,41 +455,19 @@ namespace tao_gizmos
 		 Gizmo::_isZoomInvariant = desc.zoom_invariant;
 		 Gizmo::_zoomInvariantScale = desc.zoom_invariant_scale;
 
-		 // store vertex positions
-		 for (int i=0;i<desc.vertices.size(); i++)
-		 {
-			 _vertices[i] = desc.vertices[i].GetPosition();
-		 }
-		 _vertexCount = desc.vertices.size();
-		 _trisCount   = desc.triangles->size();
-
 		 // VAO layout for mesh:
 		 // vbo 0: Position (vec3) - Normal (vec3) - Color (vec4) - TexCoord (vec2)
 		 //--------------------------------------------
-		 constexpr int vertexComponents = 12;
-		 constexpr int vertexSize = vertexComponents * sizeof(float);
-		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 0, 3, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(0  * sizeof(float)));
-		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 1, 3, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(3  * sizeof(float)));
-		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 2, 4, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(6  * sizeof(float)));
-		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 3, 2, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(10 * sizeof(float)));
+		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 0, 3, vao_typ_float, false, kVertexSize, reinterpret_cast<void*>(0  * sizeof(float)));
+		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 1, 3, vao_typ_float, false, kVertexSize, reinterpret_cast<void*>(3  * sizeof(float)));
+		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 2, 4, vao_typ_float, false, kVertexSize, reinterpret_cast<void*>(6  * sizeof(float)));
+		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 3, 2, vao_typ_float, false, kVertexSize, reinterpret_cast<void*>(10 * sizeof(float)));
 		 _vao.EnableVertexAttrib(0);
 		 _vao.EnableVertexAttrib(1);
 		 _vao.EnableVertexAttrib(2);
 		 _vao.EnableVertexAttrib(3);
 
-		 // allocate memory and fill VBO
-		 // --------------------------------------------
-		 _vboVertices.Resize(_vertices.size()* vertexSize);
-		 _vboVertices.OglBuffer().SetSubData(0, _vertices.size()* vertexSize, desc.vertices.data());
-
-
-		// allocate memory and fill EBO
-		// --------------------------------------------
-		 _ebo.Resize(_triangles.size() * sizeof(int));
-		 _ebo.OglBuffer().SetSubData(0, _triangles.size() * sizeof(int) , _triangles.data());
-
-         _vao.SetIndexBuffer(_ebo.OglBuffer());
-
+          SetGizmoVertices(desc.vertices, desc.triangles);
 	 }
 
 	 void MeshGizmo::SetInstanceData(const vector<gizmo_instance_descriptor>& instances)
@@ -979,6 +992,14 @@ namespace tao_gizmos
 		_lineGizmos.erase(k);
 	}
 
+    void GizmosRenderer::SetLineGizmoVertices(const tao_gizmos::gizmo_id key,const std::vector<LineGizmoVertex> &vertices)
+    {
+        auto k = DecodeGizmoKey(key._key, KEY_MASK_LINE);
+        CheckKeyPresent(_lineGizmos, k, EXC_PREAMBLE);
+
+        _lineGizmos.at(k).SetGizmoVertices(vertices);
+    }
+
 	std::vector<gizmo_instance_id> GizmosRenderer::InstanceLineGizmo(const gizmo_id key, const vector<gizmo_instance_descriptor>& instances)
 	{
 		auto k = DecodeGizmoKey(key._key, KEY_MASK_LINE);
@@ -1025,7 +1046,14 @@ namespace tao_gizmos
 		return CreateInstanceKeys(key, instances.size());
 	}
 
-	
+    void GizmosRenderer::SetMeshGizmoVertices(const tao_gizmos::gizmo_id key,const std::vector<MeshGizmoVertex> &vertices, const std::vector<int>* triangles)
+    {
+        auto k = DecodeGizmoKey(key._key, KEY_MASK_MESH);
+        CheckKeyPresent(_meshGizmos, k, EXC_PREAMBLE);
+
+        _meshGizmos.at(k).SetGizmoVertices(vertices, triangles);
+    }
+
 	gizmo_id GizmosRenderer::CreateMeshGizmo(const mesh_gizmo_descriptor& desc)
 	{
 		const auto longKey = EncodeGizmoKey(++_latestMeshKey, KEY_MASK_MESH);
@@ -1062,8 +1090,9 @@ namespace tao_gizmos
 
 
 	float ComputeZoomInvarianceScale(
-		const glm::vec3& boundingSphereCenter,
-		float boundingSphereRadius,
+        const glm::vec3& objectWorldOrigin,
+		/*const glm::vec3& boundingSphereCenter,*/
+		/*float boundingSphereRadius,*/
 		float screenRadius,
 		const glm::mat4& viewMatrix,
 		const glm::mat4& projectionMatrix)
@@ -1071,14 +1100,14 @@ namespace tao_gizmos
 		const glm::mat4 proj = projectionMatrix;
 		const glm::mat4 projInv = inverse(proj);
 
-		float w = -(viewMatrix * glm::vec4(boundingSphereCenter, 1.0f)).z;
-		glm::vec4 pt{ screenRadius, 0.0f, -1.0f, w };
+		float w = -(viewMatrix * glm::vec4(objectWorldOrigin, 1.0f)).z;
+		glm::vec4 pt{ 0.0f, screenRadius, -1.0f, w };
 		pt.x *= w;
 		pt.y *= w;
 		pt.z *= w;
 		pt = projInv * pt;
 
-		return pt.x / boundingSphereRadius;
+		return pt.y/*boundingSphereRadius*/;
 	}
 
 	vector<glm::mat4> ComputeZoomInvarianceTransformations(
@@ -1103,15 +1132,60 @@ namespace tao_gizmos
 			ry = tr * ry;
 			rz = tr * rz;
 
-			float maxR = glm::max(length(o - rx), glm::max(length(o - ry), length(o - rz)));
+			//float maxR = glm::max(length(o - rx), glm::max(length(o - ry), length(o - rz)));
 
-			float newScale = ComputeZoomInvarianceScale(glm::vec3(o), maxR, zoomInvariantScale, viewMatrix, projectionMatrix);
+			float newScale = ComputeZoomInvarianceScale(glm::vec3(o), /*maxR,*/ zoomInvariantScale, viewMatrix, projectionMatrix);
 
 			newTransformations[i] = tr * glm::scale(glm::mat4(1.0f), glm::vec3(newScale));
 		}
 
 		return newTransformations;
 	}
+
+    glm::mat4 GizmosRenderer::GetZoomInvariantTransformation(const tao_gizmos::gizmo_instance_id &gizmoKey)
+    {
+        bool isZoomInvariant = false;
+        float zoomInvariantScale = 0.0f;
+        gizmo_instance_descriptor d;
+        unsigned int key = 0;
+
+        // TODO: so ugly...so sad....
+        if      (key = DecodeGizmoKey(gizmoKey._gizmoKey._key, KEY_MASK_POINT))
+        {
+            const PointGizmo& pGzm = _pointGizmos.at(key);
+            isZoomInvariant = pGzm._isZoomInvariant;
+            zoomInvariantScale = pGzm._zoomInvariantScale;
+            d = pGzm._instanceData[gizmoKey._instanceKey];
+        }
+        else if (key = DecodeGizmoKey(gizmoKey._gizmoKey._key, KEY_MASK_LINE ))
+        {
+            const LineListGizmo& lGzm = _lineGizmos.at(key);
+            isZoomInvariant = lGzm._isZoomInvariant;
+            zoomInvariantScale = lGzm._zoomInvariantScale;
+            d = lGzm._instanceData[gizmoKey._instanceKey];
+        }
+        else if (key = DecodeGizmoKey(gizmoKey._gizmoKey._key, KEY_MASK_LINE_STRIP ))
+        {
+            const LineStripGizmo& lsGzm = _lineStripGizmos.at(key);
+            isZoomInvariant = lsGzm._isZoomInvariant;
+            zoomInvariantScale = lsGzm._zoomInvariantScale;
+            d = lsGzm._instanceData[gizmoKey._instanceKey];
+        }
+        else if (key = DecodeGizmoKey(gizmoKey._gizmoKey._key, KEY_MASK_MESH ))
+        {
+            const MeshGizmo& mGzm = _meshGizmos.at(key);
+            isZoomInvariant = mGzm._isZoomInvariant;
+            zoomInvariantScale = mGzm._zoomInvariantScale;
+            d = mGzm._instanceData[gizmoKey._instanceKey];
+        }
+
+        if(!isZoomInvariant)
+            throw runtime_error("The gizmo corresponding to the given key is not zoom invariant.");
+
+        float scale = ComputeZoomInvarianceScale( glm::vec3{d.transform * glm::vec4{0.0f, 0.0f, 0.0f, 1.0f}}, zoomInvariantScale, _viewMatrix, _projectionMatrix);
+
+        return glm::scale(glm::mat4(1.0f), glm::vec3(scale));
+    }
 
 	bool GizmosRenderer::ShouldRenderGizmo(const Gizmo& gzm, const RenderPass& currentPass, const RenderLayer& currentLayer)
 	{
@@ -1175,7 +1249,7 @@ namespace tao_gizmos
 					_renderContext->SetRasterizerState	(val.rasterizer_state);
 					_renderContext->SetBlendState		(val.blend_state);
 
-					_renderContext->DrawArrays(pmt_type_points, 0, pGzm.second._instanceCount);
+					_renderContext->DrawArraysInstanced(pmt_type_points, 0, pGzm.second._vertexCount, pGzm.second._instanceCount);
 				}
 			}
 
@@ -1227,7 +1301,7 @@ namespace tao_gizmos
 
 			pGzm.second._vao.Bind();
 
-			_renderContext->DrawArrays(pmt_type_points, 0, pGzm.second._instanceCount);
+			_renderContext->DrawArraysInstanced(pmt_type_points, 0, pGzm.second._vertexCount, pGzm.second._instanceCount);
 			
 			if (hasTexture)
 			{
@@ -1482,7 +1556,7 @@ namespace tao_gizmos
 		for (auto& pair : _lineStripGizmos)
 		{
 			LineStripGizmo& lGzm = pair.second;
-			vector<gizmo_instance_descriptor>& realTransformList = lGzm._instanceData;
+			vector<gizmo_instance_descriptor> realTransformList = lGzm._instanceData;
 
 			if (lGzm._isZoomInvariant)
 			{
@@ -1515,7 +1589,7 @@ namespace tao_gizmos
 
 	void GizmosRenderer::RenderLineStripGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
 	{
-		_linesObjDataUbo.Bind(LINE_STRIP_OBJ_DATA_BINDING);
+		_lineStripObjDataUbo.Bind(LINE_STRIP_OBJ_DATA_BINDING);
 
 		unsigned int vertDrawn = 0;
 		for (auto& lGzm : _lineStripGizmos)
@@ -1572,7 +1646,7 @@ namespace tao_gizmos
 
 	void GizmosRenderer::RenderLineStripGizmosForSelection(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const std::function<void(unsigned int)>& preDrawFunc)
 	{
-		_linesObjDataUbo.Bind(LINE_STRIP_OBJ_DATA_BINDING);
+        _lineStripObjDataUbo.Bind(LINE_STRIP_OBJ_DATA_BINDING);
 
 		unsigned int vertDrawn = 0;
 		for (auto& lGzm : _lineStripGizmos)
@@ -1655,6 +1729,8 @@ namespace tao_gizmos
 			mGzm.second._ssboInstanceTransform		.OglBuffer().Bind(INSTANCE_DATA_DYNAMIC_SSBO_BINDING);
 			// bind instance visibility SSBO (draw instanced)
 			mGzm.second._ssboInstanceVisibility		.OglBuffer().Bind(INSTANCE_DATA_VISIBILITY_SSBO_BINDING);
+            // bind instance selectability SSBO (draw instanced)
+            mGzm.second._ssboInstanceSelectability  .OglBuffer().Bind(INSTANCE_DATA_SELECTABILITY_SSBO_BINDING);
 			// bind EBO
 			mGzm.second._ebo.OglBuffer().Bind();
 
@@ -1667,7 +1743,10 @@ namespace tao_gizmos
 					_renderContext->SetRasterizerState	(val.rasterizer_state);
 					_renderContext->SetBlendState		(val.blend_state);
 
-					_renderContext->DrawElementsInstanced(pmt_type_triangles, mGzm.second._trisCount, idx_typ_unsigned_int, nullptr, mGzm.second._instanceCount);
+                    if(mGzm.second._triangles.has_value())
+                        _renderContext->DrawElementsInstanced(pmt_type_triangles, mGzm.second._trisCount, idx_typ_unsigned_int, nullptr, mGzm.second._instanceCount);
+                    else
+                        _renderContext->DrawArraysInstanced(pmt_type_triangles, 0, mGzm.second._vertexCount, mGzm.second._instanceCount);
 				}
 			}
 		}

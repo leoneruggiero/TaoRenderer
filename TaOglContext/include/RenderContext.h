@@ -20,7 +20,7 @@
 namespace tao_render_context
 {
     using namespace tao_ogl_resources;
-    using namespace tao_input;
+    //using namespace tao_input;
     using namespace  std;
 
     class RenderContext
@@ -33,11 +33,12 @@ namespace tao_render_context
         int _windowWidth;
         int _windowHeight;
         GLFWwindow* _glf_window;
-        unique_ptr<MouseInput>  _mouseInput;
+        //unique_ptr<MouseInput>  _mouseInput;
 
         std::optional<std::function<void(int, int)>> _resizeFunc;
 
         int _uniformBufferOffsetAlignment;
+        int _shaderStorageBufferOffsetAlignment;
 
         void InitGlfwCallbacks();
 
@@ -114,7 +115,7 @@ namespace tao_render_context
 
             /// Mouse input initialization
             ///////////////////////////////
-            _mouseInput = make_unique<MouseInput>(_glf_window);
+            //_mouseInput = make_unique<MouseInput>(_glf_window);
             SetInputOptions(_glf_window);
 
 
@@ -162,14 +163,18 @@ namespace tao_render_context
         }
 
         GLFWwindow* GetWindow()                           const  { return _glf_window;}
-        void GetFramebufferSize(int& width, int& height)  const  { glfwGetFramebufferSize(_glf_window, &width, &height); }
-        void GetWindowSize     (int& width, int& height)  const  { glfwGetWindowSize(_glf_window, &width, &height); }
+        void GetFramebufferSize(int* width, int* height)  const  { glfwGetFramebufferSize(_glf_window, width, height); }
+        void GetWindowSize     (int* width, int* height)  const  { glfwGetWindowSize(_glf_window, width, height); }
         void MakeCurrent()                                       { glfwMakeContextCurrent(_glf_window); }
         bool ShouldClose()                                const  { return glfwWindowShouldClose(_glf_window) != 0; }
-        void PollEvents()                                 const  { glfwPollEvents(); Mouse().Poll(); }
-        MouseInput& Mouse()                               const  { return *_mouseInput; }
+        void PollEvents()                                 const  { glfwPollEvents(); /*Mouse().Poll();*/ }
+        //MouseInput& Mouse()                               const  { return *_mouseInput; }
         void SwapBuffers()                                const  { glfwSwapBuffers(_glf_window); }
 
+        void GetCursorPosition(double* x, double* y)    const       {return glfwGetCursorPos(_glf_window, x, y);}
+        bool IsMouseButtonPressed(int glfwMouseButton)  const       {return glfwGetMouseButton(_glf_window, glfwMouseButton) == GLFW_PRESS;}
+        bool IsKeyPressed        (int glfwKey)          const       {return glfwGetKey(_glf_window, glfwKey) == GLFW_PRESS;}
+        double GetTime()                                const       {return glfwGetTime();}
         void SetResizeCallback  (std::function<void(int, int)> callback) {_resizeFunc = callback;}
         void ResetResizeCallback(std::function<void(int, int)> callback) {_resizeFunc.reset();}
 
