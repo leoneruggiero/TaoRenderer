@@ -540,33 +540,34 @@ namespace tao_pbr
         gpuBuffer.OglBuffer().SetSubData((where.Index)*sizeof(G), sizeof(G), &elem);
     }
 
+    void PbrRenderer::UpdateDirectionalLight(GenKey<DirectionalLight> key, const DirectionalLight& value)
+    {
+        std::function<directional_light_gl_data_block(const DirectionalLight&)> converter =
+                static_cast<directional_light_gl_data_block(*)(const DirectionalLight&)>(ToGraphicsData);
+
+        WriteToCollectionSyncGpu(_directionalLights, key, _shaderBuffers.directionalLightsSsbo, value, converter);
+    }
 
     GenKey<DirectionalLight> PbrRenderer::AddDirectionalLight(const tao_pbr::DirectionalLight &directionalLight)
     {
         std::function<directional_light_gl_data_block(const DirectionalLight&)> converter =
-        // Converts a directional light into its graphics data
-        [](const DirectionalLight& l)
-        {
-            return directional_light_gl_data_block
-            {
-                    .direction = l.transformation.matrix()[2], // transform's Z
-                    .intensity = vec4(l.intensity, 0.0)
-            };
-        };
+                static_cast<directional_light_gl_data_block(*)(const DirectionalLight&)>(ToGraphicsData);
 
         return AddToCollectionSyncGpu(_directionalLights, _shaderBuffers.directionalLightsSsbo, directionalLight, converter);
     }
 
     void PbrRenderer::UpdateSphereLight(GenKey<SphereLight> key, const SphereLight& value)
     {
-        std::function<sphere_light_gl_data_block(const SphereLight&)> converter = ToGraphicsData;
+        std::function<sphere_light_gl_data_block(const SphereLight&)> converter =
+                static_cast<sphere_light_gl_data_block(*)(const SphereLight&)>(ToGraphicsData);
 
         WriteToCollectionSyncGpu(_sphereLights, key, _shaderBuffers.sphereLightsSsbo, value, converter);
     }
 
     GenKey<SphereLight> PbrRenderer::AddSphereLight(const tao_pbr::SphereLight &sphereLight)
     {
-        std::function<sphere_light_gl_data_block(const SphereLight&)> converter = ToGraphicsData;
+        std::function<sphere_light_gl_data_block(const SphereLight&)> converter =
+                static_cast<sphere_light_gl_data_block(*)(const SphereLight&)>(ToGraphicsData);
 
         return AddToCollectionSyncGpu(_sphereLights, _shaderBuffers.sphereLightsSsbo, sphereLight, converter);
     }

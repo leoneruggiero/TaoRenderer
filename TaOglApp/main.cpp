@@ -6,6 +6,7 @@
 #include <glm/ext/matrix_transform.hpp>
 #include <chrono>
 #include <thread>
+#include <variant>
 
 #include "GeometricPrimitives.h"
 #include "RenderContext.h"
@@ -2490,6 +2491,7 @@ private:
 class LightGizmos
 {
 public:
+
     LightGizmos(GizmosRenderer* renderer, GizmoPickAgent* inputAgent)
             :_renderer{renderer}, _inputAgent{inputAgent}
     {
@@ -2497,83 +2499,103 @@ public:
         _selectionCallback = bind(&LightGizmos::OnSelection, this, placeholders::_1);
         _inputAgent->SubscribeToSelection(&_selectionCallback);
 
-        PointGizmoVertex v;
-        v.Position(vec3{0.0f})
-                .Color(vec4{1.0f})
-                .TexCoordStart(vec2{0.0f})
-                .TexCoordEnd(vec2{1.0f});
+        /// Sphere light gizmo
+        _sphereLightGizmoData._iconGizmoId  = CreateSphereLightIconGizmo(renderer);
+        _sphereLightGizmoData._lightGizmoId = CreateSphereLightAreaGizmo(renderer);
 
-        std::vector<PointGizmoVertex> vertices={v};
-
-        _lightGizmoData._lightGizmo0Id = CreateLightGizmo(renderer);
-        _lightGizmoData._lightGizmo1Id = CreateLightAreaGizmo(renderer);
-        _lightGizmoData._selectableGizmoId = _lightGizmoData._lightGizmo0Id;
+        /// Directional light gizmo
+        _directionalLightGizmoData._iconGizmoId  = CreateDirectionalLightIconGizmo(renderer);
+        _directionalLightGizmoData._lightGizmoId = CreateDirectionalLightDirectionGizmo(renderer);
 
         auto layer = renderer->CreateRenderLayer(DEPTH_LESS_EQUAL_NO_WRITE, BLEND_ON_TOP, RASTERIZER_MS);
 
-        renderer->AssignGizmoToLayers(_lightGizmoData._selectableGizmoId, {layer});
-        renderer->AssignGizmoToLayers(_lightGizmoData._lightGizmo0Id, {layer});
-        renderer->AssignGizmoToLayers(_lightGizmoData._lightGizmo1Id, {layer});
+        renderer->AssignGizmoToLayers(_sphereLightGizmoData._lightGizmoId, {layer});
+        renderer->AssignGizmoToLayers(_sphereLightGizmoData._iconGizmoId, {layer});
+        renderer->AssignGizmoToLayers(_directionalLightGizmoData._lightGizmoId, {layer});
+        renderer->AssignGizmoToLayers(_directionalLightGizmoData._iconGizmoId, {layer});
 
         renderer->AddRenderPass({renderer->CreateRenderPass({layer})});
     }
 
-    /*class SphereLightGizmo
+
+    /// Sphere Light Gizmo
+    //////////////////////////////////////////////////////////////////////////////////////////////
+    struct SphereLightGizmoProperties
     {
+        mat4 transformation;
+        float radius;
+        vec4 color;
+    };
+    class SphereLightGizmo
+    {
+        friend class LightGizmos;
+
     public:
-        SphereLightGizmo(const LightGizmos& parent, GenKey<gizmo_instance_id> id,):
-        _parent{&parent}, _instanceId{id}
+        SphereLightGizmo(LightGizmos& parent,int index)
+                         : _parent{&parent}, _index{index}
         {
 
         }
 
+        void SetProperties(const mat4& transform, float radius, const vec4& color)
+        {
+            _parent->SetSphereLightGizmoProperties(_index, transform, radius, color);
+        }
+
     private:
         // todo: weak_ptr?
-        const LightGizmos* _parent;
-        GenKey<gizmo_instance_id> _instanceId;
-    };*/
+        LightGizmos* _parent;
+        int _index;
+    };
 
-    void AddLightGizmo(SphereLight& light)
+    weak_ptr<SphereLightGizmo> CreateSphereLightGizmo(SphereLight& light)
     {
-        _lights.push_back(&light);
+        gizmo_instance_descriptor lightInstanceDescriptor = GetSphereLightInstanceDesc(light.transformation.matrix(), light.radius, vec4{1.0f});
 
-        _gizmo0Instances.push_back(GetGizmoInstanceDesc(&light));
-        _gizmo0InstancesKeys = _renderer->InstancePointGizmo(_lightGizmoData._lightGizmo0Id, _gizmo0Instances);
+        _sphereLightGizmoData._sphereLightsProperties.push_back(SphereLightGizmoProperties
+        {
+            .transformation = light.transformation.matrix(),
+            .radius = light.radius,
+            .color = vec4{1.0f}
+        });
 
-        _gizmo1Instances.push_back(GetGizmoInstanceDesc(&light));
-        _gizmo1InstancesKeys = _renderer->InstanceLineStripGizmo(_lightGizmoData._lightGizmo1Id, _gizmo1Instances);
+        _sphereLightGizmoData._iconInstances.push_back(lightInstanceDescriptor);
+        _sphereLightGizmoData._lightInstances.push_back(lightInstanceDescriptor);
 
-        //_selectableInstances.push_back(GetSelectableInstanceDesc(&light));
-        _selectableInstancesKeys = &_gizmo0InstancesKeys; //_renderer->InstancePointGizmo(_lightGizmoData._selectableGizmoId, _selectableInstances);
+        _sphereLightGizmoData._iconInstanceIds  = _renderer->InstancePointGizmo(_sphereLightGizmoData._iconGizmoId, _sphereLightGizmoData._iconInstances);
+        _sphereLightGizmoData._lightInstanceIds = _renderer->InstanceLineStripGizmo(_sphereLightGizmoData._lightGizmoId, _sphereLightGizmoData._lightInstances);
+
+       _sphereLightGizmoData._sphereLights.push_back(make_shared<SphereLightGizmo>(*this, _sphereLightGizmoData._lightInstances.size()-1));
+
+       return _sphereLightGizmoData._sphereLights.back();
     }
 
-    void UpdateLightGizmo(const SphereLight& light)
+    void SetSphereLightGizmoProperties(int index, const mat4& transform, float radius, const vec4& color)
     {
-        optional<size_t> idx = GetLightIndex(&light);
+        _sphereLightGizmoData._sphereLightsProperties[index].transformation = transform;
+        _sphereLightGizmoData._sphereLightsProperties[index].radius = radius;
+        _sphereLightGizmoData._sphereLightsProperties[index].color = color;
 
-        if(!idx.has_value()) throw runtime_error("Invalid light");
+        gizmo_instance_descriptor lightInstanceDescriptor = GetSphereLightInstanceDesc(transform, radius, color);
+        _sphereLightGizmoData._lightInstances[index] = lightInstanceDescriptor;
+        _sphereLightGizmoData._iconInstances[index]  = lightInstanceDescriptor;
 
-        //_selectableInstances[idx]=GetSelectableInstanceDesc(&light);
-        _gizmo0Instances    [idx.value()]=GetGizmoInstanceDesc(&light);
-        _gizmo1Instances    [idx.value()]=GetGizmoInstanceDesc(&light);
-
-        //_renderer->SetGizmoInstances(_lightGizmoData._selectableGizmoId, {make_pair(_selectableInstancesKeys[idx], _selectableInstances[idx])});
-        _renderer->SetGizmoInstances(_lightGizmoData._lightGizmo0Id, {make_pair(_gizmo0InstancesKeys[idx.value()], _gizmo0Instances[idx.value()])});
-        _renderer->SetGizmoInstances(_lightGizmoData._lightGizmo1Id, {make_pair(_gizmo1InstancesKeys[idx.value()], _gizmo1Instances[idx.value()])});
+        // TODO: batch update
+        _renderer->SetGizmoInstances(_sphereLightGizmoData._iconGizmoId, {make_pair(_sphereLightGizmoData._iconInstanceIds[index], lightInstanceDescriptor)});
+        _renderer->SetGizmoInstances(_sphereLightGizmoData._lightGizmoId, {make_pair(_sphereLightGizmoData._lightInstanceIds[index], lightInstanceDescriptor)});
     }
-
 
     void UpdateView(const mat4& viewMatrix)
     {
         vec3 eyePos = vec3{inverse(viewMatrix)*vec4{0.0, 0.0 ,0.0, 1.0}};
 
-        vector<pair<gizmo_instance_id, gizmo_instance_descriptor>> instances(_gizmo1Instances.size());
+        vector<pair<gizmo_instance_id, gizmo_instance_descriptor>> instances(_sphereLightGizmoData._lightInstances.size());
 
         for(int i=0;i<instances.size();i++)
         {
-            float rad = _lights[i]->radius;
+            float rad = _sphereLightGizmoData._sphereLightsProperties[i].radius;
 
-           gizmo_instance_descriptor desc = _gizmo1Instances[i];
+           gizmo_instance_descriptor desc = _sphereLightGizmoData._lightInstances[i];
            vec3 lightPos = desc.transform[3];
 
            // Make a circle on the XY plane always face the camera
@@ -2586,56 +2608,150 @@ public:
 
            desc.transform = tr * scale(mat4{1.0f}, vec3{rad});
 
-           instances[i] = make_pair(_gizmo1InstancesKeys[i], desc);
+           instances[i] = make_pair(_sphereLightGizmoData._lightInstanceIds[i], desc);
         }
 
-        _renderer->SetGizmoInstances(_lightGizmoData._lightGizmo1Id, instances);
+        _renderer->SetGizmoInstances(_sphereLightGizmoData._lightGizmoId, instances);
     }
 
-    void SubscribeToSelectionEvents(const function<void(SphereLight&)>& onSelectionEnter, const function<void(SphereLight&)>& onSelectionExit)
+    /// Directional Light Gizmo
+    //////////////////////////////////////////////////////////////////////////////////////////////
+    struct DirectionalLightGizmoProperties
+    {
+        mat4 transformation;
+        vec4 color;
+    };
+    class DirectionalLightGizmo
+    {
+        friend class LightGizmos;
+
+    public:
+        DirectionalLightGizmo(LightGizmos& parent,int index)
+                : _parent{&parent}, _index{index}
+        {
+
+        }
+
+        void SetProperties(const mat4& transform, const vec4& color)
+        {
+            _parent->SetDirectionalLightGizmoProperties(_index, transform, color);
+        }
+
+    private:
+        // todo: weak_ptr?
+        LightGizmos* _parent;
+        int _index;
+    };
+
+    weak_ptr<DirectionalLightGizmo> CreateDirectionalLightGizmo(DirectionalLight& light)
+    {
+        gizmo_instance_descriptor lightInstanceDescriptor = GetDirectionalLightInstanceDesc(light.transformation.matrix(), vec4{1.0f});
+
+        _directionalLightGizmoData._directionalLightsProperties.push_back(DirectionalLightGizmoProperties
+                                                                {
+                                                                        .transformation = light.transformation.matrix(),
+                                                                        .color = vec4{1.0f}
+                                                                });
+
+        _directionalLightGizmoData._iconInstances.push_back(lightInstanceDescriptor);
+        _directionalLightGizmoData._lightInstances.push_back(lightInstanceDescriptor);
+
+        _directionalLightGizmoData._iconInstanceIds  = _renderer->InstancePointGizmo(_directionalLightGizmoData._iconGizmoId, _directionalLightGizmoData._iconInstances);
+        _directionalLightGizmoData._lightInstanceIds = _renderer->InstanceLineGizmo(_directionalLightGizmoData._lightGizmoId, _directionalLightGizmoData._lightInstances);
+
+        _directionalLightGizmoData._directionalLights.push_back(make_shared<DirectionalLightGizmo>(*this, _directionalLightGizmoData._lightInstances.size()-1));
+
+        return _directionalLightGizmoData._directionalLights.back();
+    }
+
+    void SetDirectionalLightGizmoProperties(int index, const mat4& transform, const vec4& color)
+    {
+        _directionalLightGizmoData._directionalLightsProperties[index].transformation = transform;
+        _directionalLightGizmoData._directionalLightsProperties[index].color = color;
+
+        gizmo_instance_descriptor lightInstanceDescriptor = GetDirectionalLightInstanceDesc(transform, color);
+        _directionalLightGizmoData._lightInstances[index] = lightInstanceDescriptor;
+        _directionalLightGizmoData._iconInstances[index]  = lightInstanceDescriptor;
+
+        // TODO: batch update
+        _renderer->SetGizmoInstances(_directionalLightGizmoData._iconGizmoId, {make_pair(_directionalLightGizmoData._iconInstanceIds[index], lightInstanceDescriptor)});
+        _renderer->SetGizmoInstances(_directionalLightGizmoData._lightGizmoId, {make_pair(_directionalLightGizmoData._lightInstanceIds[index], lightInstanceDescriptor)});
+    }
+
+    typedef std::variant<weak_ptr<SphereLightGizmo>, weak_ptr<DirectionalLightGizmo>> anyLightPtr;
+
+    void SubscribeToSelectionEvents(const function<void(anyLightPtr)>& onSelectionEnter, const function<void(anyLightPtr)>& onSelectionExit)
     {
         _clientLightSelectedCallbacks  .push_back(&onSelectionEnter);
         _clientLightDeselectedCallbacks.push_back(&onSelectionExit);
     }
 
+
 private:
     GizmosRenderer* _renderer;
     GizmoPickAgent* _inputAgent;
 
-    struct LightGizmoData
+    struct SphereLightGizmoData
     {
-        gizmo_id _selectableGizmoId;
-        gizmo_id _lightGizmo0Id;
-        gizmo_id _lightGizmo1Id;
+        gizmo_id _iconGizmoId;
+        gizmo_id _lightGizmoId;
+
+        // TODO: those should be GenKeyVector<>
+        vector<gizmo_instance_id>           _iconInstanceIds;
+        vector<gizmo_instance_descriptor>   _iconInstances;
+        vector<gizmo_instance_id>           _lightInstanceIds;
+        vector<gizmo_instance_descriptor>   _lightInstances;
+        vector<SphereLightGizmoProperties>  _sphereLightsProperties;
+        vector<shared_ptr<SphereLightGizmo>> _sphereLights;
     };
 
+    SphereLightGizmoData _sphereLightGizmoData;
 
-    LightGizmoData _lightGizmoData;
+    struct DirectionalLightGizmoData
+    {
+        gizmo_id _iconGizmoId;
+        gizmo_id _lightGizmoId;
 
-    //vector<gizmo_instance_descriptor> _selectableInstances;
-    vector<SphereLight*> _lights;
-    vector<gizmo_instance_id>* _selectableInstancesKeys;
-    vector<gizmo_instance_descriptor> _gizmo0Instances;
-    vector<gizmo_instance_id> _gizmo0InstancesKeys;
-    vector<gizmo_instance_descriptor> _gizmo1Instances;
-    vector<gizmo_instance_id> _gizmo1InstancesKeys;
+        // TODO: those should be GenKeyVector<>
+        vector<gizmo_instance_id>               _iconInstanceIds;
+        vector<gizmo_instance_descriptor>       _iconInstances;
+        vector<gizmo_instance_id>               _lightInstanceIds;
+        vector<gizmo_instance_descriptor>       _lightInstances;
+        vector<DirectionalLightGizmoProperties> _directionalLightsProperties;
+        vector<shared_ptr<DirectionalLightGizmo>> _directionalLights;
+    };
+
+    DirectionalLightGizmoData _directionalLightGizmoData;
+
 
     function<void(optional<gizmo_instance_id>)> _selectionCallback;
-    vector<const function<void(SphereLight& light)>*> _clientLightSelectedCallbacks;
-    vector<const function<void(SphereLight& light)>*> _clientLightDeselectedCallbacks;
+    vector<const function<void(anyLightPtr)>*> _clientLightSelectedCallbacks;
+    vector<const function<void(anyLightPtr)>*> _clientLightDeselectedCallbacks;
 
 
-    gizmo_instance_descriptor GetGizmoInstanceDesc(const SphereLight* l)
+    gizmo_instance_descriptor GetSphereLightInstanceDesc(const mat4& transform, float radius, const vec4& color)
     {
         return
             gizmo_instance_descriptor
             {
-                .transform = l->transformation.matrix() * scale(mat4{1.0f}, vec3{l->radius}),
-                .color     = vec4{1.0f},
+                .transform = transform * scale(mat4{1.0f}, vec3{radius}),
+                .color     = color,
                 .visible   = true,
                 .selectable= true
             };
     }
+    gizmo_instance_descriptor GetDirectionalLightInstanceDesc(const mat4& transform, const vec4& color)
+    {
+        return
+            gizmo_instance_descriptor
+            {
+                    .transform = transform,
+                    .color     = color,
+                    .visible   = true,
+                    .selectable= true
+            };
+    }
+
 
     static constexpr ogl_depth_state DEPTH_LESS_EQUAL_NO_WRITE
     {
@@ -2663,7 +2779,7 @@ private:
     };
 
     static constexpr int kGizmoSize = 46;
-    static gizmo_id CreateLightGizmo(GizmosRenderer* gr)
+    static gizmo_id CreateSphereLightIconGizmo(GizmosRenderer* gr)
     {
         PointGizmoVertex v;
         v.Position(vec3{0.0f})
@@ -2673,51 +2789,48 @@ private:
 
         std::vector<PointGizmoVertex> vertices={v};
 
+        /// Light Symbol SDF
+        ///////////////////////////////////////////////////////////////////////////////////
+        float h_2 = kGizmoSize*0.50f;
+        float h_3 = kGizmoSize*0.33f;
+        float h_4 = kGizmoSize*0.25f;
+        float h_5 = kGizmoSize*0.20f;
+        float h_6 = kGizmoSize*0.16f;
+        float h_7 = kGizmoSize*0.14f;
+        float h_9 = kGizmoSize*0.11f;
+
+        auto bodyLow =
+                SdfTrapezoid{h_6, h_2, h_3}
+                        .Translate(glm::vec2{0.0, -0.5*h_3});
+
+        auto body =
+                SdfCircle<float>{vec3{0.0f}, h_4}
+                    .Add(bodyLow)
+                    .Translate(glm::vec2{h_2, h_2});
+
+        auto base0 = SdfSegment{vec2{-h_6*0.5,0.0}, vec2{h_6*0.5, 0.0}}.Translate(vec2{0.0, -h_3-0.66*h_6});
+        auto base1 = SdfSegment{vec2{-h_9*0.5,0.0}, vec2{h_9*0.5, 0.0}}.Translate(vec2{0.0, -h_3-0.99*h_6});
+
+        auto base =
+                base0
+                .Add(base1)
+                .Inflate(1.0f)
+                .Translate(glm::vec2{h_2, h_2});
+
+        auto contour = body
+                .Shell(0.7f)
+                .Add(base);
+
         tao_gizmos_procedural::TextureDataRgbaUnsignedByte tex{kGizmoSize, kGizmoSize, {0, 0, 0, 0}};
 
-        tex.FillWithFunction([](unsigned int x, unsigned int y)
+        tex.FillWithFunction([&body, &contour](unsigned int x, unsigned int y)
          {
             float u=static_cast<float>(x);
             float v=static_cast<float>(y);
             vec2  uv{u,v};
 
-            float h_2 = kGizmoSize*0.50f;
-            float h_3 = kGizmoSize*0.33f;
-            float h_4 = kGizmoSize*0.25f;
-            float h_5 = kGizmoSize*0.20f;
-            float h_6 = kGizmoSize*0.16f;
-            float h_7 = kGizmoSize*0.14f;
-            float h_9 = kGizmoSize*0.11f;
-
-            auto bodyLow =
-                    SdfTrapezoid{h_6, h_2, h_3}
-                    .Translate(glm::vec2{0.0, -0.5*h_3});
-
-            auto body =
-                    SdfCircle<float>{vec3{0.0f}, h_4}
-                    .Add(bodyLow);
-
-            auto base0 = SdfSegment{vec2{-h_6*0.5,0.0}, vec2{h_6*0.5, 0.0}}.Translate(vec2{0.0, -h_3-0.66*h_6});
-            auto base1 = SdfSegment{vec2{-h_9*0.5,0.0}, vec2{h_9*0.5, 0.0}}.Translate(vec2{0.0, -h_3-0.99*h_6});
-
-            auto base =
-                    base0
-                    .Add(base1)
-                    .Inflate(1.0f);
-
-            float valBody = body
-                    .Translate(glm::vec2{h_2, h_2})
-                    .Evaluate(uv);
-
-            float valContour = body
-                    .Shell(1.0f)
-                    .Add(base)
-                    .Translate(glm::vec2{h_2, h_2})
-                    .Evaluate(uv);
-
-
-            valContour = glm::clamp(glm::mix(1.0f, 0.0f, valContour*2.0f), 0.0f, 1.0f);
-            valBody    = glm::clamp(glm::mix(1.0f, 0.0f, valBody*2.0f), 0.0f, 1.0f) * 0.3f;
+            float valContour = glm::clamp(glm::mix(1.0f, 0.0f, contour.Evaluate(uv)*2.0f), 0.0f, 1.0f);
+            float valBody    = glm::clamp(glm::mix(1.0f, 0.0f, body.Evaluate(uv)*2.0f), 0.0f, 1.0f) * 0.3f;
             float val  = glm::clamp((valBody + valContour), 0.0f, 1.0f);
 
             return vec<4, unsigned char>{255, 255, 255, val*255};
@@ -2745,31 +2858,7 @@ private:
         return gr->CreatePointGizmo(descriptor);
     }
 
-    optional<size_t> GetLightIndex(const SphereLight* light)
-    {
-
-        for(size_t i=0;i<_lights.size(); i++)
-        {
-            if(_lights[i] == light)
-                return i;
-        }
-
-        return nullopt;
-    }
-
-    optional<size_t> GetLightIndex(gizmo_instance_id id)
-    {
-
-        for(size_t i=0;i<_lights.size(); i++)
-        {
-            if((*_selectableInstancesKeys)[i] == id)
-                return i;
-        }
-
-        return nullopt;
-    }
-
-    static gizmo_id CreateLightAreaGizmo(GizmosRenderer* gr)
+    static gizmo_id CreateSphereLightAreaGizmo(GizmosRenderer* gr)
     {
         constexpr int kLineWidth = 2;
         constexpr float kOpacity = 0.6f;
@@ -2801,36 +2890,219 @@ private:
         return gr->CreateLineStripGizmo(descriptor);
     };
 
-    SphereLight* _latestSelectedLight = nullptr;
+    static gizmo_id CreateDirectionalLightIconGizmo(GizmosRenderer* gr)
+    {
+        PointGizmoVertex v;
+        v.Position(vec3{0.0f})
+                .Color(vec4{1.0f})
+                .TexCoordStart(vec2{0.0f})
+                .TexCoordEnd(vec2{1.0f});
+
+        std::vector<PointGizmoVertex> vertices={v};
+
+        tao_gizmos_procedural::TextureDataRgbaUnsignedByte tex{kGizmoSize, kGizmoSize, {0, 0, 0, 0}};
+
+        /// Light Symbol SDF
+        ///////////////////////////////////////////////////////////////////////////////////
+        auto sdfBody = SdfCircle{vec2{0.0f}, kGizmoSize*0.25f};
+        auto sdfBodyContour = sdfBody.Shell(0.75f);
+
+        auto sdfRays =
+                SdfSegment{vec2{kGizmoSize*0.30f, 0.0f}, vec2{kGizmoSize*0.45f, 0.0f}}
+                        .RepeatRadial(8)
+                        .Inflate(1.55f)
+                        .Subtract(sdfBody.Inflate(5.0f));
+
+        auto sdfContour =
+                sdfRays
+                        .Add(sdfBodyContour)
+                        .Translate(vec2{kGizmoSize*0.5f});
+
+        tex.FillWithFunction([&sdfContour, &sdfBody](unsigned int x, unsigned int y)
+         {
+             float u=static_cast<float>(x);
+             float v=static_cast<float>(y);
+             vec2  uv{u,v};
+
+             float valContour = sdfContour.Evaluate(uv);
+             float valBody    = sdfBody.Translate(vec2{kGizmoSize*0.5f}).Evaluate(uv);
+
+             valContour = glm::clamp(glm::mix(1.0f, 0.0f, valContour*2.0f), 0.0f, 1.0f);
+             valBody    = glm::clamp(glm::mix(1.0f, 0.0f, valBody*2.0f), 0.0f, 1.0f) * 0.3f;
+             float val  = glm::clamp((valBody + valContour), 0.0f, 1.0f);
+
+             return vec<4, unsigned char>{255, 255, 255, val * 255};
+         });
+
+        symbol_atlas_descriptor texDesc
+        {
+                .data=tex.DataPtr(),
+                .data_format = tex_for_rgba,
+                .data_type = tex_typ_unsigned_byte,
+                .width = kGizmoSize,
+                .height = kGizmoSize,
+                .filter_smooth = true,
+        };
+        point_gizmo_descriptor descriptor
+        {
+                .point_half_size=kGizmoSize/2,
+                .snap_to_pixel = false,
+                .vertices = vertices,
+                .zoom_invariant = false,
+                .symbol_atlas_descriptor = &texDesc,
+                .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
+        };
+
+        return gr->CreatePointGizmo(descriptor);
+    }
+
+    static gizmo_id CreateDirectionalLightDirectionGizmo(GizmosRenderer* gr)
+    {
+        constexpr int kLineWidth = 4;
+        constexpr float kOpacity = 0.6f;
+
+        // Geometry - line
+        // ----------------------------------------------------------------------------------
+        vector<LineGizmoVertex> vertices
+        ({
+                 LineGizmoVertex{}.Position(vec3{0.0f, 0.0f, 0.2f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
+                 LineGizmoVertex{}.Position(vec3{0.0f, 0.0f, 1.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity})
+         });
+
+        /// Dashed line pattern texture
+        ///////////////////////////////////////////////////////////////////////////////////////////////
+        const int kPatternLen = 16;
+
+        auto sdfPattern =
+                SdfSegment{vec2{kPatternLen*0.33333f, 0.0f}, vec2{kPatternLen*0.66666f, 0.0f}}
+                .Inflate(kLineWidth*0.40f)
+                .Translate(vec2{0.0f, kLineWidth*0.5f});
+
+        tao_gizmos_procedural::TextureDataRgbaUnsignedByte tex{kPatternLen, kLineWidth, {0, 0, 0, 0}};
+        tex.FillWithFunction([&sdfPattern](unsigned int x, unsigned int y)
+         {
+             float u=static_cast<float>(x);
+             float v=static_cast<float>(y);
+             vec2  uv{u,v};
+
+             float val = glm::clamp(glm::mix(1.0f, 0.0f, sdfPattern.Evaluate(uv)*2.0f), 0.0f, 1.0f);
+
+             return vec<4, unsigned char>{255, 255, 255, val*255};
+         });
+
+        pattern_texture_descriptor texDesc
+        {
+            .data = tex.DataPtr(),
+            .data_format = tex_for_rgba,
+            .data_type = tex_typ_unsigned_byte,
+            .width = kPatternLen,
+            .height = kLineWidth,
+            .pattern_length = kPatternLen,
+        };
+
+        line_list_gizmo_descriptor descriptor
+        {
+            .vertices = vertices,
+            .line_size = kLineWidth,
+            .zoom_invariant = true,
+            .zoom_invariant_scale = 0.30f,
+            .pattern_texture_descriptor = &texDesc,
+            .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
+        };
+
+        return gr->CreateLineGizmo(descriptor);
+    };
+
+
+    enum lightType
+    {
+        directional,
+        sphere
+    };
+    struct lightIndex
+    {
+        lightType type;
+        int index;
+    };
+
+    optional<lightIndex> GetLightFromInstanceId(gizmo_instance_id id)
+    {
+        optional<lightIndex> res = nullopt;
+
+        for(int i=0;i<_sphereLightGizmoData._iconInstanceIds.size(); i++)
+        {
+            if(_sphereLightGizmoData._iconInstanceIds[i] ==  id)
+            {
+                res=lightIndex{.type = sphere, .index = i};
+                break;
+            }
+        }
+        for(int i=0;i<_directionalLightGizmoData._iconInstanceIds.size(); i++)
+        {
+            if(_directionalLightGizmoData._iconInstanceIds[i] ==  id)
+            {
+                res=lightIndex{.type = directional, .index = i};
+                break;
+            }
+        }
+
+        return res;
+    }
+
+    anyLightPtr GetLightPtrFromIndex(lightIndex index)
+    {
+        anyLightPtr l;
+        if(index.type == sphere) l = _sphereLightGizmoData     ._sphereLights     [index.index];
+        else                     l = _directionalLightGizmoData._directionalLights[index.index];
+        return l;
+
+    }
+
+    gizmo_instance_id GetInstanceIdFromIndex(lightIndex index)
+    {
+        gizmo_instance_id id;
+        if(index.type == sphere) id = _sphereLightGizmoData     ._iconInstanceIds[index.index];
+        else                     id = _directionalLightGizmoData._iconInstanceIds[index.index];
+        return id;
+    }
+
+    std::optional<lightIndex> _latestSelectedLight = nullopt;
     void OnSelection(std::optional<gizmo_instance_id> selectedItem)
     {
         if((!selectedItem.has_value() && !_latestSelectedLight) ||
-            (selectedItem.has_value() && _latestSelectedLight && selectedItem == (*_selectableInstancesKeys)[GetLightIndex(_latestSelectedLight).value()]))
+            (selectedItem.has_value() && _latestSelectedLight && selectedItem == GetInstanceIdFromIndex(_latestSelectedLight.value())))
             return;
 
-        if(_latestSelectedLight && !selectedItem.has_value())
+        if(_latestSelectedLight && !selectedItem)
         {
-            for(auto* cbk : _clientLightDeselectedCallbacks)
-                if(cbk) (*cbk)(*_latestSelectedLight);
+            auto l = GetLightPtrFromIndex(_latestSelectedLight.value());
 
-            _latestSelectedLight = nullptr;
+            for(auto* cbk : _clientLightDeselectedCallbacks)
+                if(cbk) (*cbk)(l);
+
+            _latestSelectedLight = nullopt;
         }
 
         if(selectedItem)
         {
-            optional<size_t> lightIdx = GetLightIndex(selectedItem.value());
+            optional<lightIndex> selectedLightIndex = GetLightFromInstanceId(selectedItem.value());
 
-            if(lightIdx.has_value())
+            if(selectedLightIndex.has_value())
             {
-                for (auto *cbk: _clientLightDeselectedCallbacks)
-                    if (cbk) (*cbk)(*_latestSelectedLight);
+                auto selectedLight = GetLightPtrFromIndex(selectedLightIndex.value());
 
-                _latestSelectedLight = nullptr;
+                if(_latestSelectedLight.has_value())
+                {
+                    for (auto *cbk: _clientLightDeselectedCallbacks)
+                        if (cbk) (*cbk)(selectedLight);
+
+                    _latestSelectedLight = nullopt;
+                }
 
                 for (auto *cbk: _clientLightSelectedCallbacks)
-                    if (cbk) (*cbk)(*_lights[lightIdx.value()]);
+                    if (cbk) (*cbk)(selectedLight);
 
-                _latestSelectedLight = _lights[lightIdx.value()];
+                _latestSelectedLight = selectedLightIndex;
             }
         }
     }
@@ -2891,8 +3163,6 @@ void StartImGuiFrame(PbrRenderer& pbrRenderer, TransformManipulator& tm/* TODO *
     if(ImGui::RadioButton("Scale"    , tm.GetMode() == TransformManipulator::TmMode::Scale))     tm.SetMode(TransformManipulator::TmMode::Scale);
 
 
-
-
 }
 
 void EndImGuiFrame()
@@ -2912,6 +3182,18 @@ void ImGuiShutdown()
 }
 // ----------------------------------------------
 
+struct MySphereLight
+{
+    SphereLight light;
+    GenKey<SphereLight> pbrLightKey;
+    weak_ptr<LightGizmos::SphereLightGizmo> gizmoLightKey;
+};
+struct MyDirectionalLight
+{
+    DirectionalLight light;
+    GenKey<DirectionalLight> pbrLightKey;
+    weak_ptr<LightGizmos::DirectionalLightGizmo> gizmoLightKey;
+};
 int main()
 {
 
@@ -3040,7 +3322,7 @@ int main()
 
         DirectionalLight dirLight0
         {
-            .transformation = glm::rotate(glm::mat4(1.0), 2.3f, vec3{1.0, 1.0, 0.0}),
+            .transformation = glm::translate(mat4{1.0f}, vec3{-1.0f, -1.0f, 3.5f}) * glm::rotate(glm::mat4(1.0), 2.3f, vec3{1.0, 1.0, 0.0}),
             .intensity = vec3(0.1)
         };
 
@@ -3070,9 +3352,26 @@ int main()
         };
         auto sphereLight2Key = pbrRdr.AddSphereLight(sphereLight2);
 
-        lightGizmos.AddLightGizmo(sphereLight0);
-        lightGizmos.AddLightGizmo(sphereLight1);
-        lightGizmos.AddLightGizmo(sphereLight2);
+        // light gizmos
+        auto directionalLightGizmo0Key = lightGizmos.CreateDirectionalLightGizmo(dirLight0);
+
+        auto sphereLightGizmo0Key = lightGizmos.CreateSphereLightGizmo(sphereLight0);
+        auto sphereLightGizmo1Key = lightGizmos.CreateSphereLightGizmo(sphereLight1);
+        auto sphereLightGizmo2Key = lightGizmos.CreateSphereLightGizmo(sphereLight2);
+
+        vector<MySphereLight> mySphereLights
+        ({
+            MySphereLight{.light = sphereLight0, .pbrLightKey = sphereLight0Key, .gizmoLightKey = sphereLightGizmo0Key},
+            MySphereLight{.light = sphereLight1, .pbrLightKey = sphereLight1Key, .gizmoLightKey = sphereLightGizmo1Key},
+            MySphereLight{.light = sphereLight2, .pbrLightKey = sphereLight2Key, .gizmoLightKey = sphereLightGizmo2Key},
+         });
+
+        vector<MyDirectionalLight> myDirectionalLights
+        ({
+                 MyDirectionalLight{.light = dirLight0, .pbrLightKey = dirLightKey, .gizmoLightKey = directionalLightGizmo0Key}
+         });
+
+        variant<MyDirectionalLight*, MySphereLight*> selectedLight;
 
         /*auto rectLight = pbrRdr.AddRectLight(
         RectLight
@@ -3084,17 +3383,19 @@ int main()
             .size = vec2{2.0, 3.0}
         });*/
 
-        SphereLight * latestSelectedLight = nullptr;
-        map<SphereLight*, GenKey<SphereLight>> TODO
-        {
-            {&sphereLight0, sphereLight0Key},
-            {&sphereLight1, sphereLight1Key},
-            {&sphereLight2, sphereLight2Key}
-        };
+
 
         function<void(const mat4&)> transformLightCallback_DEBUG =
-        [&latestSelectedLight, &TODO, &lightGizmos, &pbrRdr](const mat4& tr)
+        [&selectedLight, &pbrRdr](const mat4& tr)
         {
+            MyDirectionalLight* dirLight    = nullptr;
+            MySphereLight*      sphereLight = nullptr;
+
+            if(holds_alternative<MySphereLight*>(selectedLight))      sphereLight   = get<MySphereLight*>(selectedLight);
+            if(holds_alternative<MyDirectionalLight*>(selectedLight)) dirLight      = get<MyDirectionalLight*>(selectedLight);
+
+            if(!dirLight && !sphereLight) return;
+
             // Use only position and rotation to update the
             // light's transformation.
             // Use scale to determine the radius.
@@ -3104,27 +3405,59 @@ int main()
 
             mat4 trNoScale = glm::scale(tr, vec3{1.0/scaleX, 1.0/scaleY, 1.0/scaleZ});
 
-            latestSelectedLight->transformation.Transform(trNoScale);
-            latestSelectedLight->radius *= scaleX*scaleY*scaleZ;
-
-            pbrRdr.UpdateSphereLight(TODO[latestSelectedLight], *latestSelectedLight);
-            lightGizmos.UpdateLightGizmo(*latestSelectedLight);
-        };
-
-        function<void(SphereLight& l)> lightSelectionEnterCallback_DEBUG =
-        [&transformLightCallback_DEBUG, &tmGizmo, &latestSelectedLight](SphereLight& l)
-        {
-            latestSelectedLight = &l;
-            tmGizmo.Enable(l.transformation.matrix(), &transformLightCallback_DEBUG);
-        };
-        function<void(SphereLight& l)> lightSelectionExitCallback_DEBUG =
-        [&transformLightCallback_DEBUG, &tmGizmo, &latestSelectedLight](SphereLight& l)
-        {
-            if(latestSelectedLight)
+            if(sphereLight)
             {
-                latestSelectedLight = nullptr;
-                tmGizmo.Disable();
+                sphereLight->light.transformation.Transform(trNoScale);
+                sphereLight->light.radius *= scaleX * scaleY * scaleZ;
+
+                pbrRdr.UpdateSphereLight(sphereLight->pbrLightKey, sphereLight->light);
+
+                sphereLight->gizmoLightKey.lock()->SetProperties(sphereLight->light.transformation.matrix(),
+                                                                 sphereLight->light.radius, vec4{1.0f});
             }
+
+            if(dirLight)
+            {
+                dirLight->light.transformation.Transform(trNoScale);
+                pbrRdr.UpdateDirectionalLight(dirLight->pbrLightKey, dirLight->light);
+                dirLight->gizmoLightKey.lock()->SetProperties(dirLight->light.transformation.matrix(), vec4{1.0f});
+            }
+        };
+
+        function<void(LightGizmos::anyLightPtr l)> lightSelectionEnterCallback_DEBUG =
+        [&transformLightCallback_DEBUG, &tmGizmo, &mySphereLights, &myDirectionalLights, &selectedLight](LightGizmos::anyLightPtr l)
+        {
+            // a sphere light is selected
+            if(holds_alternative<weak_ptr<LightGizmos::SphereLightGizmo>>(l))
+            {
+                weak_ptr<LightGizmos::SphereLightGizmo> sl = get<weak_ptr<LightGizmos::SphereLightGizmo>>(l);
+                for (auto &myL: mySphereLights)
+                {
+                    if (myL.gizmoLightKey.lock() == sl.lock())
+                        selectedLight = &myL;
+                }
+
+                tmGizmo.Enable(get<MySphereLight*>(selectedLight)->light.transformation.matrix(), &transformLightCallback_DEBUG);
+            }
+
+            // a directional light is selected
+            if(holds_alternative<weak_ptr<LightGizmos::DirectionalLightGizmo>>(l))
+            {
+                weak_ptr<LightGizmos::DirectionalLightGizmo> dl = get<weak_ptr<LightGizmos::DirectionalLightGizmo>>(l);
+                for (auto &myL: myDirectionalLights)
+                {
+                    if (myL.gizmoLightKey.lock() == dl.lock())
+                        selectedLight = &myL;
+                }
+
+                tmGizmo.Enable(get<MyDirectionalLight*>(selectedLight)->light.transformation.matrix(), &transformLightCallback_DEBUG);
+            }
+        };
+
+        function<void(LightGizmos::anyLightPtr l)> lightSelectionExitCallback_DEBUG =
+        [&transformLightCallback_DEBUG, &tmGizmo, &selectedLight](LightGizmos::anyLightPtr l)
+        {
+            tmGizmo.Disable();
         };
 
         lightGizmos.SubscribeToSelectionEvents(lightSelectionEnterCallback_DEBUG, lightSelectionExitCallback_DEBUG);

@@ -457,7 +457,8 @@ namespace tao_pbr
         [[nodiscard]] GenKey<SphereLight>         AddSphereLight(const SphereLight& sphereLight);
         [[nodiscard]] GenKey<RectLight>           AddRectLight(const RectLight& rectLigth);
 
-        void UpdateSphereLight(GenKey<SphereLight> key, const SphereLight& value);
+        void UpdateDirectionalLight (GenKey<DirectionalLight>   key, const DirectionalLight& value);
+        void UpdateSphereLight      (GenKey<SphereLight>        key, const SphereLight& value);
 
         void SetCurrentEnvironment(const GenKey<EnvironmentLight>& environment);
 
@@ -681,6 +682,15 @@ namespace tao_pbr
             glm::vec4 direction;
             glm::vec4 intensity;
         };
+
+        static directional_light_gl_data_block ToGraphicsData(const tao_pbr::DirectionalLight &dirLight)
+        {
+            return directional_light_gl_data_block
+            {
+                    .direction =  dirLight.transformation.matrix()[2],
+                    .intensity = glm::vec4(dirLight.intensity, 0.0),
+            };
+        }
 
         struct sphere_light_gl_data_block
         {

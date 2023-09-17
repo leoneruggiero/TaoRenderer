@@ -38,6 +38,10 @@ namespace tao_gizmos_sdf
     class SdfOpShell;
     template<std::floating_point T>
     class SdfOpAdd;
+    template<std::floating_point T>
+    class SdfOpSubtract;
+    template<std::floating_point T>
+    class SdfOpRepeatRadial;
 
     template<std::floating_point T>
     class SdfNode
@@ -79,9 +83,12 @@ namespace tao_gizmos_sdf
 
             return Transform(tr);
         };
-        SdfOpInflate<T> Inflate(T i);
-        SdfOpShell<T> Shell(T t);
-        SdfOpAdd<T> Add(const SdfNode& other);
+
+        SdfOpInflate<T>      Inflate(T i);
+        SdfOpShell<T>        Shell(T t);
+        SdfOpAdd<T>          Add(const SdfNode& other);
+        SdfOpSubtract<T>     Subtract(const SdfNode& other);
+        SdfOpRepeatRadial<T> RepeatRadial(int r);
     };
 
     template<std::floating_point T>
@@ -140,6 +147,45 @@ namespace tao_gizmos_sdf
     };
 
     template<std::floating_point T>
+    class SdfOpRepeatRadial: public SdfNode<T>
+    {
+    public:
+        SdfOpRepeatRadial(std::shared_ptr<SdfNode<T>> op1, int r):
+                _repetitions{r},
+                _operand1{op1}
+        {
+        }
+
+        virtual ~SdfOpRepeatRadial() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfOpRepeatRadial<T>{_operand1, _repetitions});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            // from: https://www.ronja-tutorials.com/post/036-sdf-space-manipulation/#radial-cells
+            T cellSize = pi<T>() * static_cast<T>(2.0) / static_cast<T>(_repetitions);
+            glm::vec<2, T> radialPosition = glm::vec<2, T>(glm::atan(p.y, p.x), glm::length(p));
+            radialPosition.x = glm::mod(radialPosition.x, cellSize);
+
+            // center the angle interval around positive X axis
+            radialPosition.x-=cellSize*static_cast<T>(0.5);
+            p.x = glm::cos(radialPosition.x);
+            p.y = glm::sin(radialPosition.x);
+
+            p = p * radialPosition.y;
+
+            return glm::abs<T>(_operand1->Evaluate(p));
+        }
+
+    private:
+        int _repetitions = 1;
+        std::shared_ptr<SdfNode<T>> _operand1;
+    };
+
+    template<std::floating_point T>
     class SdfOpShell: public SdfNode<T>
     {
     public:
@@ -194,9 +240,42 @@ namespace tao_gizmos_sdf
     };
 
     template<std::floating_point T>
+    class SdfOpSubtract: public SdfNode<T>
+    {
+    public:
+        SdfOpSubtract(std::shared_ptr<SdfNode<T>> op1, std::shared_ptr<SdfNode<T>> op2):
+                _operand1{op1},
+                _operand2{op2}
+        {
+        }
+
+        virtual ~SdfOpSubtract() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfOpSubtract<T>{_operand1, _operand2});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            return glm::max<T>(_operand1->Evaluate(p), -_operand2->Evaluate(p));
+        }
+
+    private:
+        std::shared_ptr<SdfNode<T>> _operand1;
+        std::shared_ptr<SdfNode<T>> _operand2;
+    };
+
+    template<std::floating_point T>
     SdfOpAdd<T> SdfNode<T>::Add(const SdfNode<T> &other)
     {
         return SdfOpAdd<T>{this->MakeNode(), other.MakeNode()};
+    }
+
+    template<std::floating_point T>
+    SdfOpSubtract<T> SdfNode<T>::Subtract(const SdfNode<T> &other)
+    {
+        return SdfOpSubtract<T>{this->MakeNode(), other.MakeNode()};
     }
 
     template<std::floating_point T>
@@ -215,6 +294,12 @@ namespace tao_gizmos_sdf
     SdfOpTransform<T> SdfNode<T>::Transform(const glm::mat<3,3,T>& t)
     {
         return SdfOpTransform<T>{this->MakeNode(), t};
+    }
+
+    template<std::floating_point T>
+    SdfOpRepeatRadial<T> SdfNode<T>::RepeatRadial(int r)
+    {
+        return SdfOpRepeatRadial<T>{this->MakeNode(), r};
     }
 
     template<std::floating_point T>
