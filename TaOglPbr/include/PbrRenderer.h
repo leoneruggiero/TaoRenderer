@@ -459,6 +459,7 @@ namespace tao_pbr
 
         void UpdateDirectionalLight (GenKey<DirectionalLight>   key, const DirectionalLight& value);
         void UpdateSphereLight      (GenKey<SphereLight>        key, const SphereLight& value);
+        void UpdateRectLight        (GenKey<RectLight>          key, const RectLight& value);
 
         void SetCurrentEnvironment(const GenKey<EnvironmentLight>& environment);
 
@@ -718,6 +719,19 @@ namespace tao_pbr
             glm::vec4 axisZ;
             glm::vec2 size;
         };
+
+        static rect_light_gl_data_block ToGraphicsData(const tao_pbr::RectLight &rectLight)
+        {
+            return rect_light_gl_data_block
+            {
+                    .position =  rectLight.transformation.matrix()[3],
+                    .intensity = glm::vec4(rectLight.intensity, 0.0),
+                    .axisX = rectLight.transformation.matrix()[0],
+                    .axisY = rectLight.transformation.matrix()[1],
+                    .axisZ = rectLight.transformation.matrix()[2],
+                    .size  = rectLight.size
+            };
+        }
 
         struct camera_gl_data_block
         {

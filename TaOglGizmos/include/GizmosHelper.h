@@ -41,7 +41,11 @@ namespace tao_gizmos_sdf
     template<std::floating_point T>
     class SdfOpSubtract;
     template<std::floating_point T>
+    class SdfOpIntersect;
+    template<std::floating_point T>
     class SdfOpRepeatRadial;
+    template<std::floating_point T>
+    class SdfOpRepeatGrid;
 
     template<std::floating_point T>
     class SdfNode
@@ -88,7 +92,9 @@ namespace tao_gizmos_sdf
         SdfOpShell<T>        Shell(T t);
         SdfOpAdd<T>          Add(const SdfNode& other);
         SdfOpSubtract<T>     Subtract(const SdfNode& other);
+        SdfOpIntersect<T>    Intersect(const SdfNode& other);
         SdfOpRepeatRadial<T> RepeatRadial(int r);
+        SdfOpRepeatGrid<T>   RepeatGrid(const glm::vec<2, T>& i);
     };
 
     template<std::floating_point T>
@@ -177,11 +183,40 @@ namespace tao_gizmos_sdf
 
             p = p * radialPosition.y;
 
-            return glm::abs<T>(_operand1->Evaluate(p));
+            return _operand1->Evaluate(p);
         }
 
     private:
         int _repetitions = 1;
+        std::shared_ptr<SdfNode<T>> _operand1;
+    };
+
+    template<std::floating_point T>
+    class SdfOpRepeatGrid: public SdfNode<T>
+    {
+    public:
+        SdfOpRepeatGrid(std::shared_ptr<SdfNode<T>> op1, glm::vec<2, T> i):
+                _interval{i},
+                _operand1{op1}
+        {
+        }
+
+        virtual ~SdfOpRepeatGrid() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfOpRepeatGrid<T>{_operand1, _interval});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            p = glm::mod(p, _interval);
+
+            return _operand1->Evaluate(p);
+        }
+
+    private:
+        glm::vec<2, T> _interval = glm::vec<2, T>{static_cast<T>(0.0)};
         std::shared_ptr<SdfNode<T>> _operand1;
     };
 
@@ -267,6 +302,33 @@ namespace tao_gizmos_sdf
     };
 
     template<std::floating_point T>
+    class SdfOpIntersect: public SdfNode<T>
+    {
+    public:
+        SdfOpIntersect(std::shared_ptr<SdfNode<T>> op1, std::shared_ptr<SdfNode<T>> op2):
+                _operand1{op1},
+                _operand2{op2}
+        {
+        }
+
+        virtual ~SdfOpIntersect() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfOpIntersect<T>{_operand1, _operand2});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            return glm::max<T>(_operand1->Evaluate(p), _operand2->Evaluate(p));
+        }
+
+    private:
+        std::shared_ptr<SdfNode<T>> _operand1;
+        std::shared_ptr<SdfNode<T>> _operand2;
+    };
+
+    template<std::floating_point T>
     SdfOpAdd<T> SdfNode<T>::Add(const SdfNode<T> &other)
     {
         return SdfOpAdd<T>{this->MakeNode(), other.MakeNode()};
@@ -276,6 +338,12 @@ namespace tao_gizmos_sdf
     SdfOpSubtract<T> SdfNode<T>::Subtract(const SdfNode<T> &other)
     {
         return SdfOpSubtract<T>{this->MakeNode(), other.MakeNode()};
+    }
+
+    template<std::floating_point T>
+    SdfOpIntersect<T> SdfNode<T>::Intersect(const SdfNode<T> &other)
+    {
+        return SdfOpIntersect<T>{this->MakeNode(), other.MakeNode()};
     }
 
     template<std::floating_point T>
@@ -300,6 +368,12 @@ namespace tao_gizmos_sdf
     SdfOpRepeatRadial<T> SdfNode<T>::RepeatRadial(int r)
     {
         return SdfOpRepeatRadial<T>{this->MakeNode(), r};
+    }
+
+    template<std::floating_point T>
+    SdfOpRepeatGrid<T> SdfNode<T>::RepeatGrid(const glm::vec<2, T>& i)
+    {
+        return SdfOpRepeatGrid<T>{this->MakeNode(), i};
     }
 
     template<std::floating_point T>
@@ -392,6 +466,69 @@ namespace tao_gizmos_sdf
         T _l0 = static_cast<T>(0.0);
         T _l1 = static_cast<T>(0.0);
         T _h  = static_cast<T>(0.0);
+    };
+
+    template<std::floating_point T>
+    class SdfRoundedRect: public SdfNode<T>
+    {
+    public:
+        SdfRoundedRect(glm::vec<2, T> s, glm::vec<4, T> r): _s{s}, _r{r}
+        {
+
+        }
+
+        ~SdfRoundedRect() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfRoundedRect<T>{_s, _r});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            glm::vec<2, T> rr =
+                    (p.x>static_cast<T>(0.0))
+                    ? glm::vec<2, T>{_r.x, _r.y}
+                    : glm::vec<2, T>{_r.z, _r.w};
+
+            rr.x  = (p.y>0.0) ? rr.x  : rr.y;
+
+            glm::vec<2, T> q = glm::abs(p) - (static_cast<T>(0.5) * _s) + rr.x;
+
+            return glm::min(glm::max(q.x,q.y),static_cast<T>(0.0)) + glm::length(glm::max(q,static_cast<T>(0.0))) - rr.x;
+        }
+
+    private:
+        glm::vec<2, T> _s = glm::vec<2, T>{static_cast<T>(0.0)};
+        glm::vec<4, T> _r = glm::vec<4, T>{static_cast<T>(0.0)};
+    };
+
+    template<std::floating_point T>
+    class SdfRect: public SdfNode<T>
+    {
+    public:
+        SdfRect(glm::vec<2, T> s): _s{s}
+        {
+
+        }
+
+        ~SdfRect() override = default;
+
+        virtual std::shared_ptr<SdfNode<T>> MakeNode() const override
+        {
+            return std::shared_ptr<SdfNode<T>>(new SdfRect<T>{_s});
+        }
+
+        virtual T Evaluate(glm::vec<2, T> p) const override
+        {
+            glm::vec<2, T> d = glm::abs(p) - static_cast<T>(0.5) * _s;
+            return
+                glm::length(glm::max(d, glm::vec<2,T>{static_cast<T>(0.0)})) +
+                glm::min(glm::max(d.x,d.y),static_cast<T>(0.0));
+        }
+
+    private:
+        glm::vec<2, T> _s = glm::vec<2, T>{static_cast<T>(0.0)};
     };
 
 }

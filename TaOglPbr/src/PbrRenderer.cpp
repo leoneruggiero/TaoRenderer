@@ -572,22 +572,18 @@ namespace tao_pbr
         return AddToCollectionSyncGpu(_sphereLights, _shaderBuffers.sphereLightsSsbo, sphereLight, converter);
     }
 
+    void PbrRenderer::UpdateRectLight(GenKey<RectLight> key, const RectLight& value)
+    {
+        std::function<rect_light_gl_data_block(const RectLight&)> converter =
+                static_cast<rect_light_gl_data_block(*)(const RectLight&)>(ToGraphicsData);
+
+        WriteToCollectionSyncGpu(_rectLights, key, _shaderBuffers.rectLightsSsbo, value, converter);
+    }
+
     GenKey<RectLight> PbrRenderer::AddRectLight(const tao_pbr::RectLight &rectLight)
     {
         std::function<rect_light_gl_data_block(const RectLight&)> converter =
-        // Converts a directional light into its graphics data
-        [](const RectLight& l)
-        {
-            return rect_light_gl_data_block
-            {
-                    .position = l.transformation.matrix()[3],
-                    .intensity = vec4(l.intensity, 0.0),
-                    .axisX = l.transformation.matrix()[0],
-                    .axisY = l.transformation.matrix()[1],
-                    .axisZ = l.transformation.matrix()[2],
-                    .size = l.size
-            };
-        };
+                static_cast<rect_light_gl_data_block(*)(const RectLight&)>(ToGraphicsData);
 
         return AddToCollectionSyncGpu(_rectLights, _shaderBuffers.rectLightsSsbo, rectLight, converter);
     }
