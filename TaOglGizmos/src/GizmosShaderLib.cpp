@@ -7,7 +7,7 @@
 
 namespace tao_gizmos
 {
-    OglShaderProgram GizmosShaderLib::CreateShaderProgram(RenderContext& rc, gizmos_shader_type shaderType, gizmos_shader_modifier modifier, const char* shaderSrcDir)
+    OglShaderProgram GizmosShaderLib::CreateShaderProgram(RenderContext& rc, gizmos_shader_type shaderType, gizmos_shader_modifier modifier, const char* shaderSrcDir, tao_gizmos_shader_graph::SGOutMeshGizmo* customShader)
     {
         string vertSrc;
         string fragSrc;
@@ -35,6 +35,15 @@ namespace tao_gizmos
             /* Not optional */  vertSrc = ShaderLoader::DefineConditional(vertSrc, { SELECTION_SYMBOL });
             if (geomSrcFile)    geomSrc = ShaderLoader::DefineConditional(geomSrc, { SELECTION_SYMBOL });
             /* Not optional */  fragSrc = ShaderLoader::DefineConditional(fragSrc, { SELECTION_SYMBOL });
+        }
+
+        if(customShader && shaderType!=gizmos_shader_type::mesh)
+            throw runtime_error("TODO: currently custom shaders are supported only for mesh gizmo shaders");
+
+        if(customShader)
+        {
+            fragSrc = ShaderLoader::DefineConditional(fragSrc, {CUSTOM_SHADER_SYMBOL});
+            fragSrc = ShaderLoader::ReplaceSymbols(fragSrc, { {CUSTOM_SHADER_RGX, tao_gizmos_shader_graph::ParseShaderGraph(*customShader)} });
         }
 
         return

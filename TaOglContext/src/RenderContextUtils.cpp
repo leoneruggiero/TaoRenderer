@@ -102,6 +102,20 @@ namespace tao_render_context
         return outStr.str();
     }
 
+    std::string ShaderLoader::ReplaceSymbols(const std::string &shaderSource, const std::vector<std::pair<std::string, std::string>> &replacements)
+    {
+        std::string copy{shaderSource};
+
+        for(const auto& pair : replacements)
+        {
+            std::string r = pair.first;
+            copy = regex_replace(copy, regex{r}, pair.second);
+        }
+
+        return copy;
+    }
+
+
     // Resizable VBO
     /////////////////////////////////
     tao_ogl_resources::OglVertexBuffer CreateEmptyVbo(tao_render_context::RenderContext& rc, tao_ogl_resources::ogl_buffer_usage usg)

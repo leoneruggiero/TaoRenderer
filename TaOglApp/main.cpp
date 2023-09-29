@@ -7,6 +7,7 @@
 #include <chrono>
 #include <thread>
 #include <variant>
+#include <regex>
 
 #include "GeometricPrimitives.h"
 #include "RenderContext.h"
@@ -27,7 +28,7 @@ using namespace tao_render_context;
 using namespace tao_gizmos_procedural;
 using namespace tao_gizmos_sdf;
 using namespace tao_gizmos;
-//using namespace tao_input;
+using namespace tao_gizmos_shader_graph;
 using namespace tao_pbr;
 
 
@@ -1428,6 +1429,14 @@ private:
 
             /// Mesh and Line gizmo for mouse interaction (see OnDrag())
             ////////////////////////////////////////////////////////////
+
+            /// Mesh gizmo custom shader graph (flat color)
+            float pow = 2.5f;
+            auto kPow = SGConstVec(pow, pow, pow, pow);
+            auto vertColor = make_shared<SGInVertColor>();
+            auto color = SGPow(vertColor, kPow);
+            auto customShader = SGOutColor{color};
+
             vector<MeshGizmoVertex> immediateMeshVerts
             {
                     MeshGizmoVertex{}.Position(vec3{0.0f}).Color(vec4{1.0f}),
@@ -1439,7 +1448,7 @@ private:
                     .zoom_invariant = true,
                     .zoom_invariant_scale = 0.1f,
                     .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic
-            });
+            }, customShader);
             _immediateMeshGizmoInstanceId = _gr->InstanceMeshGizmo(_immediateMeshGizmoId,
            {
                gizmo_instance_descriptor
@@ -3355,6 +3364,189 @@ private:
 
 };
 
+class GizmoGrid
+{
+public:
+    GizmoGrid(GizmosRenderer& gr):
+    _gr{&gr}
+    {
+        /// Creating the Mesh gizmo (custom shader)
+        vector<MeshGizmoVertex> dummyVerts{MeshGizmoVertex().Position(vec3(0.0f))};
+        mesh_gizmo_descriptor descriptor
+                {
+                        .vertices =dummyVerts,
+                        .triangles = nullptr,
+                        .zoom_invariant = false,
+                        .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic
+                };
+
+        auto customShader = CreateGridShader();
+        _gizmoId    = _gr->CreateMeshGizmo(descriptor, customShader);
+        _instanceId = _gr->InstanceMeshGizmo(_gizmoId,{{.transform = mat4{1.0f}, .color = vec4{1.0f}, .visible = true, .selectable = false}})[0];
+
+        /// Creating the rendering layer and pass
+        const ogl_depth_state kOglDepthState
+        {
+                .depth_test_enable = true,
+                .depth_write_enable = false,
+                .depth_func = depth_func_less_equal,
+                .depth_range_near = 0.0f,
+                .depth_range_far = 1.0f,
+        };
+        const ogl_blend_state kOglBlendState
+        {
+                .blend_enable = true,
+                .blend_equation_rgb = ogl_blend_equation{.blend_factor_src = blend_fac_src_alpha, .blend_factor_dst = blend_fac_one_minus_src_alpha},
+                .blend_equation_alpha = ogl_blend_equation{.blend_factor_src = blend_fac_one, .blend_factor_dst = blend_fac_one_minus_src_alpha},
+                .color_mask = mask_all
+        };
+        const ogl_rasterizer_state kOglRasterizerState
+        {
+                .culling_enable = false,
+                .polygon_mode = polygon_mode_fill,
+                .multisample_enable = false,
+                .alpha_to_coverage_enable = false,
+        };
+
+        auto layer = _gr->CreateRenderLayer(kOglDepthState, kOglBlendState, kOglRasterizerState);
+        _gr->AddRenderPass({_gr->CreateRenderPass({layer})});
+        _gr->AssignGizmoToLayers(_gizmoId, {layer});
+    }
+
+    void UpdateView(const mat4& viewMatrix, const mat4& projMatrix, const vec2& nearFar)
+    {
+        UpdateMeshGizmoVertices(viewMatrix, projMatrix, nearFar);
+    }
+
+private:
+    GizmosRenderer* _gr;
+    gizmo_id _gizmoId;
+    gizmo_instance_id _instanceId;
+
+    tao_gizmos_shader_graph::SGOutColorAndDepth CreateGridShader()
+    {
+        // from: https://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
+        // with some minor modifications
+
+        auto vertCol = make_shared<SGInVertColor>();
+        auto vertNrm = make_shared<SGInVertNormal>();
+        auto kWidthG = make_shared<SGFloatConst>("kWidthGrid", 0.2f);
+        auto kWidthT = make_shared<SGFloatConst>("kWidthThick", 0.2f);
+        auto kWidthA = make_shared<SGFloatConst>("kWidthAxis", 0.5f);
+        auto kScale  = make_shared<SGFloatConst>("KScale", 1.0f);
+        auto kScaleT = make_shared<SGFloatConst>("KScaleT", 0.1f);
+        auto kColor0 = make_shared<SGVec3Const>("kColor0", 0.5f, 0.5f, 0.5f);
+        auto kColor1 = make_shared<SGVec3Const>("kColor1", 0.5f, 0.5f, 0.5f);
+        auto kColorAxisX = make_shared<SGVec3Const>("kColorAxisX", 0.8f, 0.1f, 0.1f);
+        auto kColorAxisY = make_shared<SGVec3Const>("kColorAxisY", 0.1f, 0.8f, 0.1f);
+
+        // near projection is stored as vert Color
+        // far  projection is stored as vert Normal
+        auto nearPt = SGVec(SGSwizzleX(vertCol), SGSwizzleY(vertCol), SGSwizzleZ(vertCol));
+        auto farPt  = SGVec(SGSwizzleX(vertNrm), SGSwizzleY(vertNrm), SGSwizzleZ(vertNrm));
+
+        auto t = SGSwizzleZ(nearPt)/(SGSwizzleZ(nearPt) - SGSwizzleZ(farPt));
+
+        auto fragPosWrd = nearPt + (SGVec(t, t, t) * (farPt - nearPt));
+
+        auto coord = SGVec(SGSwizzleX(fragPosWrd), SGSwizzleY(fragPosWrd)) * SGVec(kScale, kScale);
+        auto derivative = SGFWidth(coord);
+        auto fractPattern = SGAbs(SGFract(coord));
+        auto grid =SGMin(SGConstVec(1.0f, 1.0f) - fractPattern ,fractPattern)/ derivative;
+
+        // Drawing a thicker line for each 10 normal lines
+        auto coordT = SGVec(SGSwizzleX(fragPosWrd), SGSwizzleY(fragPosWrd)) * SGVec(kScaleT, kScaleT);
+        auto derivativeT = SGFWidth(coordT);
+        auto fractPatternT = SGAbs(SGFract(coordT));
+        auto gridT =SGMin(SGConstVec(1.0f, 1.0f) - fractPatternT ,fractPatternT)/ derivativeT;
+
+        auto line      = SGMin(SGSwizzleX(grid), SGSwizzleY(grid));
+        auto lineT     = SGMin(SGSwizzleX(gridT), SGSwizzleY(gridT));
+        auto xAxis     = SGAbs(SGSwizzleX(coord))/ SGSwizzleX(derivative);
+        auto yAxis     = SGAbs(SGSwizzleY(coord))/ SGSwizzleY(derivative);
+
+        auto colorLineA  = SGConstVec(0.3f) * (SGConstVec(1.0f) - SGClamp(line - kWidthG, SGConstVec(0.0f), SGConstVec(1.0f)));
+        auto colorLine   = SGMultiply(colorLineA, kColor0);
+        auto colorLineTA = SGConstVec(0.4f) * (SGConstVec(1.0f) - SGClamp(lineT - kWidthT, SGConstVec(0.0f), SGConstVec(1.0f)));
+        auto colorLineT  = SGMultiply(colorLineTA, kColor1);
+        auto colorXAxisA = SGConstVec(1.0f) - SGClamp(xAxis - kWidthA, SGConstVec(0.0f), SGConstVec(1.0f));
+        auto colorXAxis  = SGMultiply(colorXAxisA, kColorAxisX);
+        auto colorYAxisA = SGConstVec(1.0f) - SGClamp(yAxis - kWidthA, SGConstVec(0.0f), SGConstVec(1.0f));
+        auto colorYAxis  = SGMultiply(colorYAxisA, kColorAxisY);
+
+        // blend the colors together
+        auto color  = colorXAxis;
+        auto colorA = colorXAxisA;
+
+        color  = color  + SGMultiply(SGConstVec(1.0f)-colorA, colorYAxis);
+        colorA = colorA + SGMultiply(SGConstVec(1.0f)-colorA, colorYAxisA);
+        color  = color  + SGMultiply(SGConstVec(1.0f)-colorA, colorLineT);
+        colorA = colorA + SGMultiply(SGConstVec(1.0f)-colorA, colorLineTA);
+        color  = color  + SGMultiply(SGConstVec(1.0f)-colorA, colorLine);
+        colorA = colorA + SGMultiply(SGConstVec(1.0f)-colorA, colorLineA);
+
+
+        // Fade the grid based on dot(viewDir, grid normal)
+        auto viewDirNrm = SGNorm(make_shared<SGInEyePosition>() - fragPosWrd);
+        auto fade = SGConstVec(1.0f) - ((SGConstVec(1.0f) - SGDot(viewDirNrm, SGConstVec(0.0f, 0.0f, 1.0f)) - SGConstVec(0.8f))/SGConstVec(0.2f));
+        fade = SGClamp(fade, SGConstVec(0.0f), SGConstVec(1.0f));
+
+        auto color4 = SGVec(SGSwizzleX(color)/colorA, SGSwizzleY(color)/colorA, SGSwizzleZ(color)/colorA, colorA * fade);
+
+        // manually compute depth as viewProj * world position
+        auto ndc = (make_shared<SGInProjectionMatrix>() * make_shared<SGInViewMatrix>()) *
+                        SGVec(SGSwizzleX(fragPosWrd), SGSwizzleY(fragPosWrd), SGSwizzleZ(fragPosWrd), SGConstVec(1.0f));
+
+        auto outDepth = SGSwizzleZ(ndc)/ SGSwizzleW(ndc);
+        auto outCol = SGBranch(SGGreater(t, SGConstVec(0.0f)), color4, SGConstVec(0.0f, 0.0f, 0.0f, 0.0f));
+
+        auto out = SGOutColorAndDepth(outCol, outDepth * SGConstVec(0.5f) + SGConstVec(0.5f));
+
+        //ParseShaderGraphTGF(out, "c://Users/Admin/Downloads/Graph.tgf");
+        return out;
+    }
+
+    void UpdateMeshGizmoVertices(const mat4& viewMatrix, const mat4& projMatrix, const vec2& nearFar)
+    {
+        // see: https://asliceofrendering.com/scene%20helper/2020/01/05/InfiniteGrid/
+        //
+        // since custom vertex shaders are not supported we'll use
+        // vertex color and normal to pass near and far projections
+
+        // world space coords of a full screen quad on the
+        // near camera plane.
+        const int kCnt=6;
+        const vec2 kNdc[]
+        {
+            vec2{-1.f, -1.f}, vec2{1.f, 1.f}, vec2{-1.f, 1.f},
+            vec2{-1.f, -1.f}, vec2{1.f, -1.f}, vec2{1.f, 1.f}
+        };
+
+        mat4 invViewProj = glm::inverse(projMatrix * viewMatrix);
+
+        vector<MeshGizmoVertex> verts(kCnt);
+        for(int i=0;i<kCnt;i++)
+        {
+            vec4 pos = invViewProj * vec4{kNdc[i], 0.0f, 1.0f};
+            pos/=pos.w;
+
+            vec4 nearProj = invViewProj * vec4{kNdc[i], -1.0f, 1.0f};
+            nearProj/=nearProj.w;
+
+            vec4 farProj  = invViewProj * vec4{kNdc[i], 1.0f, 1.0f};
+            farProj/=farProj.w;
+
+            verts[i]
+                .Position(pos)
+                .Color(nearProj)
+                .Normal(farProj);
+        }
+
+        _gr->SetMeshGizmoVertices(_gizmoId, verts, nullptr);
+    }
+
+};
+
 
 
 void InitGizmosVC(GizmosRenderer& gr)
@@ -3408,7 +3600,6 @@ void StartImGuiFrame(PbrRenderer& pbrRenderer, TransformManipulator& tm/* TODO *
     if(ImGui::RadioButton("Rotate"   , tm.GetMode() == TransformManipulator::TmMode::Rotate))    tm.SetMode(TransformManipulator::TmMode::Rotate);
     if(ImGui::RadioButton("Scale"    , tm.GetMode() == TransformManipulator::TmMode::Scale))     tm.SetMode(TransformManipulator::TmMode::Scale);
 
-
 }
 
 void EndImGuiFrame()
@@ -3446,8 +3637,11 @@ struct MyRectLight
     GenKey<RectLight> pbrLightKey;
     weak_ptr<LightGizmos::RectLightGizmo> gizmoLightKey;
 };
+
 int main()
 {
+
+
 
 	try
 	{
@@ -3495,8 +3689,12 @@ int main()
         // Transform manipulator gizmo
         TransformManipulator tmGizmo(gizRdr,  gizmoPickAgent);
 
+        // Grid gizmo
+        GizmoGrid gridGizmo{gizRdr};
+
         // Light gizmos
         LightGizmos lightGizmos{&gizRdr, &gizmoPickAgent};
+
 
         // View Cube Gizmos Renderer
 		int fboWidthVC  = 256;
@@ -3588,7 +3786,7 @@ int main()
         };
         auto sphereLight0Key = pbrRdr.AddSphereLight(sphereLight0);
 
-        SphereLight sphereLight1
+        /*SphereLight sphereLight1
         {
                 .transformation = glm::translate(glm::mat4(1.0), {2.0, 1.5, 3.0}),
                 .intensity = vec3(12.0),
@@ -3602,7 +3800,7 @@ int main()
                 .intensity = vec3(5.0),
                 .radius = 0.25
         };
-        auto sphereLight2Key = pbrRdr.AddSphereLight(sphereLight2);
+        auto sphereLight2Key = pbrRdr.AddSphereLight(sphereLight2);*/
 
 
         RectLight rectLight0 =
@@ -3620,15 +3818,15 @@ int main()
         auto directionalLightGizmo0Key = lightGizmos.CreateDirectionalLightGizmo(dirLight0);
         auto rectLightGizmo0Key   = lightGizmos.CreateRectLightGizmo(rectLight0);
         auto sphereLightGizmo0Key = lightGizmos.CreateSphereLightGizmo(sphereLight0);
-        auto sphereLightGizmo1Key = lightGizmos.CreateSphereLightGizmo(sphereLight1);
-        auto sphereLightGizmo2Key = lightGizmos.CreateSphereLightGizmo(sphereLight2);
+        //auto sphereLightGizmo1Key = lightGizmos.CreateSphereLightGizmo(sphereLight1);
+        //auto sphereLightGizmo2Key = lightGizmos.CreateSphereLightGizmo(sphereLight2);
 
         // TODO: is it necessary to duplicate this much code???
         vector<MySphereLight> mySphereLights
         ({
             MySphereLight{.light = sphereLight0, .pbrLightKey = sphereLight0Key, .gizmoLightKey = sphereLightGizmo0Key},
-            MySphereLight{.light = sphereLight1, .pbrLightKey = sphereLight1Key, .gizmoLightKey = sphereLightGizmo1Key},
-            MySphereLight{.light = sphereLight2, .pbrLightKey = sphereLight2Key, .gizmoLightKey = sphereLightGizmo2Key},
+            //MySphereLight{.light = sphereLight1, .pbrLightKey = sphereLight1Key, .gizmoLightKey = sphereLightGizmo1Key},
+            //MySphereLight{.light = sphereLight2, .pbrLightKey = sphereLight2Key, .gizmoLightKey = sphereLightGizmo2Key},
          });
 
         vector<MyDirectionalLight> myDirectionalLights
@@ -3747,10 +3945,6 @@ int main()
 
         // ----------------------------------------------------------------------------
 
-        const int kHover = 1;
-        const int kClick = 2;
-
-
 		time_point startTime = high_resolution_clock::now();
 
 		while (!rc.ShouldClose())
@@ -3773,6 +3967,8 @@ int main()
 
 
             lightGizmos.UpdateView(viewMatrix);
+            gridGizmo.UpdateView(viewMatrix, projMatrix, nearFar);
+
 
             gizRdr.SetView(viewMatrix, projMatrix, nearFar);
             gizRdr.SetDepthMask(*pbrOut._depthTexture);

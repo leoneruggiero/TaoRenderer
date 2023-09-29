@@ -4,7 +4,8 @@ set(LIB_NAME "TaOglGizmos")
 # collecting .cpp files	  
 set(MY_SOURCE
 	"src/GizmosRenderer.cpp"
-	"src/GizmosShaderLib.cpp")
+	"src/GizmosShaderLib.cpp"
+	"src/ShaderGraph.cpp")
 	
 # some .h files are internal details
 # not relevant for a client (placed into ./src)

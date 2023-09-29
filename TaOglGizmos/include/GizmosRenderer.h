@@ -1,6 +1,7 @@
 #pragma once
 #include "RenderContext.h"
 #include "RenderContextUtils.h"
+#include "TaoGizmosShaderGraph.h"
 #include <glm/glm.hpp>
 #include <map>
 #include <optional>
@@ -440,6 +441,10 @@ namespace tao_gizmos
 		std::vector<glm::vec3>	         _vertices;
 		std::optional<std::vector<int>>  _triangles;
 
+        // custom shader
+        // --------------------------------------------------------
+        std::optional<tao_ogl_resources::OglShaderProgram> _shader;
+
         // VAO layout for mesh:
         // vbo 0: Position (vec3) - Normal (vec3) - Color (vec4) - TexCoord (vec2)
         //--------------------------------------------
@@ -559,6 +564,7 @@ namespace tao_gizmos
         ///////////////////////////////////////
         /// Mesh Gizmos
         [[nodiscard]] gizmo_id							CreateMeshGizmo		  (const mesh_gizmo_descriptor& desc);
+        [[nodiscard]] gizmo_id							CreateMeshGizmo		  (const mesh_gizmo_descriptor& desc, tao_gizmos_shader_graph::SGOutMeshGizmo& customShader);
         // TODO: InstanceGizmo
         [[nodiscard]] std::vector<gizmo_instance_id>	InstanceMeshGizmo	  (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
         void                                        	SetMeshGizmoVertices  (const gizmo_id key, const std::vector<MeshGizmoVertex>& vertices, const std::vector<int>* triangles);

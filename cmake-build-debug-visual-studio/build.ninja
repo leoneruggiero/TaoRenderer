@@ -275,6 +275,14 @@ build TaOglGizmos\CMakeFiles\TaOglGizmos.dir\src\GizmosShaderLib.cpp.obj: CXX_CO
   TARGET_COMPILE_PDB = TaOglGizmos\CMakeFiles\TaOglGizmos.dir\TaOglGizmos.pdb
   TARGET_PDB = TaOglGizmos\TaOglGizmos.pdb
 
+build TaOglGizmos\CMakeFiles\TaOglGizmos.dir\src\ShaderGraph.cpp.obj: CXX_COMPILER__TaOglGizmos_Debug C$:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglGizmos\src\ShaderGraph.cpp || cmake_object_order_depends_target_TaOglGizmos
+  FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1 -std:c++20
+  INCLUDES = -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglGizmos\src -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglGizmos\include -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\cmake-build-debug-visual-studio\TaOglGizmos -IC:\Users\Admin\Documents\LearnOpenGL\TestApp_OpenGL\TaOglContext\include
+  OBJECT_DIR = TaOglGizmos\CMakeFiles\TaOglGizmos.dir
+  OBJECT_FILE_DIR = TaOglGizmos\CMakeFiles\TaOglGizmos.dir\src
+  TARGET_COMPILE_PDB = TaOglGizmos\CMakeFiles\TaOglGizmos.dir\TaOglGizmos.pdb
+  TARGET_PDB = TaOglGizmos\TaOglGizmos.pdb
+
 
 # =============================================================================
 # Link build statements for STATIC_LIBRARY target TaOglGizmos
@@ -283,7 +291,7 @@ build TaOglGizmos\CMakeFiles\TaOglGizmos.dir\src\GizmosShaderLib.cpp.obj: CXX_CO
 #############################################
 # Link the static library TaOglGizmos\TaOglGizmos.lib
 
-build TaOglGizmos\TaOglGizmos.lib: CXX_STATIC_LIBRARY_LINKER__TaOglGizmos_Debug TaOglGizmos\CMakeFiles\TaOglGizmos.dir\src\GizmosRenderer.cpp.obj TaOglGizmos\CMakeFiles\TaOglGizmos.dir\src\GizmosShaderLib.cpp.obj || TaOglContext\TaOglContext.lib
+build TaOglGizmos\TaOglGizmos.lib: CXX_STATIC_LIBRARY_LINKER__TaOglGizmos_Debug TaOglGizmos\CMakeFiles\TaOglGizmos.dir\src\GizmosRenderer.cpp.obj TaOglGizmos\CMakeFiles\TaOglGizmos.dir\src\GizmosShaderLib.cpp.obj TaOglGizmos\CMakeFiles\TaOglGizmos.dir\src\ShaderGraph.cpp.obj || TaOglContext\TaOglContext.lib
   LANGUAGE_COMPILE_FLAGS = /DWIN32 /D_WINDOWS /W3 /GR /EHsc /MDd /Zi /Ob0 /Od /RTC1
   LINK_FLAGS = /machine:x64
   OBJECT_DIR = TaOglGizmos\CMakeFiles\TaOglGizmos.dir

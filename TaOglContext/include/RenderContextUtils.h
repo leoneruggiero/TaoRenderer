@@ -68,6 +68,7 @@ namespace tao_render_context
     public:
         static std::string LoadShader(const char *shaderSourceFile, const char *shaderSourceDir, const char *shaderIncludeDir);
         static std::string DefineConditional(const std::string &shaderSource, const std::vector<std::string> &definitions);
+        static std::string ReplaceSymbols(const std::string &shaderSource, const std::vector<std::pair<std::string, std::string>> &replacements);
 
     private:
         static constexpr const char *INCLUDE_DIRECTIVE = "//! #include";

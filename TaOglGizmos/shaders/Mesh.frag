@@ -14,6 +14,9 @@ fs_in;
 
 out vec4 FragColor;
 
+//[CUSTOM_SHADER]
+
+#ifndef USE_CUSTOM_SHADER
 void main()
 {
     vec3 eyePos  = f_viewPos.xyz;
@@ -27,3 +30,4 @@ void main()
                     fs_in.v_color;
     #endif
 }
+#endif

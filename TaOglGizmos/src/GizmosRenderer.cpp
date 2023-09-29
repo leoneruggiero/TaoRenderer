@@ -1068,6 +1068,18 @@ namespace tao_gizmos
 		return r;
 	}
 
+    gizmo_id GizmosRenderer::CreateMeshGizmo(const mesh_gizmo_descriptor& desc, tao_gizmos_shader_graph::SGOutMeshGizmo& customShader)
+    {
+        gizmo_id id = CreateMeshGizmo(desc);
+        unsigned short key = DecodeGizmoKey(id._key, KEY_MASK_MESH);
+
+        _meshGizmos.at(key)._shader = GizmosShaderLib::CreateShaderProgram( *_renderContext,gizmos_shader_type::mesh, gizmos_shader_modifier::none, SHADER_SRC_DIR, &customShader);
+        _meshGizmos.at(key)._shader.value().SetUniformBlockBinding(MESH_OBJ_BLOCK_NAME, MESH_OBJ_DATA_BINDING);
+        _meshGizmos.at(key)._shader.value().SetUniformBlockBinding(FRAME_DATA_BLOCK_NAME, FRAME_DATA_BINDING);
+
+        return id;
+    }
+
 	void GizmosRenderer::DestroyMeshGizmo(gizmo_id key)
 	{
 		auto k = DecodeGizmoKey(key._key, KEY_MASK_MESH);
@@ -1714,6 +1726,11 @@ namespace tao_gizmos
 
 		for (auto& mGzm : _meshGizmos)
 		{
+            bool hasCustomShader = mGzm.second._shader.has_value();
+
+            if(hasCustomShader)
+                mGzm.second._shader->UseProgram();
+
 			mesh_obj_data_block const objData
 			{
 				.has_texture = false,
@@ -1749,6 +1766,10 @@ namespace tao_gizmos
                         _renderContext->DrawArraysInstanced(pmt_type_triangles, 0, mGzm.second._vertexCount, mGzm.second._instanceCount);
 				}
 			}
+
+            // reset
+            if(hasCustomShader)
+                _meshShader.UseProgram();
 		}
 	}
 
