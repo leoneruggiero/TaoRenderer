@@ -8,6 +8,8 @@
 #include <thread>
 #include <variant>
 #include <regex>
+#include <filesystem>
+#include <sys/stat.h>
 
 #include "GeometricPrimitives.h"
 #include "RenderContext.h"
@@ -18,6 +20,8 @@
 #include "ImGui/imgui.h"
 #include "ImGui/imgui_impl_glfw.h"
 #include "ImGui/imgui_impl_opengl3.h"
+
+#include "TaOglAppConfig.h"
 
 using namespace std;
 using namespace glm;
@@ -3443,8 +3447,8 @@ private:
 
         auto vertCol = make_shared<SGInVertColor>();
         auto vertNrm = make_shared<SGInVertNormal>();
-        auto kWidthG = make_shared<SGFloatConst>("kWidthGrid", 0.2f);
-        auto kWidthT = make_shared<SGFloatConst>("kWidthThick", 0.2f);
+        auto kWidthG = make_shared<SGFloatConst>("kWidthGrid", 0.5f);
+        auto kWidthT = make_shared<SGFloatConst>("kWidthThick", 0.5f);
         auto kWidthA = make_shared<SGFloatConst>("kWidthAxis", 0.5f);
         auto kScale  = make_shared<SGFloatConst>("KScale", 1.0f);
         auto kScaleT = make_shared<SGFloatConst>("KScaleT", 0.1f);
@@ -3482,9 +3486,9 @@ private:
         auto colorLine   = SGMultiply(colorLineA, kColor0);
         auto colorLineTA = SGConstVec(0.3f) * (SGConstVec(1.0f) - SGClamp(lineT - kWidthT, SGConstVec(0.0f), SGConstVec(1.0f)));
         auto colorLineT  = SGMultiply(colorLineTA, kColor1);
-        auto colorXAxisA = SGConstVec(1.0f) - SGClamp(xAxis - kWidthA, SGConstVec(0.0f), SGConstVec(1.0f));
+        auto colorXAxisA = SGConstVec(0.5f) * (SGConstVec(1.0f) - SGClamp(xAxis - kWidthA, SGConstVec(0.0f), SGConstVec(1.0f)));
         auto colorXAxis  = SGMultiply(colorXAxisA, kColorAxisX);
-        auto colorYAxisA = SGConstVec(1.0f) - SGClamp(yAxis - kWidthA, SGConstVec(0.0f), SGConstVec(1.0f));
+        auto colorYAxisA = SGConstVec(0.5f) * (SGConstVec(1.0f) - SGClamp(yAxis - kWidthA, SGConstVec(0.0f), SGConstVec(1.0f)));
         auto colorYAxis  = SGMultiply(colorYAxisA, kColorAxisY);
 
         // blend the colors together
@@ -3560,8 +3564,6 @@ private:
 
 };
 
-
-
 void InitGizmosVC(GizmosRenderer& gr)
 {
 	MyGizmoLayersVC layers = InitGizmosLayersAndPassesVC(gr);
@@ -3586,6 +3588,31 @@ void InitImGui(GLFWwindow* window)
     ImGui_ImplOpenGL3_Init();
 }
 
+
+vector<pair<string, GenKey<EnvironmentLight>>> environmentLights;
+string currentEnvironment;
+void LoadHDRIs(PbrRenderer& renderer)
+{
+    auto dirPath = std::filesystem::path{HDRI_DIR};
+
+    struct stat sb;
+
+    for(const auto& f : std::filesystem::directory_iterator{dirPath})
+    {
+        std::filesystem::path fullPath = f.path();
+        std::string fileName = fullPath.filename().string();
+        std::string fullPathStr = fullPath.string();
+
+        if (stat(fullPathStr.c_str(), &sb) == 0 && !(sb.st_mode & S_IFDIR))
+        {
+            auto envKey = renderer.AddEnvironmentTexture(fullPathStr.c_str());
+            environmentLights.push_back({fileName, envKey});
+            renderer.SetCurrentEnvironment(envKey);
+            currentEnvironment = fileName;
+        }
+    }
+}
+
 void StartImGuiFrame(PbrRenderer& pbrRenderer, TransformManipulator& tm/* TODO */)
 {
     // (Your code calls glfwPollEvents())
@@ -3608,6 +3635,23 @@ void StartImGuiFrame(PbrRenderer& pbrRenderer, TransformManipulator& tm/* TODO *
             std::cout<<e.what()<<std::endl;
         }
     }
+
+    if (ImGui::BeginCombo("Environment", currentEnvironment.c_str()))
+    {
+        for (int n = 0; n < environmentLights.size(); n++)
+        {
+            bool is_selected = (currentEnvironment == environmentLights[n].first);
+            if (ImGui::Selectable(environmentLights[n].first.c_str(), is_selected))
+            {
+                currentEnvironment = environmentLights[n].first.c_str();
+                pbrRenderer.SetCurrentEnvironment(environmentLights[n].second);
+            }
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
+
 
     if(ImGui::RadioButton("Translate", tm.GetMode() == TransformManipulator::TmMode::Translate)) tm.SetMode(TransformManipulator::TmMode::Translate);
     if(ImGui::RadioButton("Rotate"   , tm.GetMode() == TransformManipulator::TmMode::Rotate))    tm.SetMode(TransformManipulator::TmMode::Rotate);
@@ -3653,9 +3697,6 @@ struct MyRectLight
 
 int main()
 {
-
-
-
 	try
 	{
 		int windowWidth = 1920;
@@ -3729,6 +3770,8 @@ int main()
 
         // *** TEST ***
         // ----------------------------------------------------------------------------
+        LoadHDRIs(pbrRdr);
+
         auto sphere = tao_geometry::Mesh::Sphere(0.3f, 32);
         tao_pbr::Mesh sphereMesh{
             sphere.GetPositions(),
@@ -3775,11 +3818,6 @@ int main()
         GenKey<MeshRenderer> mr7 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, 1.0, 1.5}), sphereMeshKey, matM3);
 
         GenKey<MeshRenderer> mr8 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { -5.0, -5.0, -1.2}), cubeMeshKey, matD0);
-
-
-        auto env = EnvironmentLight("C:/Users/Admin/Downloads/brown_photostudio_05_1k.hdr");
-        auto envKey = pbrRdr.AddEnvironmentTexture(env);
-        pbrRdr.SetCurrentEnvironment(envKey);
 
         DirectionalLight dirLight0
         {

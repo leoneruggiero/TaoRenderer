@@ -1,0 +1,2 @@
+#cmakedefine ASSETS_DIR "@ASSETS_DIR@"
+#cmakedefine HDRI_DIR   "@HDRI_DIR@"

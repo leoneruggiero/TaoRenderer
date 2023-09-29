@@ -450,7 +450,7 @@ namespace tao_pbr
 
         [[nodiscard]] GenKey<Mesh>                AddMesh(Mesh& mesh);
         [[nodiscard]] GenKey<ImageTexture>        AddImageTexture(ImageTexture& texture);
-        [[nodiscard]] GenKey<EnvironmentLight>    AddEnvironmentTexture(EnvironmentLight& texture);
+        [[nodiscard]] GenKey<EnvironmentLight>    AddEnvironmentTexture(const char* path);
         [[nodiscard]] GenKey<PbrMaterial>         AddMaterial(const PbrMaterial& material);
         [[nodiscard]] GenKey<MeshRenderer>        AddMeshRenderer(const Transformation& transform, const GenKey<Mesh>& mesh, const GenKey<PbrMaterial> &material);
         [[nodiscard]] GenKey<DirectionalLight>    AddDirectionalLight(const DirectionalLight& directionalLight);

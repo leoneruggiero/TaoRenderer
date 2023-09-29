@@ -24,3 +24,9 @@ set(IMGUI_SRC_FILES
 add_executable(${EXE_NAME} "main.cpp" ${IMGUI_SRC_FILES})
 
 target_link_libraries(${EXE_NAME} PRIVATE "TaOglContext" "TaOglGizmos" "TaOglPbr")
+
+# set a constant with the path to the assets folder
+set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Assets")
+set(  HDRI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Assets/HDRI")
+configure_file("config/TaOglAppConfig.h.in" "TaOglAppConfig.h")
+target_include_directories(${EXE_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})

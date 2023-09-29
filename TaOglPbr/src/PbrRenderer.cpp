@@ -363,11 +363,12 @@ namespace tao_pbr
         return key;
     }
 
-    GenKey<EnvironmentLight> PbrRenderer::AddEnvironmentTexture(tao_pbr::EnvironmentLight &texture)
+    GenKey<EnvironmentLight> PbrRenderer::AddEnvironmentTexture(const char* path)
     {
-        auto key = _environmentTextures.insert(texture);
+        EnvironmentLight envLight{path};
+        auto key = _environmentTextures.insert(envLight);
 
-        _environmentTextures.at(key)._graphicsData = CreateGraphicsData(texture);
+        _environmentTextures.at(key)._graphicsData = CreateGraphicsData(envLight);
 
         return key;
     }
@@ -621,7 +622,7 @@ namespace tao_pbr
                 .doGamma            = 1,
                 .gamma              = 2.2,
                 .doEnvironmentIbl   = _currentEnvironment.has_value(),
-                .environmentIntensity = 1.0,
+                .environmentIntensity = 1.8,
                 .radianceMinLod = PRE_CUBE_MIN_LOD,
                 .radianceMaxLod = PRE_CUBE_MAX_LOD,
                 .doTaa          = 0
