@@ -35,8 +35,7 @@ using namespace tao_pbr;
 enum MouseInputAgentTag
 {
     None           = 0x0,
-    CameraRotate   = 1u<<1,
-    CameraZoom     = 1u<<2
+    Camera         = 1u<<1
 };
 
 class MouseInputManager;
@@ -49,7 +48,8 @@ enum mouse_button
 };
 enum key
 {
-    left_shift = GLFW_KEY_LEFT_SHIFT
+    left_shift = GLFW_KEY_LEFT_SHIFT,
+    left_ctrl = GLFW_KEY_LEFT_CONTROL
 };
 
 class MouseInputAgent
@@ -239,20 +239,27 @@ private:
     }
 };
 
-class CameraZoomAgent : public MouseInputAgent
+
+class CameraInputAgent : public MouseInputAgent
 {
 public:
-    CameraZoomAgent(float initialDistance):
-            MouseInputAgent{CameraZoom},
-            _enabled{false},
-            _distance{initialDistance},
-            _zoom{1.0f}
+    CameraInputAgent(vec3 initialEyePosition, vec3 initialTarget, vec3 up):
+    MouseInputAgent{Camera},
+    _enabled{false},
+    _eyePosition{initialEyePosition},
+    _target{initialTarget}
     {
-        ZoomCamera(0.0f);
+        vec3 dir = normalize(_target - _eyePosition);
+        vec3 right = cross(dir, normalize(up));
+        _up = cross(right, dir);
+
+        _mouseData.insert({zoom, smooth_mouse_data()});
+        _mouseData.insert({rotate, smooth_mouse_data()});
+        _mouseData.insert({pan, smooth_mouse_data()});
     }
-    mat4 GetZoomMatrix()
+    mat4 GetViewMatrix()
     {
-        return _zoom;
+        return glm::lookAt(_eyePosition, _target, _up);
     }
 
     void MouseUp(float x, float y, int w, int h) override
@@ -260,17 +267,17 @@ public:
         if(!_enabled) return;
 
         _enabled = false;
-        _manager->UnMuteAgents(CameraRotate);
     }
     void MouseDown(float x, float y, int w, int h) override
     {
-        if(!ShouldListen()) return;
+             if(ShouldListen(zoom))   _mode = zoom;
+        else if(ShouldListen(rotate)) _mode = rotate;
+        else if(ShouldListen(pan))    _mode = pan;
+
+        else return;
 
         _enabled = true;
-        _manager->MuteAgents(CameraRotate);
-        _latestMouseY = y;
-        _targetMouseY = y;
-        _latestTimeMs = _manager->GetTime()*1e3f;
+        InitMouseData(_mode, x, y, MouseInputAgent::_manager->GetTime()*1e3f);
     }
     void MouseMove(float x, float y, int w, int h) override
     {
@@ -280,19 +287,17 @@ public:
         // even after mouse up
 
         if(_enabled)
+            UpdateMouseTarget(_mode, x, y);
+
+        float smoothDx, smoothDy;
+        UpdateMouse(_mode, MouseInputAgent::_manager->GetTime()*1e3f, smoothDx, smoothDy);
+
+        switch(_mode)
         {
-            _targetMouseY = y;
+            case(zoom)  : ZoomCamera(smoothDy/h); break;
+            case(rotate): RotateCamera(smoothDx/w, smoothDy/h); break;
+            case(pan)   : PanCamera(smoothDx/w, smoothDy/h); break;
         }
-
-        float deltaTimeMs = _manager->GetTime()*1e3f - _latestTimeMs;
-        float smoothY = DamperMotion(_latestMouseY, _targetMouseY, _kDampHalfTimeMs, deltaTimeMs);
-
-        float dy = (smoothY-_latestMouseY)/h;
-
-        ZoomCamera(dy);
-
-        _latestMouseY = smoothY;
-        _latestTimeMs +=deltaTimeMs;
     }
 
     void Mute() override
@@ -301,155 +306,163 @@ public:
 
     void UnMute() override
     {
-        _targetMouseY = _latestMouseY;
+        ResetMouseData(zoom);
+        ResetMouseData(pan);
+        ResetMouseData(rotate);
     }
 
 private:
-    bool _enabled = false;
-    float _latestMouseY;
-    float _targetMouseY;
-    float _latestTimeMs;
-    float _distance;
-    mat4  _zoom;
+    enum camera_mode
+    {
+        zoom,
+        pan,
+        rotate
+    };
+    struct smooth_mouse_data
+    {
+        float _latestMouseX = 0.0f;
+        float _latestMouseY = 0.0f;
+        float _targetMouseX = 0.0f;
+        float _targetMouseY = 0.0f;
+        float _latestTimeMs = 0.0f;
+    };
+    bool  _enabled = false;
+    camera_mode _mode = rotate;
+    map<camera_mode, smooth_mouse_data> _mouseData;
+    vec3  _eyePosition;
+    vec3  _target;
+    vec3  _up;
 
     static constexpr float _kDampHalfTimeMs = 50.0f;
 
-    bool ShouldListen()
+    void ResetMouseData(camera_mode mode)
     {
-        return
+        smooth_mouse_data& data = _mouseData[mode];
+        data._targetMouseX = 0.0f;
+        data._targetMouseY = 0.0f;
+        data._latestMouseX = 0.0f;
+        data._latestMouseY = 0.0f;
+        data._latestTimeMs = 0.0f;
+    }
+
+    void InitMouseData(camera_mode mode, float targetX, float targetY, float timeMs)
+    {
+        smooth_mouse_data& data = _mouseData[mode];
+        data._targetMouseX = targetX;
+        data._targetMouseY = targetY;
+        data._latestMouseX = targetX;
+        data._latestMouseY = targetY;
+        data._latestTimeMs = timeMs;
+    }
+
+    void UpdateMouseTarget(camera_mode mode, float targetX, float targetY)
+    {
+        smooth_mouse_data& data = _mouseData[mode];
+        data._targetMouseX = targetX;
+        data._targetMouseY = targetY;
+    }
+
+    void UpdateMouse(camera_mode mode, float timeMs, float& smoothDx, float& smoothDy)
+    {
+        smooth_mouse_data& data = _mouseData[mode];
+
+        float deltaTimeMs = timeMs - data._latestTimeMs;
+        float smoothX = DamperMotion(data._latestMouseX, data._targetMouseX, _kDampHalfTimeMs, deltaTimeMs);
+        float smoothY = DamperMotion(data._latestMouseY, data._targetMouseY, _kDampHalfTimeMs, deltaTimeMs);
+
+        smoothDx = (smoothX-data._latestMouseX);
+        smoothDy = (smoothY-data._latestMouseY);
+
+        data._latestMouseX = smoothX;
+        data._latestMouseY = smoothY;
+        data._latestTimeMs +=deltaTimeMs;
+    }
+
+    bool ShouldListen(camera_mode mode)
+    {
+        // a masterpiece...
+        switch(mode)
+        {
+            case (zoom):
+                return
+                MouseInputAgent::_manager->IsMouseButtonPressed(middle) &&
                 MouseInputAgent::_manager->IsKeyPressed(left_shift) &&
-                MouseInputAgent::_manager->IsMouseButtonPressed(middle);
+                !MouseInputAgent::_manager->IsKeyPressed(left_ctrl);
+
+            case (rotate):
+                return
+                MouseInputAgent::_manager->IsMouseButtonPressed(middle) &&
+                !MouseInputAgent::_manager->IsKeyPressed(left_shift)&&
+                !MouseInputAgent::_manager->IsKeyPressed(left_ctrl);
+
+            case (pan):
+                return
+                MouseInputAgent::_manager->IsMouseButtonPressed(middle) &&
+                !MouseInputAgent::_manager->IsKeyPressed(left_shift)&&
+                MouseInputAgent::_manager->IsKeyPressed(left_ctrl);
+        }
+    }
+
+    void RotateCamera(float dx, float dy)
+    {
+
+        mat4 tr    = translate(mat4{1.0f}, -_target);
+        mat4 trInv = glm::inverse(tr);
+        vec3 dir   = glm::normalize(_target - _eyePosition);
+        vec3 right = glm::cross(dir, _up);
+        mat4 rotX  = glm::rotate(mat4(1.0f), pi<float>() * dy, right);
+        mat4 rotZ  = glm::rotate(mat4(1.0f), -2.f * pi<float>() * dx, vec3(0.0f, 0.0f, 1.0f));
+
+        // ugly: limit the rotation so that eyePos-eyeTarget is never
+        // parallel to world Z.
+        if(abs(dot(rotX * vec4{dir, 0.0f},vec4(0.0f, 0.0f, 1.0f, 0.0f))) >= 0.98f)
+        {
+            rotX = mat4{1.0f};
+        }
+
+        // translate to origin -> rotate -> translate back
+        mat4 transformation = trInv * rotZ * rotX * tr;
+
+        _eyePosition = transformation * vec4(_eyePosition, 1.0);
+        _up = transformation * vec4{_up, 0.0f};
     }
 
     void ZoomCamera(float dy)
     {
         const float kMinDst = 0.1;
-        const float kMaxDst = 30.0;
-        const float kSensitivity = 65.0f;
+        const float kMaxDst = 40.0;
+        const float kSensitivity = 1.5f;
 
-        float f = mix(0.05f, 1.0f, (_distance-kMinDst)/(kMaxDst-kMinDst));
-        float newDst = _distance - dy * kSensitivity * f;
-        newDst = glm::clamp(newDst, kMinDst, kMaxDst);
-        _distance = newDst;
+        float dist = glm::length(_eyePosition -  _target);
+        float newDst = glm::max(kMinDst, dist - dist * dy * kSensitivity);
 
-        _zoom = translate(mat4{1.0}, _distance * vec3{0.0, 0.0, -1.0});
-    }
-};
-
-class CameraRotationAgent : public MouseInputAgent
-{
-public:
-    CameraRotationAgent(vec3 initialEyePosition, vec3 initialTarget, vec3 initialUp):
-    MouseInputAgent{CameraRotate},
-    _enabled{false},
-    _latestMouseX{0.0f},
-    _latestMouseY{0.0f},
-    _eyePosition{initialEyePosition},
-    _target{initialTarget},
-    _up{initialUp},
-    _rotation{1.0f}
-    {
-        RotateCamera(0.0f, 0.0f);
-    }
-    mat4 GetRotationMatrix()
-    {
-        return _rotation;
+        _eyePosition = _target + glm::normalize(_eyePosition-_target)*newDst;
     }
 
-    void MouseUp(float x, float y, int w, int h) override
+    void PanCamera(float dx, float dy)
     {
-        if(!_enabled) return;
+        const float kSensitivity = 1.5f;
+        const float kMinHeight   = 0.1f;
+        // --- Compute new eye position
+        // motion is proportional to how close the eye is to the target
+        // (ideally "what you are inspecting")
+        float fac = kSensitivity * glm::length(_eyePosition-_target);
+        vec3 dir   = glm::normalize(_target - _eyePosition);
+        vec3 right = glm::cross(dir, _up);
+        vec3 tr    = right*fac*-dx + _up*fac*-dy;
 
-        _enabled = false;
-        _manager->UnMuteAgents(CameraZoom);
-    }
-    void MouseDown(float x, float y, int w, int h) override
-    {
-        if(!ShouldListen()) return;
+        // avoid the camera go under the XY plane
+        // (it breaks the next part "compute new eye target")
+        if((_eyePosition+tr).z > kMinHeight)
+            _eyePosition+=tr;
 
-        _enabled = true;
-        _manager->MuteAgents(CameraZoom);
-
-        _latestMouseX = x;
-        _latestMouseY = y;
-        _targetMouseX = x;
-        _targetMouseY = y;
-        _latestTimeMs = MouseInputAgent::_manager->GetTime()*1e3f;
-    }
-    void MouseMove(float x, float y, int w, int h) override
-    {
-        // NOTE:
-        // With smooth motion (DamperMotion())
-        // we should continue moving the camera
-        // even after mouse up
-
-        if(_enabled)
-        {
-            _targetMouseX = x;
-            _targetMouseY = y;
-        }
-
-        float deltaTimeMs = MouseInputAgent::_manager->GetTime()*1e3f - _latestTimeMs;
-        float smoothX = DamperMotion(_latestMouseX, _targetMouseX, _kDampHalfTimeMs, deltaTimeMs);
-        float smoothY = DamperMotion(_latestMouseY, _targetMouseY, _kDampHalfTimeMs, deltaTimeMs);
-
-        float dx = (smoothX-_latestMouseX)/w;
-        float dy = (smoothY-_latestMouseY)/h;
-
-        RotateCamera(dx, dy);
-
-        _latestMouseX = smoothX;
-        _latestMouseY = smoothY;
-        _latestTimeMs +=deltaTimeMs;
-    }
-
-    void Mute() override
-    {
-    }
-
-    void UnMute() override
-    {
-        _latestMouseX = _targetMouseX;
-        _latestMouseY = _targetMouseY;
-    }
-
-private:
-    bool  _enabled = false;
-    float _latestMouseX;
-    float _latestMouseY;
-    float _targetMouseX;
-    float _targetMouseY;
-    float _latestTimeMs;
-    vec3  _eyePosition;
-    vec3  _target;
-    vec3  _up;
-    mat4  _rotation;
-
-    static constexpr float _kDampHalfTimeMs = 50.0f;
-
-    bool ShouldListen()
-    {
-        return
-            MouseInputAgent::_manager->IsMouseButtonPressed(middle) &&
-            !MouseInputAgent::_manager->IsKeyPressed(left_shift);
-    }
-
-    void RotateCamera(float dx, float dy)
-    {
-        mat4 rotZ = glm::rotate(mat4(1.0f), -2.f * pi<float>() * dx, _up);
-        _eyePosition = rotZ * vec4(_eyePosition, 1.0);
-
-        vec3 right = cross(_up, _target - _eyePosition);
-        right = normalize(right);
-
-        mat4 rotX = glm::rotate(mat4(1.0f), -pi<float>() * dy, right);
-        vec3 newEyePos = rotX * vec4(_eyePosition, 1.0);
-
-        // ugly: limit the rotation so that eyePos-eyeTarget is never
-        // parallel to world Z.
-        if (abs(dot(normalize(newEyePos), _up)) <= 0.98f)_eyePosition = newEyePos;
-
-        _rotation = lookAt(_eyePosition, _target, _up);
+        // --- Compute new eye target
+        // (just the intersection between the ray from eye to target
+        // and the XY plane)
+        Ray r{_eyePosition, dir};
+        Plane xyPlane{vec3(0.0f), vec3(0.0f, 0.0f, 1.0f)};
+        auto newTrg = RayPlaneIntersection(r, xyPlane);
+        _target = newTrg.has_value() ? newTrg.value() : _target;
     }
 };
 
@@ -863,11 +876,11 @@ public:
 
     void MuteCameraInput()
     {
-        _manager->MuteAgents(static_cast<MouseInputAgentTag>(CameraRotate|CameraZoom));
+        _manager->MuteAgents(static_cast<MouseInputAgentTag>(Camera));
     }
     void UnMuteCameraInput()
     {
-        _manager->UnMuteAgents(static_cast<MouseInputAgentTag>(CameraRotate|CameraZoom));
+        _manager->UnMuteAgents(static_cast<MouseInputAgentTag>(Camera));
     }
 
 private:
@@ -3465,9 +3478,9 @@ private:
         auto xAxis     = SGAbs(SGSwizzleX(coord))/ SGSwizzleX(derivative);
         auto yAxis     = SGAbs(SGSwizzleY(coord))/ SGSwizzleY(derivative);
 
-        auto colorLineA  = SGConstVec(0.3f) * (SGConstVec(1.0f) - SGClamp(line - kWidthG, SGConstVec(0.0f), SGConstVec(1.0f)));
+        auto colorLineA  = SGConstVec(0.2f) * (SGConstVec(1.0f) - SGClamp(line - kWidthG, SGConstVec(0.0f), SGConstVec(1.0f)));
         auto colorLine   = SGMultiply(colorLineA, kColor0);
-        auto colorLineTA = SGConstVec(0.4f) * (SGConstVec(1.0f) - SGClamp(lineT - kWidthT, SGConstVec(0.0f), SGConstVec(1.0f)));
+        auto colorLineTA = SGConstVec(0.3f) * (SGConstVec(1.0f) - SGClamp(lineT - kWidthT, SGConstVec(0.0f), SGConstVec(1.0f)));
         auto colorLineT  = SGMultiply(colorLineTA, kColor1);
         auto colorXAxisA = SGConstVec(1.0f) - SGClamp(xAxis - kWidthA, SGConstVec(0.0f), SGConstVec(1.0f));
         auto colorXAxis  = SGMultiply(colorXAxisA, kColorAxisX);
@@ -3651,7 +3664,7 @@ int main()
 		int fboHeight = 0;
 
         vec2 nearFar = vec2(0.5f, 50.f);
-        vec3 eyePos = vec3(-2.5f, -2.5f, 2.f);
+        vec3 eyePos = vec3(-10.f, -10.f, 10.f);
         vec3 eyeTrg = vec3(0.f);
         vec3 up = vec3(0.f, 0.f, 1.f);
         mat4 viewMatrix;
@@ -3668,10 +3681,8 @@ int main()
         MouseInputManager inputManager{&rc};
 
         // Camera input
-        CameraRotationAgent cameraRotation{eyePos, eyeTrg, up};
-        CameraZoomAgent     cameraZoom    {10.0f};
-        inputManager.AddInputAgent(&cameraRotation);
-        inputManager.AddInputAgent(&cameraZoom);
+        CameraInputAgent cameraInputAgent{eyePos, eyeTrg, up};
+        inputManager.AddInputAgent(&cameraInputAgent);
 
         // ImGui
         InitImGui(rc.GetWindow());
@@ -3955,7 +3966,7 @@ int main()
 
             // zoom and rotation
 			// ----------------------------------------------------------------------
-			viewMatrix = cameraZoom.GetZoomMatrix()*cameraRotation.GetRotationMatrix();
+			viewMatrix = cameraInputAgent.GetViewMatrix();
             projMatrix = glm::perspective(radians<float>(45), static_cast<float>(fboWidth) / fboHeight, nearFar.x, nearFar.y);
 			// ----------------------------------------------------------------------
 
