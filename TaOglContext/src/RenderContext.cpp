@@ -451,6 +451,11 @@ namespace tao_render_context
 		return OglFence{ sync_condition_gpu_commands_complete };
 	}
 
+    OglQuery RenderContext::CreateQuery()
+    {
+        return OglQuery{ OglResource<query>{} };
+    }
+
 	OglTexture2D RenderContext::CreateTexture2D()
 	{
 		return OglTexture2D{ OglResource<texture_2D>{} };

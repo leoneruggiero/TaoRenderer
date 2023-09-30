@@ -40,6 +40,8 @@ namespace tao_ogl_resources
     void   framebuffer::Destroy(GLuint id) { GL_CALL(glDeleteFramebuffers(1, &id)); }
     GLuint sampler::Create() { GLuint id = 0; GL_CALL(glCreateSamplers(1, &id)); return id; }
     void   sampler::Destroy(GLuint id) { GL_CALL(glDeleteSamplers(1, &id)); }
+    GLuint query::Create() { GLuint id = 0; GL_CALL(glGenQueries(1, &id)); return id; }
+    void   query::Destroy(GLuint id) { GL_CALL(glDeleteQueries(1, &id)); }
 
 
     /// SHADER
@@ -533,6 +535,10 @@ namespace tao_ogl_resources
     {
 	    GL_CALL(return static_cast<ogl_wait_sync_result>(glClientWaitSync(_id, flags, timeout));)
     }
+
+    void OglQuery::GetIntegerv  (tao_ogl_resources::ogl_query_param pname, GLint *params){ GL_CALL(glGetQueryObjectiv(_ogl_obj.ID(), pname, params)); }
+    void OglQuery::GetInteger64v(tao_ogl_resources::ogl_query_param pname, GLint64 *params){ GL_CALL(glGetQueryObjecti64v(_ogl_obj.ID(), pname, params)); }
+    void OglQuery::QueryCounter(tao_ogl_resources::ogl_query_counter_target target) {GL_CALL(glQueryCounter(_ogl_obj.ID(), target));}
 
 	// ReSharper restore CppMemberFunctionMayBeConst
 }

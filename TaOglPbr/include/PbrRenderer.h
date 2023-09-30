@@ -3,11 +3,14 @@
 #include "RenderContext.h"
 #include "RenderContextUtils.h"
 #include "TaoMath.h"
+#include "Instrumentation.h"
 
 #include <list>
 #include <optional>
 #include "glm/glm.hpp"
 #include <glm/ext/matrix_transform.hpp>
+
+#define ENABLE_GPU_PROFILING
 
 namespace tao_pbr
 {
@@ -427,6 +430,10 @@ namespace tao_pbr
                 _shadowSampler          {_renderContext->CreateSampler()},
                 _materials(),
                 _meshRenderers()
+#ifdef ENABLE_GPU_PROFILING
+                ,
+                _gpuStopwatch(*_renderContext)
+#endif
         {
             InitGBuffer(_windowWidth, _windowHeight);
             InitOutputBuffer(_windowWidth, _windowHeight);
@@ -474,6 +481,13 @@ namespace tao_pbr
         pbrRendererOut Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far);
 
         void Resize(int newWidth, int newHeight);
+
+        struct GpuPerfCounters
+        {
+            unsigned long long GPassTime = 0;
+            unsigned long long LightPassTime = 0;
+        };
+        GpuPerfCounters PerfCounters;
 
     private:
 
@@ -775,6 +789,7 @@ namespace tao_pbr
             tao_render_context::ResizableSsbo   rectLightsSsbo;
         };
 
+
         int                                _windowWidth, _windowHeight;
         tao_render_context::RenderContext* _renderContext;
 
@@ -812,9 +827,11 @@ namespace tao_pbr
         GenKeyVector<SphereLight>       _sphereLights;
         GenKeyVector<RectLight>         _rectLights;
 
-
+#ifdef ENABLE_GPU_PROFILING
+        tao_instrument::GpuStopwatch _gpuStopwatch;
+#endif
         void InitGBuffer        (int width, int height);
-        void ResizeGBuffer       (int width, int height);
+        void ResizeGBuffer      (int width, int height);
         void InitOutputBuffer   (int width, int height);
         void ResizeOutputBuffer (int width, int height);
         void InitFsQuad();

@@ -2,8 +2,10 @@
 #include <chrono>
 #include <utility>
 #include <vector>
+#include <map>
+#include <queue>
+#include "RenderContext.h"
 namespace tao_instrument {
-
 
     class Stopwatch {
         // Copyright Ingo Proff 2017.
@@ -57,7 +59,6 @@ namespace tao_instrument {
 	        return {ticks<fmt_total>(start_time, laps.back()), lap_times};
         }
 
-    private:
         typedef std::chrono::time_point<std::chrono::high_resolution_clock> time_pt;
         time_pt start_time;
         std::vector<time_pt> laps;
@@ -103,4 +104,50 @@ namespace tao_instrument {
     constexpr Stopwatch::TimeFormat microseconds = Stopwatch::TimeFormat::MICROSECONDS;
     constexpr Stopwatch::TimeFormat milliseconds = Stopwatch::TimeFormat::MILLISECONDS;
     constexpr Stopwatch::TimeFormat seconds = Stopwatch::TimeFormat::SECONDS;
+    class GpuStopwatch
+    {
+    public:
+        struct gpu_stopwatch
+        {
+            std::string name;
+        };
+
+        GpuStopwatch(tao_render_context::RenderContext& renderContext):
+        _rc{renderContext}
+        {
+        }
+
+        gpu_stopwatch Start(const std::string& name);
+
+        template<Stopwatch::TimeFormat fmt>
+        unsigned long long int Stop(const gpu_stopwatch& stopwatch);
+    private:
+        enum named_stopwatch_state
+        {
+            started,
+            ended
+        };
+
+        struct query_pair
+        {
+            std::shared_ptr<tao_ogl_resources::OglQuery> startTimeQuery;
+            std::shared_ptr<tao_ogl_resources::OglQuery> endTimeQuery;
+        };
+
+        struct named_stopwatch
+        {
+            named_stopwatch_state state = ended;
+            std::queue<query_pair> queries;
+        };
+
+        tao_render_context::RenderContext& _rc;
+        std::map<std::string, named_stopwatch> _stopwatches;
+
+        bool HasResult(query_pair& p);
+
+        template<Stopwatch::TimeFormat fmt>
+        unsigned long long int GetResult(query_pair& p);
+
+        void IssueNewPair(const std::string &name);
+    };
 }

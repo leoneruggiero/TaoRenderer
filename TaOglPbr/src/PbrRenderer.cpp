@@ -677,6 +677,11 @@ namespace tao_pbr
 
         /// Geometry Pass
         ////////////////////////////////////////////
+
+#ifdef ENABLE_GPU_PROFILING
+        auto swg = _gpuStopwatch.Start("GPass");
+#endif
+
         _gBuffer.gBuff.Bind(ogl_framebuffer_binding::fbo_read_draw);
         _renderContext->ClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         _renderContext->ClearDepth(1.0f);
@@ -703,8 +708,16 @@ namespace tao_pbr
 
         OglFramebuffer<OglTexture2D>::UnBind(fbo_read_draw);
 
+#ifdef ENABLE_GPU_PROFILING
+        PerfCounters.GPassTime = _gpuStopwatch.Stop<tao_instrument::Stopwatch::MILLISECONDS>(swg);
+#endif
+
         /// Light Pass
         ////////////////////////////////////////////
+
+#ifdef ENABLE_GPU_PROFILING
+        auto swl = _gpuStopwatch.Start("LightPass");
+#endif
         _renderContext->SetDepthState(DEPTH_STATE_OFF);
 
         _outBuffer.buff.Bind(fbo_read_draw);
@@ -803,6 +816,10 @@ namespace tao_pbr
         }
 
         // TODO: unbind all the textures and buffers !!!
+
+#ifdef ENABLE_GPU_PROFILING
+        PerfCounters.LightPassTime = _gpuStopwatch.Stop<tao_instrument::Stopwatch::MILLISECONDS>(swl);
+#endif
 
         return pbrRendererOut
         {

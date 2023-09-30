@@ -247,6 +247,8 @@ namespace tao_render_context
 
         [[nodiscard]] OglFence CreateFence();
 
+        [[nodiscard]] OglQuery CreateQuery();
+
         int UniformBufferOffsetAlignment() const {return _uniformBufferOffsetAlignment;};
     };
 }

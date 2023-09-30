@@ -126,6 +126,12 @@ namespace tao_ogl_resources
 		static void Destroy(GLuint);
 		static constexpr const char* to_string = "sampler";
 	};
+    struct query
+    {
+        static GLuint Create();
+        static void Destroy(GLuint);
+        static constexpr const char* to_string = "query";
+    };
 
 	template<typename T>
 	concept ogl_resource =
@@ -146,7 +152,8 @@ namespace tao_ogl_resources
 		std::is_same_v<T, texture_2D_multisample>	||
 		std::is_same_v<T, texture_cube>				||
 		std::is_same_v<T, framebuffer>				||
-		std::is_same_v<T, sampler>;
+		std::is_same_v<T, sampler>                  ||
+        std::is_same_v<T, query>;
 
 	template<typename T>
 	concept ogl_shader =
@@ -644,13 +651,14 @@ namespace tao_ogl_resources
 
     };
 
+    /// Fence
+    //////////////////////////////////////
 	class OglFence
 	{
 		// RenderContext is the one in charge of calling the private constructor
 		friend class tao_render_context::RenderContext; 
 
 	public:
-		
 		OglFence(const OglFence&) = delete;
 
 		OglFence& operator=(const OglFence&) = delete;
@@ -686,4 +694,21 @@ namespace tao_ogl_resources
 		
 		explicit OglFence(ogl_sync_condition condition) { Create(condition); }
 	};
+
+    /// Query
+    //////////////////////////////////////
+    class OglQuery
+    {
+        friend class tao_render_context::RenderContext;
+
+    public:
+        typedef query ogl_resource_type;
+
+        void GetIntegerv(ogl_query_param pname, GLint * params);
+        void GetInteger64v(ogl_query_param pname, GLint64 * params);
+        void QueryCounter(ogl_query_counter_target target);
+    private:
+        OglResource<ogl_resource_type> _ogl_obj;
+        OglQuery(OglResource<ogl_resource_type>&& shader) :_ogl_obj(std::move(shader)) {}
+    };
 }

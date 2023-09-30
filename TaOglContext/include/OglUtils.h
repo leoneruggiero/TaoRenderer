@@ -757,4 +757,17 @@ namespace tao_ogl_resources
         query_buffer_barrier_bit        = GL_QUERY_BUFFER_BARRIER_BIT,
         all_barrier_bit                 = GL_ALL_BARRIER_BITS
     };
+
+    enum ogl_query_param
+    {
+        query_result = GL_QUERY_RESULT,
+        query_result_available = GL_QUERY_RESULT_AVAILABLE,
+        query_result_no_wait = GL_QUERY_RESULT_NO_WAIT,
+        query_target = GL_QUERY_TARGET
+    };
+
+    enum ogl_query_counter_target
+    {
+        query_timestamp = GL_TIMESTAMP
+    };
 }

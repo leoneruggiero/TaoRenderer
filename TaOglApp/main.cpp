@@ -34,7 +34,7 @@ using namespace tao_gizmos_sdf;
 using namespace tao_gizmos;
 using namespace tao_gizmos_shader_graph;
 using namespace tao_pbr;
-
+using namespace tao_instrument;
 
 enum MouseInputAgentTag
 {
@@ -1703,8 +1703,7 @@ private:
 
             Tm::_transformation *= t;
 
-            /// DEBUG
-            ///////////////////////////////////////
+            // draw some visual feedback for mouse interaction
             if(_firstTouch)
             {
                 _firstTouchAngle = atan2(currProj.y, currProj.x);
@@ -1715,8 +1714,9 @@ private:
             vec4 lineColor  = _axisData[_selectedAxis.value()].color;
             color.a     = 0.55f;
             lineColor.a = 0.85f;
+
+            // it's called immediate but it isn't...bad naming? bug?
             DrawImmediateArc(gizPl.Transformation(), length(_axisData[_selectedAxis.value()].transform[0]), _firstTouchAngle, _firstTouchAngle + _cumulatedAngle, color, lineColor);
-            ///////////////////////////////////////
 
             return t;
         }
@@ -1742,7 +1742,6 @@ private:
         gizmo_id _gizmoIdForSelection;
         map<TmAxis, TmAxisData> _axisData;
         optional<TmAxis> _selectedAxis = nullopt;
-
 
         void SetInstancesProperties(TmAxis axis, bool visible, bool selectable)
         {
@@ -3652,10 +3651,15 @@ void StartImGuiFrame(PbrRenderer& pbrRenderer, TransformManipulator& tm/* TODO *
         ImGui::EndCombo();
     }
 
-
     if(ImGui::RadioButton("Translate", tm.GetMode() == TransformManipulator::TmMode::Translate)) tm.SetMode(TransformManipulator::TmMode::Translate);
     if(ImGui::RadioButton("Rotate"   , tm.GetMode() == TransformManipulator::TmMode::Rotate))    tm.SetMode(TransformManipulator::TmMode::Rotate);
     if(ImGui::RadioButton("Scale"    , tm.GetMode() == TransformManipulator::TmMode::Scale))     tm.SetMode(TransformManipulator::TmMode::Scale);
+
+
+    ImGui::Begin("GPU perf");
+    ImGui::Text(std::format("GPass(ms)    : {}", pbrRenderer.PerfCounters.GPassTime).c_str());
+    ImGui::Text(std::format("LightPass(ms): {}", pbrRenderer.PerfCounters.LightPassTime).c_str());
+    ImGui::End();
 
 }
 
@@ -3697,6 +3701,7 @@ struct MyRectLight
 
 int main()
 {
+
 	try
 	{
 		int windowWidth = 1920;
@@ -3705,7 +3710,7 @@ int main()
 		int fboHeight = 0;
 
         vec2 nearFar = vec2(0.5f, 50.f);
-        vec3 eyePos = vec3(-10.f, -10.f, 10.f);
+        vec3 eyePos = vec3(0.5f, 0.5f, 4.f); //vec3(-10.f, -10.f, 10.f);
         vec3 eyeTrg = vec3(0.f);
         vec3 up = vec3(0.f, 0.f, 1.f);
         mat4 viewMatrix;
@@ -3835,7 +3840,7 @@ int main()
         };
         auto sphereLight0Key = pbrRdr.AddSphereLight(sphereLight0);
 
-        /*SphereLight sphereLight1
+        SphereLight sphereLight1
         {
                 .transformation = glm::translate(glm::mat4(1.0), {2.0, 1.5, 3.0}),
                 .intensity = vec3(12.0),
@@ -3849,7 +3854,7 @@ int main()
                 .intensity = vec3(5.0),
                 .radius = 0.25
         };
-        auto sphereLight2Key = pbrRdr.AddSphereLight(sphereLight2);*/
+        auto sphereLight2Key = pbrRdr.AddSphereLight(sphereLight2);
 
 
         RectLight rectLight0 =
@@ -3867,15 +3872,15 @@ int main()
         auto directionalLightGizmo0Key = lightGizmos.CreateDirectionalLightGizmo(dirLight0);
         auto rectLightGizmo0Key   = lightGizmos.CreateRectLightGizmo(rectLight0);
         auto sphereLightGizmo0Key = lightGizmos.CreateSphereLightGizmo(sphereLight0);
-        //auto sphereLightGizmo1Key = lightGizmos.CreateSphereLightGizmo(sphereLight1);
-        //auto sphereLightGizmo2Key = lightGizmos.CreateSphereLightGizmo(sphereLight2);
+        auto sphereLightGizmo1Key = lightGizmos.CreateSphereLightGizmo(sphereLight1);
+        auto sphereLightGizmo2Key = lightGizmos.CreateSphereLightGizmo(sphereLight2);
 
         // TODO: is it necessary to duplicate this much code???
         vector<MySphereLight> mySphereLights
         ({
             MySphereLight{.light = sphereLight0, .pbrLightKey = sphereLight0Key, .gizmoLightKey = sphereLightGizmo0Key},
-            //MySphereLight{.light = sphereLight1, .pbrLightKey = sphereLight1Key, .gizmoLightKey = sphereLightGizmo1Key},
-            //MySphereLight{.light = sphereLight2, .pbrLightKey = sphereLight2Key, .gizmoLightKey = sphereLightGizmo2Key},
+            MySphereLight{.light = sphereLight1, .pbrLightKey = sphereLight1Key, .gizmoLightKey = sphereLightGizmo1Key},
+            MySphereLight{.light = sphereLight2, .pbrLightKey = sphereLight2Key, .gizmoLightKey = sphereLightGizmo2Key},
          });
 
         vector<MyDirectionalLight> myDirectionalLights
@@ -3994,7 +3999,7 @@ int main()
 
         // ----------------------------------------------------------------------------
 
-		time_point startTime = high_resolution_clock::now();
+        GpuStopwatch gpuSw{rc};
 
 		while (!rc.ShouldClose())
 		{
@@ -4008,16 +4013,10 @@ int main()
             projMatrix = glm::perspective(radians<float>(45), static_cast<float>(fboWidth) / fboHeight, nearFar.x, nearFar.y);
 			// ----------------------------------------------------------------------
 
-			time_point timeNow = high_resolution_clock::now();
-			auto delta = duration_cast<milliseconds>(timeNow - startTime).count();
-			//animation(delta);
-
             auto pbrOut = pbrRdr.Render(viewMatrix, projMatrix, nearFar.x, nearFar.y);
-
 
             lightGizmos.UpdateView(viewMatrix);
             gridGizmo.UpdateView(viewMatrix, projMatrix, nearFar);
-
 
             gizRdr.SetView(viewMatrix, projMatrix, nearFar);
             gizRdr.SetDepthMask(*pbrOut._depthTexture);
