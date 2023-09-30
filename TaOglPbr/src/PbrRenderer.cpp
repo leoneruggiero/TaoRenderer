@@ -790,7 +790,7 @@ namespace tao_pbr
         {
             _shaders.lightPass.SetUniform(string(LIGHTPASS_NAME_DO_SPHERE_SHADOW).append("[").append(to_string(i).append("]")).c_str(), true);
             _sphereShadowMaps[i].shadowMapColor.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP + i));
-            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP + i));
+            _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP + i));
         }
         _fsQuad.vao.Bind();
         _renderContext->DrawElements(pmt_type_triangles, 6, idx_typ_unsigned_int, nullptr);

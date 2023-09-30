@@ -199,8 +199,7 @@ vec3 ComputeSphereLight(
 
     vec3 specular = lIn*SpecularBRDF_Area(viewDirection, dominantDir, surfNormal, surfF0, surfRoughness, a);
 
-    return  kd*diffuse + specular;
-
+    return kd*diffuse + specular;
 }
 
 vec3 ComputeSphereLight(
@@ -359,6 +358,7 @@ void main()
             col.rgb += ComputeAmbientLight(viewDir, nrmWorld, f0, albedo.rgb, roughness, metalness, u_environmentIntensity,
                                           u_envPrefilteredMinLod, u_envPrefilteredMaxLod, envIrradiance, envPrefiltered, envBrdfLut);
 #endif
+
     }
 
 

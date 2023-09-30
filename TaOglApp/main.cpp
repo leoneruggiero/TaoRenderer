@@ -3701,7 +3701,6 @@ struct MyRectLight
 
 int main()
 {
-
 	try
 	{
 		int windowWidth = 1920;
@@ -3710,9 +3709,10 @@ int main()
 		int fboHeight = 0;
 
         vec2 nearFar = vec2(0.5f, 50.f);
-        vec3 eyePos = vec3(0.5f, 0.5f, 4.f); //vec3(-10.f, -10.f, 10.f);
-        vec3 eyeTrg = vec3(0.f);
-        vec3 up = vec3(0.f, 0.f, 1.f);
+        vec3 eyePos  = vec3(-10.f, -10.f, 10.f);
+        vec3 eyeTrg  = vec3(0.f);
+        vec3 up      = vec3(0.f, 0.f, 1.f);
+
         mat4 viewMatrix;
         mat4 projMatrix;
 
