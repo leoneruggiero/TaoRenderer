@@ -14,12 +14,12 @@ in VS_OUT
     mat3 TBN;
 }fs_in;
 
-uniform sampler2D t_Albedo;
-uniform sampler2D t_Emission;
-uniform sampler2D t_Normals;
-uniform sampler2D t_Metalness;
-uniform sampler2D t_Roughness;
-uniform sampler2D t_Occlusion;
+layout(binding=0) uniform sampler2D t_Albedo;
+layout(binding=1) uniform sampler2D t_Emission;
+layout(binding=2) uniform sampler2D t_Normals;
+layout(binding=3) uniform sampler2D t_Metalness;
+layout(binding=4) uniform sampler2D t_Roughness;
+layout(binding=5) uniform sampler2D t_Occlusion;
 
 vec3 GetAlbedo()
 {
@@ -55,14 +55,14 @@ vec3 GetNormal()
 float GetMetalness()
 {
     return o_material.hasTex_Metalness
-            ? texture(t_Metalness, fs_in.textureCoordinates).r
+            ? (o_material.has_merged_MetalRough ? texture(t_Metalness, fs_in.textureCoordinates).b : texture(t_Metalness, fs_in.textureCoordinates).r)
             : o_material.Metalness;
 }
 
 float GetRoughness()
 {
     return o_material.hasTex_Roughness
-            ? texture(t_Roughness, fs_in.textureCoordinates).r
+            ? (o_material.has_merged_MetalRough ? texture(t_Roughness, fs_in.textureCoordinates).g : texture(t_Roughness, fs_in.textureCoordinates).r)
             : o_material.Roughness;
 }
 

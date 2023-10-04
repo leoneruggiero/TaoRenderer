@@ -336,6 +336,10 @@ namespace tao_gizmos
 		unsigned int		   _vertexCount = 0;
 		std::vector<glm::vec3> _vertices;        
 
+        // constants
+        // -----------------------------
+        static constexpr int kVertSize = 7 * sizeof(float);
+
 		tao_render_context::ResizableVbo				_vboVertices;
 		tao_render_context::ResizableSsbo				_ssboInstanceColor;
 		tao_render_context::ResizableSsbo				_ssboInstanceTransform;
@@ -351,6 +355,7 @@ namespace tao_gizmos
 
 		// this will be called by GizomsRenderer instances
 		LineStripGizmo(tao_render_context::RenderContext& rc, const line_strip_gizmo_descriptor& desc);
+        void SetGizmoVertices(const std::vector<LineGizmoVertex>& vertices, bool isLoop);
 		void SetInstanceData(const std::vector<gizmo_instance_descriptor>& instances) override;
 		
 	};
@@ -559,6 +564,7 @@ namespace tao_gizmos
         [[nodiscard]] gizmo_id							CreateLineStripGizmo	   (const line_strip_gizmo_descriptor& desc);
         // TODO: InstanceGizmo
         [[nodiscard]] std::vector<gizmo_instance_id>	InstanceLineStripGizmo	   (const gizmo_id key, const std::vector<gizmo_instance_descriptor>& instances);
+        void                                        	SetLineStripGizmoVertices  (const gizmo_id key, const std::vector<LineGizmoVertex>& vertices, bool isLoop);
         void											DestroyLineStripGizmo	   (const gizmo_id key);
 
         ///////////////////////////////////////

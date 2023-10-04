@@ -31,8 +31,14 @@ namespace tao_math
     class Plane
     {
     public:
+        Plane(const glm::vec3& origin, const glm::vec3& axisX, const glm::vec3& axisY, const glm::vec3& axisZ):
+        _origin{origin}, _axisX(axisX), _axisY(axisY), _axisZ(axisZ)
+        {
+
+        }
+
         Plane(const glm::vec3& origin, const glm::vec3& normal):
-        _origin{origin}
+                _origin{origin}
         {
             _axisZ = normalize(normal);
             _axisX =

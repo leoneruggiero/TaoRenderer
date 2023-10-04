@@ -166,53 +166,54 @@ namespace tao_pbr
             if (textureCoordinates.size() != positions.size())
                 throw std::runtime_error("Invalid input: positions and textureCoordinates must match in size");
 
-            tangents    = std::vector<glm::vec3>(textureCoordinates.size());
-            bitangents  = std::vector<glm::vec3>(textureCoordinates.size());
+            tangents = std::vector<glm::vec3>(textureCoordinates.size());
+            bitangents = std::vector<glm::vec3>(textureCoordinates.size());
 
-            for (int i = 0; i < indices.size(); i += 3) {
-                {
-                    int
-                            t1 = indices.at(i + 0),
-                            t2 = indices.at(i + 1),
-                            t3 = indices.at(i + 2);
+            for (int i = 0; i < indices.size(); i += 3)
+            {
 
-                    glm::vec3
-                            e1 = (positions.at(t2) - positions.at(t1)),
-                            e2 = (positions.at(t3) - positions.at(t2));
+                int
+                        t1 = indices.at(i + 0),
+                        t2 = indices.at(i + 1),
+                        t3 = indices.at(i + 2);
 
-                    glm::vec2
-                            delta1 = (textureCoordinates.at(t2) - textureCoordinates.at(t1)),
-                            delta2 = (textureCoordinates.at(t3) - textureCoordinates.at(t2));
+                if (t1 >= positions.size() || t2 >= positions.size() || t3 >= positions.size())
+                    throw std::runtime_error("Invalid input: indices reference out of bounds");
+
+                glm::vec3
+                        e1 = (positions.at(t2) - positions.at(t1)),
+                        e2 = (positions.at(t3) - positions.at(t2));
+
+                glm::vec2
+                        delta1 = (textureCoordinates.at(t2) - textureCoordinates.at(t1)),
+                        delta2 = (textureCoordinates.at(t3) - textureCoordinates.at(t2));
 
 
-                    glm::mat3x2 mE = glm::transpose(glm::mat2x3(e1, e2));
-                    glm::mat2 mDelta = glm::transpose(glm::mat2(delta1, delta2));
-                    glm::mat2 mDeltaInverse = glm::inverse(mDelta);
+                glm::mat3x2 mE = glm::transpose(glm::mat2x3(e1, e2));
+                glm::mat2 mDelta = glm::transpose(glm::mat2(delta1, delta2));
+                glm::mat2 mDeltaInverse = glm::inverse(mDelta);
 
-                    glm::mat3x2 mTB = mDeltaInverse * mE;
+                glm::mat3x2 mTB = mDeltaInverse * mE;
 
-                    glm::vec3 tangent = glm::transpose(mTB)[0];
-                    glm::vec3 bitangent = glm::transpose(mTB)[1];
+                glm::vec3 tangent = glm::transpose(mTB)[0];
+                glm::vec3 bitangent = glm::transpose(mTB)[1];
 
-                    // Average vertex tangents and bitangents
-                    tangents.at(t1) += tangent;
-                    tangents.at(t2) += tangent;
-                    tangents.at(t3) += tangent;
+                // Average vertex tangents and bitangents
+                tangents.at(t1) += tangent;
+                tangents.at(t2) += tangent;
+                tangents.at(t3) += tangent;
 
-                    bitangents.at(t1) += bitangent;
-                    bitangents.at(t2) += bitangent;
-                    bitangents.at(t3) += bitangent;
-                }
-
-                for (auto& v : tangents)
-                    v = glm::normalize(v);
-
-                for (auto& v : bitangents)
-                    v = glm::normalize(v);
-
-                tangents = tangents;
-                bitangents = bitangents;
+                bitangents.at(t1) += bitangent;
+                bitangents.at(t2) += bitangent;
+                bitangents.at(t3) += bitangent;
             }
+
+            for (auto &v: tangents)
+                v = glm::normalize(v);
+
+            for (auto &v: bitangents)
+                v = glm::normalize(v);
+
         }
     };
 
@@ -232,7 +233,6 @@ namespace tao_pbr
         }
     private:
         std::string _path;
-        int _numChannels;
         bool _accountForGamma = false;
 
         // Handle to graphics data (ugly)
@@ -261,7 +261,34 @@ namespace tao_pbr
         // Handle to graphics data (ugly)
         std::optional<GenKey<EnvironmentTextureGraphicsData>> _graphicsData;
     };
-        
+
+
+    struct pbr_material_descriptor
+    {
+        // Diffuse color
+        glm::vec3 diffuse;
+        std::optional<GenKey<ImageTexture>> diffuseTex;
+
+        // Normals
+        std::optional<GenKey<ImageTexture>> normalTex;
+
+        // Roughness (or metalness/roughness)
+        float roughness;
+        std::optional<GenKey<ImageTexture>> roughnessTex;
+        bool mergedMetalnessRoughness = false;
+
+        // Metalness
+        float metalness;
+        std::optional<GenKey<ImageTexture>> metalnessTex;
+
+        // Emissive color
+        glm::vec3 emission;
+        std::optional<GenKey<ImageTexture>> emissionTex;
+
+        // Occlusion
+        std::optional<GenKey<ImageTexture>> occlusionTex;
+    };
+
     class PbrMaterial
     {
         friend class PbrRenderer;
@@ -269,7 +296,17 @@ namespace tao_pbr
     public:
         PbrMaterial(float roughness, float metalness, const glm::vec3 &diffuse) : _roughness(roughness),
                                                                                   _metalness(metalness),
-                                                                                  _diffuse(diffuse) {}
+                                                                                  _diffuse(diffuse)
+        {
+
+        }
+
+        PbrMaterial(const pbr_material_descriptor& desc):
+        _roughness(desc.roughness), _metalness(desc.metalness), _diffuse(desc.diffuse), _emission(desc.emission),
+        _diffuseTex(desc.diffuseTex), _emissionTex(desc.emissionTex), _normalMap(desc.normalTex), _roughnessMap(desc.roughnessTex),
+        _metalnessMap(desc.metalnessTex), _occlusionMap(desc.occlusionTex), _mergedMetalRough(desc.mergedMetalnessRoughness)
+        {
+        }
 
     private:
         float _roughness;
@@ -282,6 +319,7 @@ namespace tao_pbr
         std::optional<GenKey<ImageTexture>> _roughnessMap;
         std::optional<GenKey<ImageTexture>> _metalnessMap;
         std::optional<GenKey<ImageTexture>> _occlusionMap;
+        bool _mergedMetalRough;
 
 
         static bool CheckKey(const std::optional<GenKey<ImageTexture>>& key, const GenKeyVector<ImageTexture>& vector)
@@ -541,6 +579,13 @@ namespace tao_pbr
         static constexpr const int LIGHTPASS_BUFFER_BINDING_SPHERE_LIGHTS   = 6;
         static constexpr const int LIGHTPASS_BUFFER_BINDING_RECT_LIGHTS     = 7;
 
+        static constexpr const int GPASS_TEX_BINDING_DIFFUSE    = 0;
+        static constexpr const int GPASS_TEX_BINDING_EMISSION   = 1;
+        static constexpr const int GPASS_TEX_BINDING_NORMALS    = 2;
+        static constexpr const int GPASS_TEX_BINDING_METALNESS  = 3;
+        static constexpr const int GPASS_TEX_BINDING_ROUGHNESS  = 4;
+        static constexpr const int GPASS_TEX_BINDING_OCCLUSION  = 5;
+
         static constexpr const int GPASS_UBO_BINDING_TRANSFORM  = 2;
         static constexpr const int GPASS_UBO_BINDING_MATERIAL   = 3;
         static constexpr const int GPASS_UBO_BINDING_CAMERA     = 1;
@@ -774,6 +819,7 @@ namespace tao_pbr
             int has_emission_tex;
             int has_normal_tex;
             int has_roughness_tex;
+            int has_merged_rough_metal;
             int has_metalness_tex;
             int has_occlusion_tex;
         };
@@ -853,6 +899,8 @@ namespace tao_pbr
         void CreateShadowMap(DirectionalShadowMap &shadowMapData, const tao_pbr::DirectionalLight &l, int shadowMapWidth, int shadowMapHeight);
         void CreateShadowMap(SphereShadowMap      &shadowMapData, const tao_pbr::SphereLight      &l, int shadowMapResolution);
 
+        tao_ogl_resources::OglTexture2D& GetGlTexture(const GenKey<ImageTexture>& tex);
+        void BindMaterialTextures(const GenKey<PbrMaterial>& mat);
     };
 
 }

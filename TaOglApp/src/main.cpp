@@ -125,6 +125,10 @@ public:
         posX = glm::clamp(posX, 0.0, static_cast<double>(surfaceWidth));
         posY = glm::clamp(posY, 0.0, static_cast<double>(surfaceHeight));
 
+        UpdateMouseButton(mouse_button::left  , posX, posY, surfaceWidth, surfaceHeight);
+        UpdateMouseButton(mouse_button::middle, posX, posY, surfaceWidth, surfaceHeight);
+        UpdateMouseButton(mouse_button::right , posX, posY, surfaceWidth, surfaceHeight);
+
         for(int i=0;i<_agents.size();i++)
         {
             if(_agents[i]->GetTag() & _muted) continue;
@@ -134,10 +138,6 @@ public:
                     glm::min(static_cast<float>(surfaceHeight), glm::max(0.0f, static_cast<float>(posY))),
                     surfaceWidth, surfaceHeight);
         }
-
-        UpdateMouseButton(mouse_button::left  , posX, posY, surfaceWidth, surfaceHeight);
-        UpdateMouseButton(mouse_button::middle, posX, posY, surfaceWidth, surfaceHeight);
-        UpdateMouseButton(mouse_button::right , posX, posY, surfaceWidth, surfaceHeight);
     }
 
     double GetTime()
@@ -1024,6 +1024,11 @@ public:
         return _currentMode;
     }
 
+    void UpdateCamera(const mat4& viewMatrix, const mat4& projMatrix, const vec2& nearFar)
+    {
+        _transformManipulators[_currentMode]->CameraChanged(viewMatrix, projMatrix, nearFar);
+    }
+
 private:
     class Tm
     {
@@ -1037,6 +1042,7 @@ private:
         virtual void DragEnter(gizmo_instance_id selectedItem) = 0 ;
         virtual void DragExit() = 0 ;
         virtual mat4 Drag(float x, float y, float prevX, float prevY, int w, int h) = 0 ;
+        virtual void CameraChanged(const mat4& viewMatrix, const mat4& projMatrix, const vec2& nearFar) = 0;
     protected:
         bool _enabled = false;
         mat4 _transformation = mat4{1.0f};
@@ -1204,6 +1210,11 @@ private:
             return t;
         }
 
+        virtual void CameraChanged(const mat4&, const mat4&, const vec2&) override
+        {
+
+        }
+
     private:
         static constexpr float
                 kCylRadius  = 0.04f,
@@ -1351,25 +1362,16 @@ private:
             static constexpr float
                     kRadius  = 1.00f;
             static constexpr int
-                    kCircPtsCount = 30,
-                    kLineSize     = 3,
+                    kLineSize     = 4,
                     kLineSizeForSelection = 12;
             static constexpr vec4
-                    kAxisColorX = vec4{0.75, 0.1, 0.1, 1.0},
-                    kAxisColorY = vec4{0.1, 0.75, 0.1, 1.0},
-                    kAxisColorZ = vec4{0.1, 0.1, 0.75, 1.0};
+                    kAxisColorX = vec4{0.8, 0.1, 0.1, 1.0},
+                    kAxisColorY = vec4{0.1, 0.8, 0.1, 1.0},
+                    kAxisColorZ = vec4{0.1, 0.1, 0.8, 1.0};
 
             /// Geometry creation
             /////////////////////////////////////////////////////
-            vector<LineGizmoVertex> circPts(kCircPtsCount);
-            const float arc = 2.0f*pi<float>();
-            const float da = arc/(kCircPtsCount-1);
-            for(int i=0;i<kCircPtsCount; i++)
-            {
-                circPts[i] = LineGizmoVertex()
-                        .Position(vec3{cos(i*da), sin(i*da), 0.0f})
-                        .Color(vec4{1.0f});
-            }
+            vector<LineGizmoVertex> circPts = GetCircleVertices(-0.5f*pi<float>(), 0.5f*pi<float>());
 
             /// Instantiating the gizmo
             ///////////////////////////////////////////////////////
@@ -1399,9 +1401,9 @@ private:
              });
 
             mat4
-                    transformX = rotate(mat4{1.0}, 0.5f*pi<float>(), vec3{0.0, 1.0, 0.0}) * scale(mat4{1.0f}, vec3{1.00f}),
-                    transformY = rotate(mat4{1.0},-0.5f*pi<float>(), vec3{1.0, 0.0, 0.0}) * scale(mat4{1.0f}, vec3{0.93f}),
-                    transformZ = rotate(mat4{1.0}, 0.0f*pi<float>(), vec3{1.0, 0.0, 0.0}) * scale(mat4{1.0f}, vec3{0.84f});
+                    transformX = GetDefaultAxisTransform(TmAxis::AxisX),
+                    transformY = GetDefaultAxisTransform(TmAxis::AxisY),
+                    transformZ = GetDefaultAxisTransform(TmAxis::AxisZ);
 
             vector<gizmo_instance_descriptor> instances =
                     {
@@ -1652,6 +1654,10 @@ private:
 
             _selectedAxis = GetAxisFromId(id);
 
+            // Switch from half circle to full circle gizmo
+            _gr->SetLineStripGizmoVertices(_gizmoId              , GetCircleVertices(0.0f, 2.0f*pi<float>()), true);
+            _gr->SetLineStripGizmoVertices(_gizmoIdForSelection  , GetCircleVertices(0.0f, 2.0f*pi<float>()), true);
+
             // Hide non selected axis
             SetInstancesProperties(AxisX, _selectedAxis.value() == AxisX, false);
             SetInstancesProperties(AxisY, _selectedAxis.value() == AxisY, false);
@@ -1661,6 +1667,10 @@ private:
         virtual void DragExit() override
         {
             _selectedAxis = nullopt;
+
+            // Switch from full to half circle gizmo
+            _gr->SetLineStripGizmoVertices(_gizmoId              , GetCircleVertices(-0.5f*pi<float>(), 0.5f*pi<float>()), false);
+            _gr->SetLineStripGizmoVertices(_gizmoIdForSelection  , GetCircleVertices(-0.5f*pi<float>(), 0.5f*pi<float>()), false);
 
             // Show all the axis again
             SetInstancesProperties(true, true);
@@ -1692,12 +1702,15 @@ private:
             Ray currRay{eye, eyeCurrDir};
             Ray prevRay{eye, eyePrevDir};
 
-            vec3 currIntersection = RayPlaneIntersection(currRay, gizPl).value();
-            vec3 prevIntersection = RayPlaneIntersection(prevRay, gizPl).value();
+            optional<vec3> currIntersection = RayPlaneIntersection(currRay, gizPl);
+            optional<vec3> prevIntersection = RayPlaneIntersection(prevRay, gizPl);
+
+            if(!currIntersection.has_value() || !prevIntersection.has_value())
+                return mat4{1.0f};
 
             // find the angular difference
-            vec2 currProj = normalize(gizPl.ProjectPoint(currIntersection));
-            vec2 prevProj = normalize(gizPl.ProjectPoint(prevIntersection));
+            vec2 currProj = normalize(gizPl.ProjectPoint(currIntersection.value()));
+            vec2 prevProj = normalize(gizPl.ProjectPoint(prevIntersection.value()));
 
             float da =
                     acos(glm::min(dot(currProj, prevProj), 1.0f)) *            // clamp to avoid NaN
@@ -1723,6 +1736,44 @@ private:
             DrawImmediateArc(gizPl.Transformation(), length(_axisData[_selectedAxis.value()].transform[0]), _firstTouchAngle, _firstTouchAngle + _cumulatedAngle, color, lineColor);
 
             return t;
+        }
+
+        virtual void CameraChanged(const mat4& viewMatrix, const mat4&, const vec2&) override
+        {
+            // Rotation handles are represented as half circles. This method
+            // ensures that each half circle tries to face the view direction.
+
+            // While dragging (_selectedAxis has value) handles are
+            // full circles, no need to make them face the camera.
+            if(!Tm::_enabled || _selectedAxis.has_value())
+                return;
+
+            vec4 axisX = Tm::_transformation * vec4{1.0f, 0.0f, 0.0f, 0.0f};
+            vec4 axisY = Tm::_transformation * vec4{0.0f, 1.0f, 0.0f, 0.0f};
+            vec4 axisZ = Tm::_transformation * vec4{0.0f, 0.0f, 1.0f, 0.0f};
+
+            Plane gizmoPlaneZY{vec3{0.0f}, axisZ, axisY, axisX};
+            Plane gizmoPlaneXZ{vec3{0.0f}, axisX, axisZ, axisY};
+            Plane gizmoPlaneXY{vec3{0.0f}, axisX, axisY, axisZ};
+
+            vec3 eyePos = vec3{glm::inverse(viewMatrix) * vec4{0.0f, 0.0f, 0.0f, 1.0f}};
+            vec3 gizmoCenter = vec3{Tm::_transformation * vec4{0.0f, 0.0f, 0.0f, 1.0f}};
+
+            vec3 viewVec = normalize(eyePos - gizmoCenter);
+
+            vec2 fwd2DX = normalize(gizmoPlaneZY.ProjectPoint(viewVec));
+            vec2 fwd2DY = normalize(gizmoPlaneXZ.ProjectPoint(viewVec));
+            vec2 fwd2DZ = normalize(gizmoPlaneXY.ProjectPoint(viewVec));
+
+            float angleX = atan2(fwd2DX.y, fwd2DX.x);
+            float angleY = atan2(fwd2DY.y, fwd2DY.x);
+            float angleZ = atan2(fwd2DZ.y, fwd2DZ.x);
+
+            _axisData[TmAxis::AxisX].transform = GetDefaultAxisTransform(TmAxis::AxisX) * rotate(mat4{1.0f}, angleX, vec3{0.0f, 0.0f, 1.0f});
+            _axisData[TmAxis::AxisY].transform = GetDefaultAxisTransform(TmAxis::AxisY) * rotate(mat4{1.0f}, angleY, vec3{0.0f, 0.0f, 1.0f});
+            _axisData[TmAxis::AxisZ].transform = GetDefaultAxisTransform(TmAxis::AxisZ) * rotate(mat4{1.0f}, angleZ, vec3{0.0f, 0.0f, 1.0f});
+
+            SetInstancesProperties(true, true);
         }
 
     private:
@@ -1809,6 +1860,34 @@ private:
             throw runtime_error("Invalid gizmo instance id. Call Tm::HasGizmo before calling this method.");
         }
 
+
+        static mat4 GetDefaultAxisTransform(TmAxis axis)
+        {
+            switch(axis)
+            {
+                case(TmAxis::AxisX) : return rotate(mat4{1.0},-0.5f*pi<float>(), vec3{0.0, 1.0, 0.0});
+                case(TmAxis::AxisY) : return rotate(mat4{1.0}, 0.5f*pi<float>(), vec3{1.0, 0.0, 0.0});
+                case(TmAxis::AxisZ) : return rotate(mat4{1.0}, 0.0f*pi<float>(), vec3{1.0, 0.0, 0.0});
+                default: return mat4{1.0f};
+            }
+        }
+
+        vector<LineGizmoVertex> GetCircleVertices(float startAngle, float endAngle)
+        {
+            const int kCircPtsCount = 30;
+
+            vector<LineGizmoVertex> circPts(kCircPtsCount);
+            const float da = (endAngle - startAngle)/(kCircPtsCount-1);
+
+            for(int i=0;i<kCircPtsCount; i++)
+            {
+                circPts[i] = LineGizmoVertex()
+                        .Position(vec3{cos(startAngle + i*da), sin(startAngle + i*da), 0.0f})
+                        .Color(vec4{1.0f});
+            }
+
+            return circPts;
+        }
     };
 
     class TmScale : public Tm
@@ -2067,6 +2146,11 @@ private:
             SetImmediateLinePosition(start, end, _axisData[_selectedAxis.value()].color);
 
             return t;
+        }
+
+        virtual void CameraChanged(const mat4&, const mat4&, const vec2&) override
+        {
+
         }
 
     private:
@@ -3627,7 +3711,7 @@ mat4 GetMat4(const aiMatrix4x4& aiMat)
             };
 }
 
-void LoadAiNode(PbrRenderer& renderer, const vector<GenKey<Mesh>>& pbrMeshes, const vector<GenKey<PbrMaterial>>& pbrMaterials, const aiNode* node, const mat4& accTransform, const GenKey<PbrMaterial>& defaultMat)
+void LoadAiNode(PbrRenderer& renderer, const aiScene* scene, const vector<GenKey<Mesh>>& pbrMeshes, const vector<GenKey<PbrMaterial>>& pbrMaterials, const aiNode* node, const mat4& accTransform, const GenKey<PbrMaterial>& defaultMat)
 {
     mat4 currTransform = GetMat4(node->mTransformation);
     mat4 transform = accTransform * currTransform;
@@ -3638,14 +3722,17 @@ void LoadAiNode(PbrRenderer& renderer, const vector<GenKey<Mesh>>& pbrMeshes, co
         for(int i=0;i<node->mNumMeshes; i++)
         {
             Transformation tr{transform};
-            renderer.AddMeshRenderer(tr, pbrMeshes[node->mMeshes[i]], pbrMaterials[node->mMeshes[i]]);
+            int meshIndex = node->mMeshes[i];
+            int matIndex  = scene->mMeshes[meshIndex]->mMaterialIndex;
+
+            renderer.AddMeshRenderer(tr, pbrMeshes[meshIndex], pbrMaterials[matIndex]);
         }
     }
 
     // continue for all child nodes
     for(int n=0;n<node->mNumChildren; n++)
     {
-        LoadAiNode(renderer, pbrMeshes, pbrMaterials, node->mChildren[n], transform, defaultMat);
+        LoadAiNode(renderer, scene, pbrMeshes, pbrMaterials, node->mChildren[n], transform, defaultMat);
     }
 }
 
@@ -3779,7 +3866,7 @@ void LoadAiScene(PbrRenderer& renderer, const aiScene* scene, const string& root
     // --- Load scene hierarchy
     GenKey<PbrMaterial> defaultMat = renderer.AddMaterial(PbrMaterial{0.5f, 0.0f, vec4{0.7f, 0.3f, 0.1f, 1.0f}});
 
-    LoadAiNode(renderer, myMeshes, myMaterials, scene->mRootNode, rotate(mat4{1.0f}, 0.5f*pi<float>(), vec3{1.0f, 0.0f, 0.0f}) /* from Y to Z up*/ , defaultMat);
+    LoadAiNode(renderer, scene, myMeshes, myMaterials, scene->mRootNode, rotate(mat4{1.0f}, 0.5f*pi<float>(), vec3{1.0f, 0.0f, 0.0f}) /* from Y to Z up*/ , defaultMat);
 }
 
 void LoadGltf(PbrRenderer& renderer, const char* path)
@@ -3974,7 +4061,7 @@ int main()
         // ----------------------------------------------------------------------------
         LoadHDRIs(pbrRdr);
 
-        LoadGltf(pbrRdr, "C:/Users/Admin/Downloads/vespa/scene.gltf");
+        LoadGltf(pbrRdr, "C:/Users/Admin/Downloads/ShadowTest.gltf");
 
         /*auto sphere = tao_geometry::Mesh::Sphere(0.3f, 32);
         tao_pbr::Mesh sphereMesh{
@@ -4031,7 +4118,7 @@ int main()
 
         auto dirLightKey = pbrRdr.AddDirectionalLight(dirLight0);
 
-        SphereLight sphereLight0
+        /*SphereLight sphereLight0
         {
             .transformation = glm::translate(glm::mat4(1.0), {1.0, 0.5, 3.0}),
             .intensity = vec3(15.0),
@@ -4039,7 +4126,7 @@ int main()
         };
         auto sphereLight0Key = pbrRdr.AddSphereLight(sphereLight0);
 
-        /*SphereLight sphereLight1
+        SphereLight sphereLight1
         {
                 .transformation = glm::translate(glm::mat4(1.0), {2.0, 1.5, 3.0}),
                 .intensity = vec3(12.0),
@@ -4053,7 +4140,7 @@ int main()
                 .intensity = vec3(5.0),
                 .radius = 0.25
         };
-        auto sphereLight2Key = pbrRdr.AddSphereLight(sphereLight2);*/
+        auto sphereLight2Key = pbrRdr.AddSphereLight(sphereLight2);
 
 
         RectLight rectLight0 =
@@ -4065,20 +4152,20 @@ int main()
                         .size = vec2{2.0, 3.0}
                 };
 
-        auto rectLight0Key = pbrRdr.AddRectLight(rectLight0);
+        auto rectLight0Key = pbrRdr.AddRectLight(rectLight0);*/
 
         // light gizmos
         auto directionalLightGizmo0Key = lightGizmos.CreateDirectionalLightGizmo(dirLight0);
-        auto rectLightGizmo0Key   = lightGizmos.CreateRectLightGizmo(rectLight0);
+        /*auto rectLightGizmo0Key   = lightGizmos.CreateRectLightGizmo(rectLight0);
         auto sphereLightGizmo0Key = lightGizmos.CreateSphereLightGizmo(sphereLight0);
-        /*auto sphereLightGizmo1Key = lightGizmos.CreateSphereLightGizmo(sphereLight1);
+        auto sphereLightGizmo1Key = lightGizmos.CreateSphereLightGizmo(sphereLight1);
         auto sphereLightGizmo2Key = lightGizmos.CreateSphereLightGizmo(sphereLight2);*/
 
         // TODO: is it necessary to duplicate this much code???
         vector<MySphereLight> mySphereLights
         ({
-            MySphereLight{.light = sphereLight0, .pbrLightKey = sphereLight0Key, .gizmoLightKey = sphereLightGizmo0Key},
-            /*MySphereLight{.light = sphereLight1, .pbrLightKey = sphereLight1Key, .gizmoLightKey = sphereLightGizmo1Key},
+            /*MySphereLight{.light = sphereLight0, .pbrLightKey = sphereLight0Key, .gizmoLightKey = sphereLightGizmo0Key},
+            MySphereLight{.light = sphereLight1, .pbrLightKey = sphereLight1Key, .gizmoLightKey = sphereLightGizmo1Key},
             MySphereLight{.light = sphereLight2, .pbrLightKey = sphereLight2Key, .gizmoLightKey = sphereLightGizmo2Key},*/
          });
 
@@ -4089,7 +4176,7 @@ int main()
 
         vector<MyRectLight> myRectLights
         ({
-                 MyRectLight{.light = rectLight0, .pbrLightKey = rectLight0Key, .gizmoLightKey = rectLightGizmo0Key}
+                 //MyRectLight{.light = rectLight0, .pbrLightKey = rectLight0Key, .gizmoLightKey = rectLightGizmo0Key}
          });
 
         variant<MyDirectionalLight*, MySphereLight*, MyRectLight*> selectedLight;
@@ -4216,6 +4303,7 @@ int main()
 
             lightGizmos.UpdateView(viewMatrix);
             gridGizmo.UpdateView(viewMatrix, projMatrix, nearFar);
+            tmGizmo.UpdateCamera(viewMatrix, projMatrix, nearFar);
 
             gizRdr.SetView(viewMatrix, projMatrix, nearFar);
             gizRdr.SetDepthMask(*pbrOut._depthTexture);

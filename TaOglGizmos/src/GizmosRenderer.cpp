@@ -241,6 +241,48 @@ namespace tao_gizmos
 		 _ssboInstanceVisibility.OglBuffer().SetSubData(0, dataSize, visibility.data());
 	 }
 
+    void LineStripGizmo::SetGizmoVertices(const std::vector<LineGizmoVertex> &vertices, bool isLoop)
+    {
+        _vertexCount = vertices.size();
+        _vertices.resize(_vertexCount);
+
+        // adjacency data for start and end point
+        LineGizmoVertex adjStart, adjEnd;
+        if(isLoop)
+        {
+            adjStart	= *(vertices.  end() -2);
+            adjEnd		= *(vertices.begin() +1);
+        }
+        else
+        {
+            vec3 start	= 2.0f * (vertices.begin())->GetPosition() - (vertices.begin() + 1)->GetPosition();
+            vec3 end	= 2.0f * (vertices.end()-1)->GetPosition() - (vertices  .end() - 2)->GetPosition();
+
+            adjStart = LineGizmoVertex{}
+                    .Position(start)
+                    .Color(vertices.begin()->GetColor());
+
+            adjEnd  = LineGizmoVertex{}
+                    .Position(end)
+                    .Color((vertices.end()-1)->GetColor());
+        }
+
+        // copy and store position data
+        // needed to compute per-vertex screen length
+        for (int i = 0; i < vertices.size(); i++)
+            _vertices[i] = vertices[i].GetPosition();
+
+        _vertices.insert(_vertices.begin(), adjStart.GetPosition());
+        _vertices.push_back(adjEnd.GetPosition());
+
+        vector<LineGizmoVertex> myVertsAdj = vertices;
+        myVertsAdj.insert(myVertsAdj.begin(), adjStart);
+        myVertsAdj.push_back(adjEnd);
+
+        _vboVertices.Resize(myVertsAdj.size()* kVertSize);
+        _vboVertices.OglBuffer().SetSubData(0, myVertsAdj.size()* kVertSize, myVertsAdj.data());
+    }
+
 	 LineStripGizmo::LineStripGizmo(RenderContext& rc, const line_strip_gizmo_descriptor& desc) :
 		 _vertexCount			{ static_cast<unsigned int>(desc.vertices.size())},
 		 _vertices				(desc.vertices.size()), 
@@ -279,52 +321,15 @@ namespace tao_gizmos
 		 // vbo layout for linestrip:
 		 // vbo 0: pos(vec3)-color(vec4)
 		 //--------------------------------------------
-		 constexpr int vertexSize   = 7 * sizeof(float);
-		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 0, 3, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(0 * sizeof(float)));
-		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 1, 4, vao_typ_float, false, vertexSize, reinterpret_cast<void*>(3 * sizeof(float)));
+		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 0, 3, vao_typ_float, false, kVertSize, reinterpret_cast<void*>(0 * sizeof(float)));
+		 _vao.SetVertexAttribPointer(_vboVertices.OglBuffer(), 1, 4, vao_typ_float, false, kVertSize, reinterpret_cast<void*>(3 * sizeof(float)));
 		 _vao.EnableVertexAttrib(0);
 		 _vao.EnableVertexAttrib(1);
 
 		 // allocate memory and fill vbo
 		 // --------------------------------------------
+         SetGizmoVertices(desc.vertices, desc.isLoop);
 
-		 // adjacency data for start and end point
-		 LineGizmoVertex adjStart, adjEnd;
-		 if(desc.isLoop)
-		 {
-			 adjStart	= *(desc.vertices.  end() -2);
-			 adjEnd		= *(desc.vertices.begin() +1);
-		 }
-		 else
-		 {
-			 vec3 start	= 2.0f * (desc.vertices.begin())->GetPosition() - (desc.vertices.begin() + 1)->GetPosition();
-			 vec3 end	= 2.0f * (desc.vertices.end()-1)->GetPosition() - (desc.vertices  .end() - 2)->GetPosition();
-
-			 adjStart = LineGizmoVertex{}
-		 	.Position(start)
-		 	.Color(desc.vertices.begin()->GetColor());
-
-			 adjEnd  = LineGizmoVertex{}
-		 	.Position(end)
-		 	.Color((desc.vertices.end()-1)->GetColor());
-		 }
-
-		// copy and store position data
-		// needed to compute per-vertex screen length
-		 for (int i = 0; i < _vertices.size(); i++) 
-			 _vertices[i] = desc.vertices[i].GetPosition();
-
-		 _vertices.insert(_vertices.begin(), adjStart.GetPosition());
-		 _vertices.push_back(adjEnd.GetPosition());
-
-		 vector<LineGizmoVertex> myVertsAdj = desc.vertices;
-		 myVertsAdj.insert(myVertsAdj.begin(), adjStart);
-		 myVertsAdj.push_back(adjEnd);
-
-		 _vboVertices.Resize(myVertsAdj.size()* vertexSize);
-		 _vboVertices.OglBuffer().SetSubData(0, myVertsAdj.size()* vertexSize, myVertsAdj.data());
-
-		 int s = sizeof(LineGizmoVertex);
 
 		 // pattern texture
 		 // --------------------------------------------
@@ -1033,6 +1038,14 @@ namespace tao_gizmos
 
 		_lineStripGizmos.erase(k);
 	}
+
+    void GizmosRenderer::SetLineStripGizmoVertices(const tao_gizmos::gizmo_id key,const std::vector<LineGizmoVertex> &vertices, bool isLoop)
+    {
+        auto k = DecodeGizmoKey(key._key, KEY_MASK_LINE_STRIP);
+        CheckKeyPresent(_lineStripGizmos, k, EXC_PREAMBLE);
+
+        _lineStripGizmos.at(k).SetGizmoVertices(vertices, isLoop);
+    }
 
 	std::vector<gizmo_instance_id> GizmosRenderer::InstanceLineStripGizmo(const gizmo_id key, const vector<gizmo_instance_descriptor>& instances)
 	{

@@ -11,6 +11,7 @@ struct Material
     bool hasTex_Emission         ;
     bool hasTex_Normals          ;
     bool hasTex_Roughness        ;
+    bool has_merged_MetalRough   ;
     bool hasTex_Metalness        ;
     bool hasTex_Occlusion        ;
 };

@@ -305,16 +305,22 @@ namespace tao_pbr
     GenKey<ImageTextureGraphicsData>  PbrRenderer::CreateGraphicsData(ImageTexture& image)
     {
         int w, h, c;
-        void* data = stbi_load(image._path.c_str(), &w, &h, &c, image._numChannels);
+        void* data = stbi_load(image._path.c_str(), &w, &h, &c, 0);
+
+        if(!data)
+        {
+            throw runtime_error(std::format("Failed to load texture data at {}: {}", image._path, stbi_failure_reason()));
+        }
 
         tao_ogl_resources::ogl_texture_internal_format ifmt;
         tao_ogl_resources::ogl_texture_format fmt;
-        switch(image._numChannels)
+        switch(c)
         {
             case(1): ifmt = tao_ogl_resources::tex_int_for_red;  fmt = tao_ogl_resources::tex_for_red; break;
             case(2): ifmt = tao_ogl_resources::tex_int_for_rg;   fmt = tao_ogl_resources::tex_for_rg; break;
-            case(3): ifmt = tao_ogl_resources::tex_int_for_rgb;  fmt = tao_ogl_resources::tex_for_rgb; break;
-            case(4): ifmt = tao_ogl_resources::tex_int_for_rgba; fmt = tao_ogl_resources::tex_for_rgba; break;
+
+            case(3): ifmt = image._accountForGamma ? tao_ogl_resources::tex_int_for_srgb8        : tao_ogl_resources::tex_int_for_rgb ; fmt = tao_ogl_resources::tex_for_rgb; break;
+            case(4): ifmt = image._accountForGamma ? tao_ogl_resources::tex_int_for_srgb8_alpha8 : tao_ogl_resources::tex_int_for_rgba; fmt = tao_ogl_resources::tex_for_rgba; break;
         }
 
         ImageTextureGraphicsData gd{._glTexture = _renderContext->CreateTexture2D()};
@@ -453,6 +459,7 @@ namespace tao_pbr
                             .has_emission_tex   = mat._emissionTex.has_value(),
                             .has_normal_tex     = mat._normalMap.has_value(),
                             .has_roughness_tex  = mat._roughnessMap.has_value(),
+                            .has_merged_rough_metal = mat._mergedMetalRough,
                             .has_metalness_tex  = mat._metalnessMap.has_value(),
                             .has_occlusion_tex  = mat._occlusionMap.has_value()
                     };
@@ -609,6 +616,44 @@ namespace tao_pbr
         ResizeOutputBuffer(newWidth, newHeight);
     }
 
+    OglTexture2D& PbrRenderer::GetGlTexture(const GenKey<ImageTexture>& tex)
+    {
+        return _texturesGraphicsData.at(_textures.at(tex)._graphicsData.value())._glTexture;
+    }
+    void PbrRenderer::BindMaterialTextures(const GenKey<PbrMaterial>& mat)
+    {
+        if(auto tex = _materials.at(mat)._diffuseTex) // --- Diffuse
+        {
+            GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_DIFFUSE));
+            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_DIFFUSE));
+        }
+        if(auto tex = _materials.at(mat)._normalMap) // --- Normal
+        {
+            GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_NORMALS));
+            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_NORMALS));
+        }
+        if(auto tex = _materials.at(mat)._roughnessMap) // --- Roughness
+        {
+            GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_ROUGHNESS));
+            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_ROUGHNESS));
+        }
+        if(auto tex = _materials.at(mat)._metalnessMap) // --- Metalness
+        {
+            GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_METALNESS));
+            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_METALNESS));
+        }
+        if(auto tex = _materials.at(mat)._emissionTex) // --- Emission
+        {
+            GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_EMISSION));
+            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_EMISSION));
+        }
+        if(auto tex = _materials.at(mat)._occlusionMap) // --- Occlusion
+        {
+            GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_OCCLUSION));
+            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_OCCLUSION));
+        }
+    }
+
     PbrRenderer::pbrRendererOut PbrRenderer::Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far)
     {
         _renderContext->MakeCurrent();
@@ -693,6 +738,7 @@ namespace tao_pbr
             if(!_meshRenderers.indexValid(i)) continue;
 
             auto meshKey = _meshRenderers.vector()[i]._mesh;
+            auto matKey = _meshRenderers.vector()[i]._material;
             auto meshDataKey = _meshes.at(meshKey)._graphicsData;
 
             if(!meshDataKey.has_value()) throw std::runtime_error("The mesh has no graphics data.");
@@ -702,6 +748,8 @@ namespace tao_pbr
 
             _shaderBuffers.transformUbo.OglBuffer().BindRange(GPASS_UBO_BINDING_TRANSFORM, i*_transformDataBlockAlignment, sizeof(transform_gl_data_block));
             _shaderBuffers.materialUbo.OglBuffer().BindRange(GPASS_UBO_BINDING_MATERIAL, i*_materialDataBlockAlignment, sizeof(material_gl_data_block));
+
+            BindMaterialTextures(matKey);
 
             _renderContext->DrawElements(pmt_type_triangles, gfxData._indicesCount, idx_typ_unsigned_int, nullptr);
         }
