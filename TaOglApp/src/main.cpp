@@ -3983,6 +3983,150 @@ struct MyRectLight
     weak_ptr<LightGizmos::RectLightGizmo> gizmoLightKey;
 };
 
+
+vector<LineGizmoVertex> GetCircleVertices(float startAngle, float endAngle)
+{
+    const int kCircPtsCount = 30;
+
+    vector<LineGizmoVertex> circPts(kCircPtsCount);
+    const float da = (endAngle - startAngle)/(kCircPtsCount-1);
+
+    for(int i=0;i<kCircPtsCount; i++)
+    {
+        circPts[i] = LineGizmoVertex()
+                .Position(vec3{cos(startAngle + i*da), sin(startAngle + i*da), 0.0f})
+                .Color(vec4{1.0f});
+    }
+
+    return circPts;
+}
+void CreateDashedPatternTest0(unsigned int patternLen, unsigned int patternWidth, tao_gizmos_procedural::TextureDataRgbaUnsignedByte& tex)
+{
+
+    tex.FillWithFunction([patternLen, patternWidth](unsigned int x, unsigned int y)
+     {
+         vec2 sampl = vec2{ x, y }+vec2{0.5f};
+
+         float d = patternLen / 4.0f;
+
+         vec2 dashStart = vec2{ d , patternWidth / 2.0f };
+         vec2 dashEnd = vec2{ patternLen - d , patternWidth / 2.0f };
+
+         SdfTrapezoid tip{};
+         float val =
+                 SdfSegment<float>{ dashStart, dashEnd }
+                         .Inflate(patternWidth*0.3f)
+
+                         .Evaluate(sampl);
+
+         val = glm::clamp(val, 0.0f, 1.0f);
+
+         return vec<4, unsigned char>{ 255, 255, 255, (1.0f - val) * 255 };
+     });
+
+}
+
+void CreateDashedPatternTest1(unsigned int patternLen, unsigned int patternWidth, tao_gizmos_procedural::TextureDataRgbaUnsignedByte& tex)
+{
+
+    tex.FillWithFunction([patternLen, patternWidth](unsigned int x, unsigned int y)
+                         {
+                             vec2 sampl = vec2{ x, y }+vec2{0.5f};
+
+                             float d = patternLen / 4.0f;
+
+                             vec2 dashStart = vec2{ d , patternWidth / 2.0f };
+                             vec2 dashEnd = vec2{ patternLen - d , patternWidth / 2.0f };
+
+                             float val =
+                                     SdfSegment<float>{ dashStart, dashEnd }
+                                             .Inflate(patternWidth*0.3f)
+                                             .Evaluate(sampl);
+
+                             val = glm::clamp(val, 0.0f, 1.0f);
+
+                             return vec<4, unsigned char>{ 255, 255, 255, (1.0f - val) * 255 };
+                         });
+
+}
+void CreateGizmoTest(GizmosRenderer& gr)
+{
+    const int kWidth0 = 6;
+    const int kLength0 = 32;
+
+
+    auto layer = gr.CreateRenderLayer(
+    ogl_depth_state
+    {
+        .depth_test_enable = true,
+        .depth_write_enable = true,
+        .depth_func = depth_func_less_equal,
+        .depth_range_near =0.0f,
+        .depth_range_far = 1.0f
+    },
+
+    ogl_blend_state
+    {
+        .blend_enable = false,
+        .color_mask = mask_all
+    },
+
+    ogl_rasterizer_state
+    {
+            .culling_enable = false,
+            .polygon_mode = polygon_mode_fill,
+            .multisample_enable = true,
+            .alpha_to_coverage_enable = true,
+    });
+    auto pass = gr.CreateRenderPass({layer});
+    gr.AddRenderPass({pass});
+
+    auto verts = GetCircleVertices(0.0f, 1.3f*pi<float>());
+
+    TextureDataRgbaUnsignedByte tex{kLength0, kWidth0, TexelData<4, unsigned char>{255,0,0,255}};
+    CreateDashedPatternTest(kLength0, kWidth0, tex);
+    pattern_texture_descriptor texDesc
+    {
+        .data = tex.DataPtr(),
+        .data_format = tex_for_rgba,
+        .data_type = tex_typ_unsigned_byte,
+        .width = kLength0,
+        .height = kWidth0,
+        .pattern_length = kLength0
+    };
+
+    auto gizmo0 = gr.CreateLineStripGizmo(line_strip_gizmo_descriptor
+      {
+              .vertices = verts,
+              .isLoop = false,
+              .line_size = kWidth0,
+              .zoom_invariant = false,
+              .pattern_texture_descriptor = &texDesc,
+              .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static
+      });
+
+    auto gizmo0Instance = gr.InstanceLineStripGizmo(gizmo0,{
+        gizmo_instance_descriptor{
+        .transform = mat4{1.0f} * scale(mat4{1.0f}, vec3{1.4f}),
+        .color = vec4{1.0f},
+        .visible = true,
+        .selectable = false
+        },
+        gizmo_instance_descriptor{
+        .transform = mat4{1.0f} * rotate(mat4{1.0f}, 0.9f, vec3{1.0f}),
+        .color = vec4{1.0f, 0.5f, 0.0f, 1.0f},
+        .visible = true,
+        .selectable = false
+        }});
+
+
+    gr.AssignGizmoToLayers(gizmo0, {layer});
+
+}
+
+
+
+
 int main()
 {
 	try
@@ -4061,7 +4205,9 @@ int main()
         // ----------------------------------------------------------------------------
         LoadHDRIs(pbrRdr);
 
-        LoadGltf(pbrRdr, "C:/Users/Admin/Downloads/nike.gltf");
+        //LoadGltf(pbrRdr, "C:/Users/Admin/Downloads/ShadowTest.gltf");
+
+        CreateGizmoTest(gizRdr);
 
         DirectionalLight dirLight0
         {
@@ -4069,20 +4215,20 @@ int main()
             .intensity = vec3(0.9)
         };
 
-       /* DirectionalLight dirLight1
+        DirectionalLight dirLight1
         {
                 .transformation = glm::translate(mat4{1.0f}, vec3{1.0f, -1.0f, 2.5f}) * glm::rotate(mat4{1.0f}, pi<float>(), vec3{1.0f}),
                 .intensity = vec3(0.7)
         };
 
-        DirectionalLight dirLight2
+        /*DirectionalLight dirLight2
         {
                 .transformation = glm::translate(mat4{1.0f}, vec3{-1.0f, 1.0f, 4.5f}) * glm::rotate(mat4{1.0f}, pi<float>(), vec3{1.0f}),
                 .intensity = vec3(0.5)
         };*/
 
         auto dirLight0Key = pbrRdr.AddDirectionalLight(dirLight0);
-        //auto dirLight1Key = pbrRdr.AddDirectionalLight(dirLight1);
+        auto dirLight1Key = pbrRdr.AddDirectionalLight(dirLight1);
         //auto dirLight2Key = pbrRdr.AddDirectionalLight(dirLight2);
 
         /*
@@ -4110,7 +4256,7 @@ int main()
         };
         auto sphereLight2Key = pbrRdr.AddSphereLight(sphereLight2);*/
 
-        RectLight rectLight0 =
+       /* RectLight rectLight0 =
                 {
                         .transformation =
                         glm::translate(glm::mat4(1.0), {-3.0, 0.0, 1.6})*
@@ -4128,14 +4274,14 @@ int main()
                 };
 
         auto rectLight0Key = pbrRdr.AddRectLight(rectLight0);
-        auto rectLight1Key = pbrRdr.AddRectLight(rectLight1);
+        auto rectLight1Key = pbrRdr.AddRectLight(rectLight1);*/
 
         // light gizmos
         auto directionalLightGizmo0Key = lightGizmos.CreateDirectionalLightGizmo(dirLight0);
-        //auto directionalLightGizmo1Key = lightGizmos.CreateDirectionalLightGizmo(dirLight1);
+        auto directionalLightGizmo1Key = lightGizmos.CreateDirectionalLightGizmo(dirLight1);
         //auto directionalLightGizmo2Key = lightGizmos.CreateDirectionalLightGizmo(dirLight2);
-        auto rectLightGizmo0Key   = lightGizmos.CreateRectLightGizmo(rectLight0);
-        auto rectLightGizmo1Key   = lightGizmos.CreateRectLightGizmo(rectLight1);
+        //auto rectLightGizmo0Key   = lightGizmos.CreateRectLightGizmo(rectLight0);
+        //auto rectLightGizmo1Key   = lightGizmos.CreateRectLightGizmo(rectLight1);
         //auto sphereLightGizmo0Key = lightGizmos.CreateSphereLightGizmo(sphereLight0);
         //auto sphereLightGizmo1Key = lightGizmos.CreateSphereLightGizmo(sphereLight1);
         //auto sphereLightGizmo2Key = lightGizmos.CreateSphereLightGizmo(sphereLight2);
@@ -4151,14 +4297,14 @@ int main()
         vector<MyDirectionalLight> myDirectionalLights
         ({
                  MyDirectionalLight{.light = dirLight0, .pbrLightKey = dirLight0Key, .gizmoLightKey = directionalLightGizmo0Key},
-                 //MyDirectionalLight{.light = dirLight1, .pbrLightKey = dirLight1Key, .gizmoLightKey = directionalLightGizmo1Key},
+                 MyDirectionalLight{.light = dirLight1, .pbrLightKey = dirLight1Key, .gizmoLightKey = directionalLightGizmo1Key},
                  //MyDirectionalLight{.light = dirLight2, .pbrLightKey = dirLight2Key, .gizmoLightKey = directionalLightGizmo2Key},
          });
 
         vector<MyRectLight> myRectLights
         ({
-                 MyRectLight{.light = rectLight0, .pbrLightKey = rectLight0Key, .gizmoLightKey = rectLightGizmo0Key},
-                 MyRectLight{.light = rectLight1, .pbrLightKey = rectLight1Key, .gizmoLightKey = rectLightGizmo1Key},
+                 //MyRectLight{.light = rectLight0, .pbrLightKey = rectLight0Key, .gizmoLightKey = rectLightGizmo0Key},
+                 //MyRectLight{.light = rectLight1, .pbrLightKey = rectLight1Key, .gizmoLightKey = rectLightGizmo1Key},
          });
 
         variant<MyDirectionalLight*, MySphereLight*, MyRectLight*> selectedLight;
