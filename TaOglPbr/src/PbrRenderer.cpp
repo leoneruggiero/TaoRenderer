@@ -84,21 +84,35 @@ namespace tao_pbr
 
         // Directional Shadow Map
         // ---------------------------------------------------
-        _directionalShadowMap.shadowMap.TexImage(0, tex_int_for_depth, DIR_SHADOW_RES, DIR_SHADOW_RES, tex_for_depth, tex_typ_float, nullptr);
+        for(int i=0; i<MAX_DIR_SHADOW_COUNT; i++)
+        {
+            _directionalShadowMaps.push_back(DirectionalShadowMap
+             {
+                     .shadowMap = _renderContext->CreateTexture2D(),
+                     .shadowFbo = _renderContext->CreateFramebuffer<OglTexture2D>()
+             });
 
-        _directionalShadowMap.shadowFbo.AttachTexture(fbo_attachment_depth, _directionalShadowMap.shadowMap, 0);
+            _directionalShadowMaps[i].shadowMap.TexImage(0, tex_int_for_depth, DIR_SHADOW_RES, DIR_SHADOW_RES,
+                                                     tex_for_depth, tex_typ_float, nullptr);
 
-        // don't write to any color buffer
-        ogl_framebuffer_read_draw_buffs buffs[] = {fbo_read_draw_buff_none};
-        _directionalShadowMap.shadowFbo.SetDrawBuffers(1, buffs);
-        _directionalShadowMap.shadowFbo.SetReadBuffer (buffs[0]);
+            _directionalShadowMaps[i].shadowFbo.AttachTexture(fbo_attachment_depth, _directionalShadowMaps[i].shadowMap, 0);
+
+            // don't write to any color buffer
+            ogl_framebuffer_read_draw_buffs buffs[] = {fbo_read_draw_buff_none};
+            _directionalShadowMaps[i].shadowFbo.SetDrawBuffers(1, buffs);
+            _directionalShadowMaps[i].shadowFbo.SetReadBuffer(buffs[0]);
+        }
 
 
         // Point and Rect Shadow Map
         // ---------------------------------------------------
-        for(int i=0; i<MAX_SPHERE_SHADOW_COUNT; i++)
+        for(int i=0; i<MAX_SPHERE_SHADOW_COUNT + MAX_RECT_SHADOW_COUNT; i++)
         {
-            _sphereShadowMaps.push_back(SphereShadowMap
+            bool sphere = i<MAX_SPHERE_SHADOW_COUNT;
+            int idx = sphere ? i : i-MAX_SPHERE_SHADOW_COUNT;
+            vector<SphereShadowMap>& shadows = sphere ? _sphereShadowMaps : _rectShadowMaps;
+
+            shadows.push_back(SphereShadowMap
             {
                 .shadowMapColor = _renderContext->CreateTextureCube(),
                 .shadowMapDepth = _renderContext->CreateTextureCube(),
@@ -108,21 +122,21 @@ namespace tao_pbr
 
             for (int f = 0; f < 6; f++)
             {
-                _sphereShadowMaps[i].shadowMapDepth.TexImage(
+                shadows[idx].shadowMapDepth.TexImage(
                         static_cast<ogl_texture_cube_target>(tex_tar_cube_map_positive_x + f), 0, tex_int_for_depth,
                         POINT_SHADOW_RES, POINT_SHADOW_RES, 0, tex_for_depth, tex_typ_float, nullptr);
-                _sphereShadowMaps[i].shadowMapColor.TexImage(
+                shadows[idx].shadowMapColor.TexImage(
                         static_cast<ogl_texture_cube_target>(tex_tar_cube_map_positive_x + f), 0, tex_int_for_r16f,
                         POINT_SHADOW_RES, POINT_SHADOW_RES, 0, tex_for_red, tex_typ_float, nullptr);
-                _sphereShadowMaps[i].shadowMapColor.SetFilterParams(pointFilter);
+                shadows[idx].shadowMapColor.SetFilterParams(pointFilter);
             }
-            _sphereShadowMaps[i].shadowFbo.AttachTexture(fbo_attachment_color0, _sphereShadowMaps[i].shadowMapColor, 0);
-            _sphereShadowMaps[i].shadowFbo.AttachTexture(fbo_attachment_depth, _sphereShadowMaps[i].shadowMapDepth, 0);
+            shadows[idx].shadowFbo.AttachTexture(fbo_attachment_color0, shadows[idx].shadowMapColor, 0);
+            shadows[idx].shadowFbo.AttachTexture(fbo_attachment_depth, shadows[idx].shadowMapDepth, 0);
 
             // don't write to any color buffer
             ogl_framebuffer_read_draw_buffs buffs1[] = {fbo_read_draw_buff_color0};
-            _sphereShadowMaps[i].shadowFbo.SetDrawBuffers(1, buffs1);
-            _sphereShadowMaps[i].shadowFbo.SetReadBuffer(buffs1[0]);
+            shadows[idx].shadowFbo.SetDrawBuffers(1, buffs1);
+            shadows[idx].shadowFbo.SetReadBuffer(buffs1[0]);
         }
     }
 
@@ -184,9 +198,11 @@ namespace tao_pbr
                 {
                             LIGHTPASS_DIR_LIGHTS_SYMBOL,
                             LIGHTPASS_ENV_LIGHTS_SYMBOL,
-                            string{LIGHTPASS_MAX_SPHERE_SHADOW_CNT_SYMBOL}.append(" ").append(to_string(MAX_SPHERE_SHADOW_COUNT)),
                             LIGHTPASS_SPHERE_LIGHTS_SYMBOL,
-                            LIGHTPASS_RECT_LIGHTS_SYMBOL
+                            LIGHTPASS_RECT_LIGHTS_SYMBOL,
+                            string{LIGHTPASS_MAX_DIR_SHADOW_CNT_SYMBOL   }.append(" ").append(to_string(MAX_DIR_SHADOW_COUNT)),
+                            string{LIGHTPASS_MAX_SPHERE_SHADOW_CNT_SYMBOL}.append(" ").append(to_string(MAX_SPHERE_SHADOW_COUNT)),
+                            string{LIGHTPASS_MAX_RECT_SHADOW_CNT_SYMBOL  }.append(" ").append(to_string(MAX_RECT_SHADOW_COUNT)),
                 }).c_str()
         );
 
@@ -654,6 +670,11 @@ namespace tao_pbr
         }
     }
 
+    string GetUniformArrayName(const char* name, int index)
+    {
+        return std::format("{}[{}]", name, to_string(index));
+    }
+
     PbrRenderer::pbrRendererOut PbrRenderer::Render(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, float near, float far)
     {
         _renderContext->MakeCurrent();
@@ -667,7 +688,7 @@ namespace tao_pbr
                 .doGamma            = 1,
                 .gamma              = 2.2,
                 .doEnvironmentIbl   = _currentEnvironment.has_value(),
-                .environmentIntensity = 1.8,
+                .environmentIntensity = 3.6,
                 .radianceMinLod = PRE_CUBE_MIN_LOD,
                 .radianceMaxLod = PRE_CUBE_MAX_LOD,
                 .doTaa          = 0
@@ -678,17 +699,22 @@ namespace tao_pbr
 
         /// Shadow Pass
         ////////////////////////////////////////////
-        if(_directionalLights.vector().size()>0 && _directionalLights.indexValid(0))
+        for(int i=0;i<MAX_DIR_SHADOW_COUNT;i++)
         {
-            CreateShadowMap(_directionalShadowMap,_directionalLights.vector()[0], DIR_SHADOW_RES, DIR_SHADOW_RES);
+            if(_directionalLights.indexValid(i))
+            CreateShadowMap(_directionalShadowMaps[i], _directionalLights.vector()[i], DIR_SHADOW_RES, DIR_SHADOW_RES);
         }
-        if(_sphereLights.vector().size()>0)
+
+        for(int i=0;i<MAX_SPHERE_SHADOW_COUNT;i++)
         {
-            for(int i=0;i<MAX_SPHERE_SHADOW_COUNT;i++)
-            {
-                if(_sphereLights.indexValid(i))
-                CreateShadowMap(_sphereShadowMaps[i],_sphereLights.vector()[i], POINT_SHADOW_RES);
-            }
+            if(_sphereLights.indexValid(i))
+            CreateShadowMap(_sphereShadowMaps[i],_sphereLights.vector()[i], POINT_SHADOW_RES);
+        }
+
+        for(int i=0;i<MAX_RECT_SHADOW_COUNT;i++)
+        {
+            if(_rectLights.indexValid(i))
+                CreateShadowMap(_rectShadowMaps[i], _rectLights.vector()[i], POINT_SHADOW_RES);
         }
 
         _renderContext->SetViewport(0, 0, _windowWidth, _windowHeight);
@@ -815,31 +841,67 @@ namespace tao_pbr
 
 
         // Directional Shadow data
-        _directionalShadowMap.shadowMap.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP));
-        _directionalShadowMap.shadowMap.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP_COMP));
+        for(int i=0;i<MAX_SPHERE_SHADOW_COUNT; i++)
+        {
+            if(!_directionalLights.indexValid(i)) continue;
 
-        _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP));
-        _shadowSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 +LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP_COMP));
+            auto texUnit = static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP + i);
 
-        _shaders.lightPass.SetUniformMatrix4(LIGHTPASS_NAME_DIR_SHADOW_MATRIX, glm::value_ptr(_directionalShadowMap.shadowMatrix));
-        _shaders.lightPass.SetUniform(LIGHTPASS_NAME_DO_DIR_SHADOW, true);
-        _shaders.lightPass.SetUniform(LIGHTPASS_NAME_DIR_SHADOW_POS,
-                                      _directionalShadowMap.lightPos.x,
-                                      _directionalShadowMap.lightPos.y,
-                                      _directionalShadowMap.lightPos.z);
-        _shaders.lightPass.SetUniform(LIGHTPASS_NAME_DIR_SHADOW_SIZE,
-                                      _directionalShadowMap.shadowSize.x,
-                                      _directionalShadowMap.shadowSize.y,
-                                      _directionalShadowMap.shadowSize.z,
-                                      _directionalShadowMap.shadowSize.w);
+            _directionalShadowMaps[i].shadowMap.BindToTextureUnit(texUnit);
+            _pointSampler.BindToTextureUnit(texUnit);
+
+            _shaders.lightPass.SetUniformMatrix4(GetUniformArrayName(LIGHTPASS_NAME_DIR_SHADOW_MATRIX, i).c_str(), glm::value_ptr(_directionalShadowMaps[i].shadowMatrix));
+            _shaders.lightPass.SetUniform(GetUniformArrayName(LIGHTPASS_NAME_DO_DIR_SHADOW , i).c_str(), true);
+            _shaders.lightPass.SetUniform(GetUniformArrayName(LIGHTPASS_NAME_DIR_SHADOW_POS, i).c_str(),
+                                                                                                        _directionalShadowMaps[i].lightPos.x,
+                                                                                                        _directionalShadowMaps[i].lightPos.y,
+                                                                                                        _directionalShadowMaps[i].lightPos.z);
+            _shaders.lightPass.SetUniform(GetUniformArrayName(LIGHTPASS_NAME_DIR_SHADOW_SIZE, i).c_str(),
+                                                                                                        _directionalShadowMaps[i].shadowSize.x,
+                                                                                                        _directionalShadowMaps[i].shadowSize.y,
+                                                                                                        _directionalShadowMaps[i].shadowSize.z,
+                                                                                                        _directionalShadowMaps[i].shadowSize.w);
+        }
 
         // Sphere Shadow data
         for(int i=0;i<MAX_SPHERE_SHADOW_COUNT; i++)
         {
-            _shaders.lightPass.SetUniform(string(LIGHTPASS_NAME_DO_SPHERE_SHADOW).append("[").append(to_string(i).append("]")).c_str(), true);
-            _sphereShadowMaps[i].shadowMapColor.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP + i));
-            _pointSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP + i));
+            if(!_sphereLights.indexValid(i)) continue;
+
+            auto texUnit = static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP + i);
+
+            _shaders.lightPass.SetUniform(GetUniformArrayName(LIGHTPASS_NAME_DO_SPHERE_SHADOW  , i).c_str(), true);
+            _shaders.lightPass.SetUniform(GetUniformArrayName(LIGHTPASS_NAME_SPHERE_SHADOW_RES , i).c_str(), POINT_SHADOW_RES, POINT_SHADOW_RES);
+            _shaders.lightPass.SetUniform(GetUniformArrayName(LIGHTPASS_NAME_SPHERE_SHADOW_SIZE, i).c_str(),
+                                                                                                            _sphereShadowMaps[i].shadowSize.x,
+                                                                                                            _sphereShadowMaps[i].shadowSize.z,
+                                                                                                            _sphereShadowMaps[i].shadowSize.y,
+                                                                                                            _sphereShadowMaps[i].shadowSize.w);
+
+            _sphereShadowMaps[i].shadowMapColor.BindToTextureUnit(texUnit);
+            _pointSampler.BindToTextureUnit(texUnit);
         }
+
+        // Rect Shadow data
+        for(int i=0;i<MAX_RECT_SHADOW_COUNT; i++)
+        {
+            if(!_rectLights.indexValid(i)) continue;
+
+            auto texUnit = static_cast<ogl_texture_unit>(tex_unit_0 + LIGHTPASS_TEX_BINDING_RECT_SHADOW_MAP + i);
+
+            _shaders.lightPass.SetUniform(GetUniformArrayName(LIGHTPASS_NAME_DO_RECT_SHADOW    , i).c_str(), true);
+            _shaders.lightPass.SetUniform(GetUniformArrayName(LIGHTPASS_NAME_RECT_SHADOW_RADIUS, i).c_str(), glm::min(_rectLights.vector()[i].size.x, _rectLights.vector()[i].size.y) * 0.5f);
+            _shaders.lightPass.SetUniform(GetUniformArrayName(LIGHTPASS_NAME_RECT_SHADOW_RES   , i).c_str(), POINT_SHADOW_RES, POINT_SHADOW_RES);
+            _shaders.lightPass.SetUniform(GetUniformArrayName(LIGHTPASS_NAME_RECT_SHADOW_SIZE  , i).c_str(),
+                                          _rectShadowMaps[i].shadowSize.x,
+                                          _rectShadowMaps[i].shadowSize.z,
+                                          _rectShadowMaps[i].shadowSize.y,
+                                          _rectShadowMaps[i].shadowSize.w);
+
+            _rectShadowMaps[i].shadowMapColor.BindToTextureUnit(texUnit);
+            _pointSampler.BindToTextureUnit(texUnit);
+        }
+
         _fsQuad.vao.Bind();
         _renderContext->DrawElements(pmt_type_triangles, 6, idx_typ_unsigned_int, nullptr);
 
@@ -1071,7 +1133,7 @@ namespace tao_pbr
         mat4  projMatrix = ortho(-sceneRadius, sceneRadius, -sceneRadius, sceneRadius, viewNear, viewFar);
 
         shadowMapData.shadowMatrix = projMatrix*viewMatrix;
-        shadowMapData.shadowSize   = glm::vec4(sceneRadius, sceneRadius, viewNear, viewFar);
+        shadowMapData.shadowSize   = glm::vec4(sceneRadius * 2.0f, sceneRadius * 2.0f, viewNear, viewFar);
         shadowMapData.lightPos     = viewPos;
 
         // set view data
@@ -1090,6 +1152,7 @@ namespace tao_pbr
         shadowMapData.shadowFbo.Bind(fbo_read_draw);
 
         _renderContext->SetDepthState(DEFAULT_DEPTH_STATE);
+        _renderContext->SetRasterizerState(RASTERIZER_STATE_SHADOW_MAP);
 
         _renderContext->ClearDepth(1.0f);
 
@@ -1113,7 +1176,7 @@ namespace tao_pbr
         shadowMapData.shadowFbo.UnBind(fbo_read_draw);
     }
 
-    float ComputeSphereLightRadius(const tao_pbr::SphereLight &l, float tolerance=0.0002)
+    float ComputeSphereLightRadius(const vec3& intensity, float tolerance=0.0002)
     {
         // Without am artificial falloff the light contribution
         // will never reach exactly 0. Here we are computing a
@@ -1129,22 +1192,22 @@ namespace tao_pbr
         //          big...maybe we should "enforce" a falloff in the
         //          lighting computation.
 
-        return glm::sqrt(glm::max(glm::max(l.intensity.r, l.intensity.g), l.intensity.b) / (4.0*pi<float>()*tolerance));
+        return glm::sqrt(glm::max(glm::max(intensity.r, intensity.g), intensity.b) / (4.0*pi<float>()*tolerance));
     }
 
-    void PbrRenderer::CreateShadowMap(SphereShadowMap &shadowMapData, const tao_pbr::SphereLight &l, int shadowMapResolution)
+    void PbrRenderer::CreateShadowMap(SphereShadowMap &shadowMapData, const vec3& position, const vec3& direction, const vec3& intensity, float radius, int shadowMapResolution)
     {
-        float rMin = glm::max(1e-3f, l.radius);
-        float rMax = rMin + ComputeSphereLightRadius(l);
-        vec3 viewPos = glm::vec3(l.transformation.matrix()[3]);
+        float rMin = glm::max(1e-3f, radius);
+        float rMax = rMin + ComputeSphereLightRadius(intensity);
+        vec3 viewPos = position;
         vec3 viewDirections[6] =
         {
-        vec3{1.0, 0.0, 0.0},
-        vec3{-1.0, 0.0, 0.0},
-        vec3{0.0, 1.0, 0.0},
-        vec3{0.0, -1.0,  0.0},
-        vec3{0.0, 0.0, 1.0},
-        vec3{0.0, 0.0, -1.0}
+            vec3{1.0, 0.0, 0.0},
+            vec3{-1.0, 0.0, 0.0},
+            vec3{0.0, 1.0, 0.0},
+            vec3{0.0, -1.0,  0.0},
+            vec3{0.0, 0.0, 1.0},
+            vec3{0.0, 0.0, -1.0}
         };
 
         mat4 projMatrix = perspective(0.5f * pi<float>(), 1.0f, rMin, rMax);
@@ -1155,15 +1218,16 @@ namespace tao_pbr
         // big LOL......
         mat4 shadowMatrices[6] =
         {
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[0], vec3(0.0, -1.0, 0.0)),
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[1], vec3(0.0, -1.0, 0.0)),
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[2], vec3(0.0, 0.0, 1.0)),
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[3], vec3(0.0, 0.0, -1.0)),
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[4], vec3(0.0, -1.0, 0.0)),
-        projMatrix * lookAt(viewPos, viewPos + viewDirections[5], vec3(0.0, -1.0, 0.0)),
+            projMatrix * lookAt(viewPos, viewPos + viewDirections[0], vec3(0.0, -1.0, 0.0)),
+            projMatrix * lookAt(viewPos, viewPos + viewDirections[1], vec3(0.0, -1.0, 0.0)),
+            projMatrix * lookAt(viewPos, viewPos + viewDirections[2], vec3(0.0, 0.0, 1.0)),
+            projMatrix * lookAt(viewPos, viewPos + viewDirections[3], vec3(0.0, 0.0, -1.0)),
+            projMatrix * lookAt(viewPos, viewPos + viewDirections[4], vec3(0.0, -1.0, 0.0)),
+            projMatrix * lookAt(viewPos, viewPos + viewDirections[5], vec3(0.0, -1.0, 0.0)),
         };
 
         shadowMapData.shadowCenter = viewPos;
+        shadowMapData.shadowSize = vec4{ rMin*2.0f, rMin*2.0f  ,rMin, rMax}; // size x, size y, z min, zmax
 
         _renderContext->SetViewport(0, 0, shadowMapResolution, shadowMapResolution);
 
@@ -1180,7 +1244,7 @@ namespace tao_pbr
         for(int i=0;i<6;i++)
         {
             string name = string{POINT_SHADOWS_NAME_VIEWPROJ}
-                            .append("[").append(to_string(i)).append("]");
+                    .append("[").append(to_string(i)).append("]");
 
             _shaders.pointShadowMap.SetUniformMatrix4(name.c_str(), value_ptr(shadowMatrices[i]));
         }
@@ -1204,7 +1268,18 @@ namespace tao_pbr
         }
 
         shadowMapData.shadowFbo.UnBind(fbo_read_draw);
+    }
 
+    void PbrRenderer::CreateShadowMap(SphereShadowMap &shadowMapData, const tao_pbr::SphereLight &l, int shadowMapResolution)
+    {
+        CreateShadowMap(shadowMapData, vec3{l.transformation.matrix()[3]}, vec3{l.transformation.matrix()[2]}, l.intensity, l.radius, shadowMapResolution);
+    }
+
+    void PbrRenderer::CreateShadowMap(SphereShadowMap &shadowMapData, const tao_pbr::RectLight &l, int shadowMapResolution)
+    {
+        // TODO: currently we limit the shadow frustum for sphere lights with a formula that shouldn't work for rect lights
+        // TODO: add ComputeRectLightRadius method
+        CreateShadowMap(shadowMapData, vec3{l.transformation.matrix()[3]}, vec3{l.transformation.matrix()[2]}, l.intensity, glm::min(l.size.x, l.size.y) * 0.5, shadowMapResolution);
     }
 
 }

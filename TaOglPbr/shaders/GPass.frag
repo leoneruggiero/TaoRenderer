@@ -28,9 +28,7 @@ vec3 GetAlbedo()
             ? texture(t_Albedo, fs_in.textureCoordinates).rgb
             : o_material.Albedo.rgb;
 
-    return (f_doGamma && o_material.hasTex_Albedo)
-            ? vec3(pow(albedo.rgb, vec3(f_gamma)))
-            : albedo;
+    return albedo;
 }
 
 vec3 GetEmission()
@@ -40,9 +38,7 @@ vec3 GetEmission()
             ? texture(t_Emission, fs_in.textureCoordinates).rgb
             : o_material.Emission.rgb;
 
-    return (f_doGamma && o_material.hasTex_Emission)
-            ? vec3(pow(emission.rgb, vec3(f_gamma)))
-            : emission;
+    return emission;
 }
 
 vec3 GetNormal()

@@ -421,11 +421,6 @@ namespace tao_pbr
                         .texColor   {_renderContext->CreateTexture2D()},
                         .buff       {_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
                 },
-                _directionalShadowMap
-                {
-                        .shadowMap{_renderContext->CreateTexture2D()},
-                        .shadowFbo{_renderContext->CreateFramebuffer<tao_ogl_resources::OglTexture2D>()},
-                },
                 _shaders
                 {
                         .gPass          {_renderContext->CreateShaderProgram()},
@@ -553,6 +548,12 @@ namespace tao_pbr
         static constexpr const char* LIGHTPASS_NAME_DIR_SHADOW_SIZE         = "u_dirShadowSize";
         static constexpr const char* LIGHTPASS_NAME_DO_DIR_SHADOW           = "u_doDirShadow";
         static constexpr const char* LIGHTPASS_NAME_DO_SPHERE_SHADOW        = "u_doSphereShadow";
+        static constexpr const char* LIGHTPASS_NAME_SPHERE_SHADOW_SIZE      = "u_sphereShadowMapSize";
+        static constexpr const char* LIGHTPASS_NAME_SPHERE_SHADOW_RES       = "u_sphereShadowMapResolution";
+        static constexpr const char* LIGHTPASS_NAME_DO_RECT_SHADOW          = "u_doRectShadow";
+        static constexpr const char* LIGHTPASS_NAME_RECT_SHADOW_SIZE        = "u_rectShadowMapSize";
+        static constexpr const char* LIGHTPASS_NAME_RECT_SHADOW_RES         = "u_rectShadowMapResolution";
+        static constexpr const char* LIGHTPASS_NAME_RECT_SHADOW_RADIUS      = "u_rectShadowRadius";
         static constexpr const char* POINT_SHADOWS_NAME_LIGHT_POS           = "u_lightWorldPos";
         static constexpr const char* POINT_SHADOWS_NAME_VIEWPROJ            = "u_viewProjMat";
 
@@ -560,7 +561,20 @@ namespace tao_pbr
         static constexpr const char* LIGHTPASS_DIR_LIGHTS_SYMBOL            = "LIGHT_PASS_DIRECTIONAL";
         static constexpr const char* LIGHTPASS_SPHERE_LIGHTS_SYMBOL         = "LIGHT_PASS_SPHERE";
         static constexpr const char* LIGHTPASS_RECT_LIGHTS_SYMBOL           = "LIGHT_PASS_RECT";
+        static constexpr const char* LIGHTPASS_MAX_DIR_SHADOW_CNT_SYMBOL    = "MAX_DIR_LIGHT_SHADOW_COUNT";
         static constexpr const char* LIGHTPASS_MAX_SPHERE_SHADOW_CNT_SYMBOL = "MAX_SPHERE_LIGHT_SHADOW_COUNT";
+        static constexpr const char* LIGHTPASS_MAX_RECT_SHADOW_CNT_SYMBOL   = "MAX_RECT_LIGHT_SHADOW_COUNT";
+
+        static constexpr int DIR_SHADOW_RES = 2048;
+        static constexpr int POINT_SHADOW_RES = 512;
+        static constexpr int ENV_CUBE_RES = 512;
+        static constexpr int IRR_CUBE_RES = 64;
+        static constexpr int PRE_CUBE_RES = 128;
+        static constexpr int PRE_CUBE_MIN_LOD = 0;
+        static constexpr int PRE_CUBE_MAX_LOD = 4;
+        static constexpr int MAX_DIR_SHADOW_COUNT = 4;
+        static constexpr int MAX_SPHERE_SHADOW_COUNT = 4;
+        static constexpr int MAX_RECT_SHADOW_COUNT = 4;
 
         static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF0              = 0;
         static constexpr const int LIGHTPASS_TEX_BINDING_GBUFF1              = 1;
@@ -572,8 +586,8 @@ namespace tao_pbr
         static constexpr const int LIGHTPASS_TEX_BINDING_LTC_LUT_1           = 7;
         static constexpr const int LIGHTPASS_TEX_BINDING_LTC_LUT_2           = 8;
         static constexpr const int LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP      = 9;
-        static constexpr const int LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP_COMP = 10;
-        static constexpr const int LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP   = 11;
+        static constexpr const int LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP   = LIGHTPASS_TEX_BINDING_DIR_SHADOW_MAP + MAX_DIR_SHADOW_COUNT;
+        static constexpr const int LIGHTPASS_TEX_BINDING_RECT_SHADOW_MAP     = LIGHTPASS_TEX_BINDING_SPHERE_SHADOW_MAP + MAX_SPHERE_SHADOW_COUNT;
 
         static constexpr const int LIGHTPASS_BUFFER_BINDING_DIR_LIGHTS      = 5;
         static constexpr const int LIGHTPASS_BUFFER_BINDING_SPHERE_LIGHTS   = 6;
@@ -607,16 +621,6 @@ namespace tao_pbr
         static constexpr int         PROCESS_ENV_GROUP_SIZE_Y        = 8;
         static constexpr int         PROCESS_ENV_GROUP_SIZE_Z        = 1;
 
-        static constexpr int DIR_SHADOW_RES = 2048;
-        static constexpr int POINT_SHADOW_RES = 512;
-        static constexpr int ENV_CUBE_RES = 512;
-        static constexpr int IRR_CUBE_RES = 64;
-        static constexpr int PRE_CUBE_RES = 128;
-        static constexpr int PRE_CUBE_MIN_LOD = 0;
-        static constexpr int PRE_CUBE_MAX_LOD = 4;
-        static constexpr int MAX_SPHERE_SHADOW_COUNT = 6;
-
-
         static constexpr tao_ogl_resources::ogl_depth_state DEFAULT_DEPTH_STATE  =
                 tao_ogl_resources::ogl_depth_state
                 {
@@ -626,6 +630,7 @@ namespace tao_pbr
                     .depth_range_near = 0.0f,
                     .depth_range_far = 1.0f
                 };
+
 
         static constexpr tao_ogl_resources::ogl_depth_state DEPTH_STATE_OFF  =
                 tao_ogl_resources::ogl_depth_state
@@ -651,6 +656,19 @@ namespace tao_pbr
                         .alpha_to_coverage_enable = false
                 };
 
+        static constexpr tao_ogl_resources::ogl_rasterizer_state RASTERIZER_STATE_SHADOW_MAP =
+                tao_ogl_resources::ogl_rasterizer_state
+                        {
+                                .culling_enable = true,
+                                .front_face = tao_ogl_resources::front_face_ccw,
+                                .cull_mode = tao_ogl_resources::cull_mode_back,
+                                .polygon_mode = tao_ogl_resources::polygon_mode_fill,
+                                .polygon_offset_factor = 2.0f,
+                                .polygon_offset_units  = 4.0f,
+                                .multisample_enable = false,
+                                .alpha_to_coverage_enable = false
+                        };
+
         struct DirectionalShadowMap
         {
             tao_ogl_resources::OglTexture2D                                     shadowMap;
@@ -666,6 +684,7 @@ namespace tao_pbr
             tao_ogl_resources::OglTextureCube                                     shadowMapDepth;
             tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTextureCube>  shadowFbo;
             glm::vec3                                                             shadowCenter;
+            glm::vec4                                                             shadowSize;
         };
 
         struct GBuffer
@@ -777,6 +796,7 @@ namespace tao_pbr
             glm::vec4 axisY;
             glm::vec4 axisZ;
             glm::vec2 size;
+            glm::vec2 pad;
         };
 
         static rect_light_gl_data_block ToGraphicsData(const tao_pbr::RectLight &rectLight)
@@ -842,8 +862,9 @@ namespace tao_pbr
         GBuffer _gBuffer;
         OutputFramebuffer _outBuffer;
 
-        DirectionalShadowMap _directionalShadowMap;
-        std::vector<SphereShadowMap> _sphereShadowMaps;
+        std::vector<DirectionalShadowMap> _directionalShadowMaps;
+        std::vector<SphereShadowMap>      _sphereShadowMaps;
+        std::vector<SphereShadowMap>      _rectShadowMaps;
 
         Shaders _shaders;
         ShaderBuffers _shaderBuffers;
@@ -898,6 +919,8 @@ namespace tao_pbr
 
         void CreateShadowMap(DirectionalShadowMap &shadowMapData, const tao_pbr::DirectionalLight &l, int shadowMapWidth, int shadowMapHeight);
         void CreateShadowMap(SphereShadowMap      &shadowMapData, const tao_pbr::SphereLight      &l, int shadowMapResolution);
+        void CreateShadowMap(SphereShadowMap      &shadowMapData, const tao_pbr::RectLight        &l, int shadowMapResolution);
+        void CreateShadowMap(SphereShadowMap      &shadowMapData, const glm::vec3& position, const glm::vec3& direction, const glm::vec3& intensity, float radius, int shadowMapResolution);
 
         tao_ogl_resources::OglTexture2D& GetGlTexture(const GenKey<ImageTexture>& tex);
         void BindMaterialTextures(const GenKey<PbrMaterial>& mat);

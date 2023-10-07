@@ -1,4 +1,4 @@
-#version 430 core
+#version 440 core
 
 #define GBUFF_READ
 
@@ -59,12 +59,11 @@ uniform int u_envPrefilteredMaxLod;
 #endif
 
 #ifdef LIGHT_PASS_DIRECTIONAL
-layout(binding = 9 ) uniform sampler2D       dirShadowMap;      // TODO: Array
-layout(binding = 10) uniform sampler2DShadow dirShadowMapComp;  // TODO: Array
-                     uniform mat4            u_dirShadowMatrix; // TODO: Array
-                     uniform bool            u_doDirShadow;
-                     uniform vec3            u_dirShadowPosition;
-                     uniform vec4            u_dirShadowSize;
+layout(binding = 9 ) uniform sampler2D       dirShadowMap       [MAX_DIR_LIGHT_SHADOW_COUNT];
+                     uniform mat4            u_dirShadowMatrix  [MAX_DIR_LIGHT_SHADOW_COUNT];
+                     uniform bool            u_doDirShadow      [MAX_DIR_LIGHT_SHADOW_COUNT];
+                     uniform vec3            u_dirShadowPosition[MAX_DIR_LIGHT_SHADOW_COUNT];
+                     uniform vec4            u_dirShadowSize    [MAX_DIR_LIGHT_SHADOW_COUNT];
 layout(std430, binding = 5) buffer buff_directional_lights
 {
     DirectionalLight directionalLights[];
@@ -72,8 +71,10 @@ layout(std430, binding = 5) buffer buff_directional_lights
 #endif
 
 #ifdef LIGHT_PASS_SPHERE
-layout(binding = 11) uniform samplerCube    sphereShadowMap[MAX_SPHERE_LIGHT_SHADOW_COUNT];
-                     uniform bool           u_doSphereShadow[MAX_SPHERE_LIGHT_SHADOW_COUNT];
+layout(binding = 9 + MAX_DIR_LIGHT_SHADOW_COUNT) uniform samplerCube    sphereShadowMap             [MAX_SPHERE_LIGHT_SHADOW_COUNT];
+                                                 uniform bool           u_doSphereShadow            [MAX_SPHERE_LIGHT_SHADOW_COUNT];
+                                                 uniform vec4           u_sphereShadowMapSize       [MAX_SPHERE_LIGHT_SHADOW_COUNT];
+                                                 uniform ivec2          u_sphereShadowMapResolution [MAX_SPHERE_LIGHT_SHADOW_COUNT];
 layout(std430, binding = 6) buffer buff_sphere_lights
 {
     SphereLight sphereLights[];
@@ -89,6 +90,13 @@ const float LTC_LUT_SCALE = ((LTC_LUT_SIZE - 1.0)/LTC_LUT_SIZE);
 
 layout(binding = 7) uniform sampler2D ltcLut1;
 layout(binding = 8) uniform sampler2D ltcLut2;
+
+layout(binding = 9 + MAX_DIR_LIGHT_SHADOW_COUNT + MAX_SPHERE_LIGHT_SHADOW_COUNT)
+uniform samplerCube    rectShadowMap             [MAX_RECT_LIGHT_SHADOW_COUNT];
+uniform bool           u_doRectShadow            [MAX_RECT_LIGHT_SHADOW_COUNT];
+uniform float          u_rectShadowRadius        [MAX_RECT_LIGHT_SHADOW_COUNT]; // do rect smooth shadows as if they were sphere lights
+uniform vec4           u_rectShadowMapSize       [MAX_RECT_LIGHT_SHADOW_COUNT];
+uniform ivec2          u_rectShadowMapResolution [MAX_RECT_LIGHT_SHADOW_COUNT];
 
 layout(std430, binding = 7) buffer buff_rect_lights
 {
@@ -110,27 +118,20 @@ vec3 SpecularDirectionalLight(vec3 viewDirection, vec3 lightDirection, vec3 surf
     return  lightColor * CLAMPED_DOT(lightDirection, surfNormal) * SpecularBRDF(viewDirection, lightDirection, surfNormal, F0, roughness);
 }
 
-vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 lightDirection, vec3 surfPosition, vec3 surfNormal, vec3 f0, vec3 diffuse, float roughness,float metalness, vec3 lightColor)
+vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 lightDirection, vec3 surfPosition, vec3 surfNormal, vec3 f0, vec3 diffuse, float roughness,float metalness, vec3 lightColor,
+                             bool doShadows, int shadowIndex)
 {
 
-    if(u_doDirShadow)
+    if(doShadows)
     {
-        vec4 shadowPos = u_dirShadowMatrix*vec4(surfPosition, 1.0);
-        shadowPos.xyz/=shadowPos.w;
-        shadowPos.xyz=shadowPos.xyz*0.5+0.5;
-        shadowPos.z-=0.01;
-        float visibility = texture(dirShadowMapComp, shadowPos.xyz, 0.0).r;
-        //float visibility = float(texture(dirShadowMap, shadowPos.xy).r>shadowPos.z);
-
-
-
-        visibility =
+        float visibility =
         PCSS_DirectionalLight(
             surfPosition, surfNormal,
-            dirShadowMap, dirShadowMapComp,
-            u_dirShadowMatrix,
-            u_dirShadowSize, u_dirShadowPosition,
-            lightDirection, 0.03, 0.01);
+            dirShadowMap        [shadowIndex],
+            u_dirShadowMatrix   [shadowIndex],
+            u_dirShadowSize     [shadowIndex],
+            u_dirShadowPosition [shadowIndex],
+            lightDirection, 0.02, 1e-3);
 
         lightColor*=visibility;
     }
@@ -141,80 +142,83 @@ vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 lightDirection, vec3 surfP
 
     return kd * directDiffuse + directSpecular; // "ks" is already in the GGX brdf
 }
-vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal, vec3 f0, vec3 diffuse, float roughness,float metalness, DirectionalLight l)
+vec3 ComputeDirectionalLight(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal, vec3 f0, vec3 diffuse, float roughness,float metalness, DirectionalLight l,
+                             bool doShadows, int shadowIndex)
 {
-    return ComputeDirectionalLight(viewDirection, -l.direction, surfPosition, surfNormal, f0, diffuse, roughness,metalness, l.intensity);
+    return ComputeDirectionalLight(viewDirection, -l.direction, surfPosition, surfNormal, f0, diffuse, roughness,metalness, l.intensity, doShadows, shadowIndex);
 }
-
 
 // Sphere Light (area)
 // -------------------------------------------------------------------------------------------------------------------------
 vec3 ComputeSphereLight(
     vec3 viewDirection, vec3 surfPosition, vec3 surfNormal , vec3 surfDiffuse, float surfRoughness, float surfMetalness, vec3 surfF0,
-    vec3 lightPosition, vec3 lightColor, float lightRadius, samplerCube shadowMap, bool doShadows)
+    SphereLight l, bool doShadows, int shadowIndex)
 {
     // avoid problems with radius = 0.0
-    lightRadius = max(lightRadius, 1e-4);
+    l.radius = max(l.radius, 1e-4);
 
      if(doShadows)
      {
-
-         vec3 dir = (surfPosition-lightPosition);
-         float dist = length(dir)-0.01;
-         float visibility = float(texture(shadowMap, dir).r>dist);
-
-         visibility = PCSS_SphereLight
+         float visibility = PCSS_SphereLight
          (
-           surfPosition, surfNormal, shadowMap,
-           lightPosition, lightRadius, 0.1
+           surfPosition, surfNormal, sphereShadowMap[shadowIndex],
+           l.position, l.radius, u_sphereShadowMapSize[shadowIndex],
+           u_sphereShadowMapResolution[shadowIndex], 5e-3
          );
 
-         lightColor*=visibility;
+         l.intensity*=visibility;
      }
 
     // Diffuse
     // --------------------------------------------------
     vec3 kd = 1.0 - SpecularF(surfF0, CLAMPED_DOT(viewDirection, surfNormal));
 
-    float ill = ComputeSphereLightIlluminanceW(surfPosition, surfNormal, lightPosition, lightRadius);
-    ill*= 1.0/(4.0*PI*lightRadius*lightRadius);
+    float ill = ComputeSphereLightIlluminanceW(surfPosition, surfNormal, l.position, l.radius);
+    ill*= 1.0/(4.0*PI*l.radius*l.radius);
 
-    vec3 c = surfDiffuse.rgb * lightColor * ill;
+    vec3 c = surfDiffuse.rgb * l.intensity * ill;
     vec3 diffuse =  mix(c, vec3(0.0), surfMetalness);
 
 
     // Specular
     // --------------------------------------------------
     // see Karis notes "Representative point method"
-    vec3 mrp = RepresentativePointOnSphere(viewDirection, surfPosition, surfNormal, surfRoughness, lightPosition, lightRadius);
+    vec3 mrp = RepresentativePointOnSphere(viewDirection, surfPosition, surfNormal, surfRoughness, l.position, l.radius);
     vec3 dominantDir = normalize(mrp -surfPosition);
 
-    float lightDistance = length(surfPosition - lightPosition);
+    float lightDistance = length(surfPosition - l.position);
     float a0 = surfRoughness*surfRoughness;
-    float a1 = SATURATE(a0 + (lightRadius)/(3.0*lightDistance));
+    float a1 = SATURATE(a0 + (l.radius)/(3.0*lightDistance));
     float a  = a1*a1;
 
     // Instead of a falloff I'm using the illuminance computed earlier
-    vec3 lIn = lightColor*CLAMPED_DOT(surfNormal, dominantDir)*ill;
+    vec3 lIn = l.intensity*CLAMPED_DOT(surfNormal, dominantDir)*ill;
 
     vec3 specular = lIn*SpecularBRDF_Area(viewDirection, dominantDir, surfNormal, surfF0, surfRoughness, a);
 
     return kd*diffuse + specular;
 }
 
-vec3 ComputeSphereLight(
-    vec3 viewDirection, vec3 surfPosition, vec3 surfNormal , vec3 surfDiffuse, float surfRoughness, float surfMetalness, vec3 surfF0,
-    SphereLight l, samplerCube shadowMap, bool doShadows)
-{
-    return ComputeSphereLight(viewDirection,surfPosition,surfNormal,surfDiffuse,surfRoughness,surfMetalness,surfF0, l.position, l.intensity, l.radius, shadowMap, doShadows);
-}
-
 // Rect Light (area)
 // -------------------------------------------------------------------------------------------------------------------------
 
 // from: https://github.com/selfshadow/ltc_code
-vec3 ComputeRectLightLTC(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal , vec3 surfDiffuse, float surfRoughness, float surfMetalness, vec3 surfF0, RectLight l)
+vec3 ComputeRectLightLTC(vec3 viewDirection, vec3 surfPosition, vec3 surfNormal , vec3 surfDiffuse, float surfRoughness, float surfMetalness, vec3 surfF0, RectLight l,
+                         bool doShadows, int shadowIndex)
 {
+    if(doShadows)
+    {
+        float visibility = PCSS_SphereLight
+        (
+            surfPosition, surfNormal, rectShadowMap[shadowIndex],
+            l.position, u_rectShadowRadius[shadowIndex],
+            u_rectShadowMapSize[shadowIndex],
+            u_rectShadowMapResolution[shadowIndex], 5e-3
+        );
+
+        l.intensity*=visibility;
+    }
+
     l.size = max(l.size, vec2(1e-4));
     bool twoSided = false;
 
@@ -340,17 +344,20 @@ void main()
 
 #ifdef LIGHT_PASS_DIRECTIONAL
         for(int i=0;i<u_directionalLightsCnt;i++)
-            col.rgb += ComputeDirectionalLight(viewDir, posWorld, nrmWorld, f0, albedo.rgb, roughness, metalness, directionalLights[i]);
+            col.rgb += ComputeDirectionalLight(viewDir, posWorld, nrmWorld, f0, albedo.rgb, roughness, metalness, directionalLights[i],
+                                                u_doDirShadow[i] && (i<MAX_DIR_LIGHT_SHADOW_COUNT), i);
 #endif
 
 #ifdef LIGHT_PASS_SPHERE
         for(int i=0;i<u_sphereLightsCnt;i++)
-            col.rgb += ComputeSphereLight(viewDir, posWorld, nrmWorld , albedo.rgb, roughness, metalness, f0, sphereLights[i], sphereShadowMap[i], u_doSphereShadow[i]);
+            col.rgb += ComputeSphereLight(viewDir, posWorld, nrmWorld , albedo.rgb, roughness, metalness, f0,
+                                          sphereLights[i], u_doSphereShadow[i] && (i<MAX_SPHERE_LIGHT_SHADOW_COUNT), i);
 #endif
 
 #ifdef LIGHT_PASS_RECT
         for(int i=0;i<u_rectLightsCnt;i++)
-            col.rgb += ComputeRectLightLTC(viewDir, posWorld, nrmWorld , albedo.rgb, roughness, metalness, f0, rectLights[i]);
+            col.rgb += ComputeRectLightLTC(viewDir, posWorld, nrmWorld , albedo.rgb, roughness, metalness, f0, rectLights[i],
+                                           u_doRectShadow[i] && (i<MAX_RECT_LIGHT_SHADOW_COUNT), i);
 #endif
 
 #ifdef LIGHT_PASS_ENVIRONMENT

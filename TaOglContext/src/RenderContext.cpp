@@ -220,21 +220,31 @@ namespace tao_render_context
 
 	void RenderContext::SetRasterizerState(ogl_rasterizer_state state)
 	{
-		GL_CALL(
+		GL_CALL( // --- multisample
 			if (state.multisample_enable) glEnable(GL_MULTISAMPLE);
 			else glDisable(GL_MULTISAMPLE);
 		);
-		GL_CALL(
+		GL_CALL(// --- alpha to coverage
 			if (state.alpha_to_coverage_enable) glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 			else glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 		);
-		GL_CALL(
+		GL_CALL(// --- culling
 			if (state.culling_enable) glEnable(GL_CULL_FACE);
 			else glDisable(GL_CULL_FACE);
 		);
+        GL_CALL(// --- polygon offset
+            if(state.polygon_offset_units!=0.0f || state.polygon_offset_factor!=0.0f)
+            {
+                glEnable(GL_POLYGON_OFFSET_FILL);
+                glPolygonOffset(state.polygon_offset_factor, state.polygon_offset_units);
+            }
+            else
+                glDisable(GL_POLYGON_OFFSET_FILL);
+        );
 		GL_CALL(glFrontFace(state.front_face););
 		GL_CALL(glCullFace(state.cull_mode););
 		GL_CALL(glPolygonMode(GL_FRONT_AND_BACK, state.polygon_mode););
+
 	}
 
 	void RenderContext::SetViewport(GLint x, GLint y, GLsizei width, GLsizei height)

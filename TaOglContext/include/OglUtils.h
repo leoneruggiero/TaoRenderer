@@ -488,8 +488,6 @@ namespace tao_ogl_resources
 		ogl_depth_func depth_func	= depth_func_always;
 		double depth_range_near		= 0.0;
 		double depth_range_far		= 1.0;
-
-		//todo polygon offset
 	};
 
 	enum ogl_blend_func
@@ -623,8 +621,13 @@ namespace tao_ogl_resources
 		ogl_front_face   front_face			= front_face_ccw;
 		ogl_cull_mode    cull_mode			= cull_mode_back;
 		ogl_polygon_mode polygon_mode       = polygon_mode_fill;
+
+        float polygon_offset_factor         = 0.0f;
+        float polygon_offset_units          = 0.0f;
+
 		bool  multisample_enable			= false;
 		bool  alpha_to_coverage_enable		= false;
+
 	};
 
 	enum ogl_buffer_flags

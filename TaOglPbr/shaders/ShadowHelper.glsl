@@ -44,6 +44,17 @@ vec2 Rotate2D(vec2 p, float angle)
     return vec2(p.x*c-p.y*s, p.x*s+p.y*c);
 }
 
+float BiasPointShadow(vec3 lightPos, vec3 surfPos, vec3 lightDir, vec3 surfNormal, vec4 shadowMapSize, ivec2 shadowMapRes)
+{
+
+    vec2 texelSize = (shadowMapSize.xy * length(lightPos - surfPos))/(vec2(shadowMapRes) * shadowMapSize.z);
+    float maxTexelSize = max(texelSize.x, texelSize.y);
+
+    float bias = tan(acos(dot(lightDir, surfNormal))) * maxTexelSize; // should be .5*texelSize?
+
+    return bias;
+}
+
 // from: https://www.gamedev.net/tutorials/programming/graphics/contact-hardening-soft-shadows-made-fast-r4906/
 float InterleavedGradientNoise(vec2 position_screen)
 {
@@ -54,7 +65,7 @@ float InterleavedGradientNoise(vec2 position_screen)
 float SlopeBiasForPCSS(vec3 worldNormal, vec3 worldLightDirection, float sampleOffsetWorld)
 {
     float angle = acos(dot(worldNormal, worldLightDirection));
-    float zOffsetWorld = sampleOffsetWorld * tan(clamp(angle, 0.0, PI/2.5));
+    float zOffsetWorld = sampleOffsetWorld * tan(clamp(angle, 0.0, PI/2.1));
     return zOffsetWorld;
 }
 
@@ -70,19 +81,25 @@ float FindBlockerDistance_DirectionalLight(
     vec4 smpLS = shadowTransform *vec4(surfPos, 1.0);
     smpLS.xyz/=smpLS.w;
     smpLS.xyz=smpLS.xyz*0.5+0.5;
-    float refVal = smpLS.z - bias;
+    float refVal = smpLS.z;
 
     float zScale = shadowSize.w-shadowSize.z; // far-near
     vec2 searchWidthUV = searchWidth/shadowSize.xy;
 
     float coneBias = SlopeBiasForPCSS(surfNormal, lightDir, 1.0);
 
-    const int samplesCnt=9;
+    const int samplesCnt=16;
     for(int i = 0 ; i< samplesCnt; i++)
     {
 
-        float coneBiasSmp = coneBias*searchWidth*length(SMP_GRID_9[i])/zScale;
-        vec2 offset = searchWidthUV*SMP_GRID_9[i];
+        // random rotation (better noise than banding)
+        float rnd = InterleavedGradientNoise(gl_FragCoord.xy-0.5);
+        vec2 offsetDir = SMP_VOGEL_16[i];
+        offsetDir = Rotate2D(offsetDir, rnd*PI2);
+
+        vec2 offset = searchWidthUV*offsetDir;
+        float coneBiasSmp = coneBias*searchWidth*length(offsetDir)/zScale;
+
         float closestDepth = texture(shadowMap, smpLS.xy+offset).r;
 
         float diff = (refVal - closestDepth);
@@ -94,7 +111,7 @@ float FindBlockerDistance_DirectionalLight(
         }
     }
 
-	float avgDist = blockers > 0
+    float avgDist = blockers > 0
     ? avgBlockerDistance / blockers
     : -1.0;
 
@@ -116,6 +133,8 @@ float FindBlockerDistance_SphereLight(
 
     float searchW = searchRadius;
 
+    float coneBias = SlopeBiasForPCSS(surfNormal, -dirNrm, 1.0);
+
     float refVal = dist;
 
     vec3 right = normalize(cross(dirNrm, vec3(0.156, 1.066, 2.781)));
@@ -125,14 +144,19 @@ float FindBlockerDistance_SphereLight(
     for(int i = 0 ; i< samplesCnt; i++)
     {
 
-        vec3 offset = SMP_GRID_9[i].x*right + SMP_GRID_9[i].y*up;
-        vec3 smpDir= dirNrm + searchW*offset;
+        // random rotation (better noise than banding)
+        float rnd = InterleavedGradientNoise(gl_FragCoord.xy-0.5);
+        vec2 offsetDir = Rotate2D(SMP_GRID_9[i], rnd*PI2);
+        vec3 offset = offsetDir.x*right + offsetDir.y*up;
+        vec3 smpDir= dir + searchW*offset;
+
+        float smpBias = searchW * length(offset) * coneBias;
 
         float closestDepth = texture(shadowMap, smpDir).r;
 
         float diff = (refVal - closestDepth);
 
-        if (diff>bias)
+        if (diff> (bias + smpBias))
         {
             blockers++;
             avgBlockerDistance +=diff;
@@ -147,7 +171,7 @@ float FindBlockerDistance_SphereLight(
 }
 
 float PCF_DirectionalLight(
-    vec3 surfPos,vec3 surfNormal, sampler2DShadow shadowMap,
+    vec3 surfPos,vec3 surfNormal, sampler2D shadowMap,
     mat4 shadowTransform, vec4 shadowSize,
     vec3 lightDir, float filterSize,
     float bias /* base bias added to a slope bias computed here  */)
@@ -156,7 +180,7 @@ float PCF_DirectionalLight(
     vec4 smpLS = shadowTransform *vec4(surfPos, 1.0);
     smpLS.xyz/=smpLS.w;
     smpLS.xyz=smpLS.xyz*0.5+0.5;
-    float refVal = smpLS.z - bias;
+    float refVal = smpLS.z;
 
     vec2 filterSizeUV = filterSize/shadowSize.xy;
     float sum = 0;
@@ -173,8 +197,11 @@ float PCF_DirectionalLight(
         float rnd = InterleavedGradientNoise(gl_FragCoord.xy-0.5);
         vec2 offset = filterSizeUV * Rotate2D(offsetDir, rnd*PI2);
 
-        sum+= texture(shadowMap, vec3(smpLS.xy+offset, refVal-coneBiasSmp), 0.0).r;
-
+        float diff = refVal - texture(shadowMap, smpLS.xy+offset).r;
+        if (diff < (bias + coneBiasSmp))
+        {
+            sum++;
+        }
     }
 
     return sum / samplesCnt;
@@ -193,6 +220,8 @@ float PCF_SphereLight(
 
     float searchW = filterRadius;
 
+    float coneBias = SlopeBiasForPCSS(surfNormal, -dirNrm, 1.0);
+
     float refVal = dist;
 
     vec3 right = normalize(cross(dirNrm, vec3(0.156, 1.066, 2.781)));
@@ -201,17 +230,20 @@ float PCF_SphereLight(
     const int samplesCnt=16;
     for(int i = 0 ; i< samplesCnt; i++)
     {
+
         // random rotation (better noise than banding)
         float rnd = InterleavedGradientNoise(gl_FragCoord.xy-0.5);
-        vec2 smpVogel = Rotate2D(SMP_VOGEL_16[i], rnd*PI2);
-        vec3 offset = smpVogel.x*right + smpVogel.y*up;
-        vec3 smpDir= dirNrm + searchW*offset;
+        vec2 offsetDir = Rotate2D(SMP_VOGEL_16[i], rnd*PI2);
+        vec3 offset = offsetDir.x*right + offsetDir.y*up;
+        vec3 smpDir= dir + searchW*offset;
+
+        float smpBias = searchW * length(offset) * coneBias;
 
         float closestDepth = texture(shadowMap, smpDir).r;
 
         float diff = (refVal - closestDepth);
 
-        if (diff<bias)
+        if (diff < (bias + smpBias))
         {
            sum++;
         }
@@ -222,8 +254,7 @@ float PCF_SphereLight(
 
 float PCSS_DirectionalLight(
     vec3 surfPos,vec3 surfNormal,
-    sampler2D shadowMap,sampler2DShadow shadowMapCompare,
-    mat4 shadowTransform,
+    sampler2D shadowMap, mat4 shadowTransform,
     vec4 shadowSize, vec3 lightPos,
     vec3 lightDir, float angle,
     float bias /* base bias added to a slope bias computed here  */)
@@ -243,8 +274,8 @@ float PCSS_DirectionalLight(
     float pcfRadius = blockerDistance*tanAngle;
 
     return PCF_DirectionalLight(
-        surfPos, surfNormal, shadowMapCompare,
-        shadowTransform ,shadowSize,
+        surfPos, surfNormal,
+        shadowMap, shadowTransform ,shadowSize,
         lightDir, pcfRadius,
         bias);
 }
@@ -252,12 +283,16 @@ float PCSS_DirectionalLight(
 float PCSS_SphereLight(
     vec3 surfPos,vec3 surfNormal, samplerCube shadowMap,
     vec3 lightPos, float lightRadius,
+    vec4 shadowMapSize, ivec2 shadowMapResolution,
     float bias /* base bias added to a slope bias computed here  */)
 {
 
+    float realBias = bias + BiasPointShadow(lightPos, surfPos, normalize(lightPos-surfPos),
+                                            surfNormal, shadowMapSize, shadowMapResolution);
+
     // blocker search
-    float searchW = lightRadius*0.1; // ???
-    float blockerDistance = FindBlockerDistance_SphereLight(surfPos,surfNormal, shadowMap, lightPos, searchW, bias);
+    float searchW = lightRadius*0.5; // ???
+    float blockerDistance = FindBlockerDistance_SphereLight(surfPos,surfNormal, shadowMap, lightPos, searchW, realBias);
 
 
     if (blockerDistance == -1) // no blocker found
@@ -266,5 +301,5 @@ float PCSS_SphereLight(
     // filtering
     float pcfRadius = blockerDistance * searchW/length(surfPos-lightPos);
 
-    return PCF_SphereLight(surfPos,surfNormal, shadowMap, lightPos, pcfRadius, bias);
+    return PCF_SphereLight(surfPos,surfNormal, shadowMap, lightPos, pcfRadius, realBias);
 }

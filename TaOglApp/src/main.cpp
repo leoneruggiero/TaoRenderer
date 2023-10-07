@@ -4061,67 +4061,35 @@ int main()
         // ----------------------------------------------------------------------------
         LoadHDRIs(pbrRdr);
 
-        LoadGltf(pbrRdr, "C:/Users/Admin/Downloads/ShadowTest.gltf");
+        LoadGltf(pbrRdr, "C:/Users/Admin/Downloads/nike.gltf");
 
-        /*auto sphere = tao_geometry::Mesh::Sphere(0.3f, 32);
-        tao_pbr::Mesh sphereMesh{
-            sphere.GetPositions(),
-            sphere.GetNormals(),
-            sphere.GetTextureCoordinates(),
-            sphere.GetIndices()
-        };
-        auto cube = tao_geometry::Mesh::Box(10.0f, 10.0f, 1.0f);
-        tao_pbr::Mesh cubeMesh{
-                cube.GetPositions(),
-                cube.GetNormals(),
-                cube.GetTextureCoordinates(),
-                cube.GetIndices()
-        };
-
-        auto sphereMeshKey = pbrRdr.AddMesh(sphereMesh);
-        auto cubeMeshKey = pbrRdr.AddMesh(cubeMesh);
-
-        glm::vec3 dColor = vec3{0.9, 0.25, 0.0};
-        glm::vec3 mColor = vec3{1.0};
-
-        // dielectrics
-        // -------------------------------------------------------------------------------------------------------------
-        auto matD0 = pbrRdr.AddMaterial(PbrMaterial{0.05f, 0.0f, dColor});
-        auto matD1 = pbrRdr.AddMaterial(PbrMaterial{0.3f, 0.0f, dColor});
-        auto matD2 = pbrRdr.AddMaterial(PbrMaterial{0.5f, 0.0f, dColor});
-        auto matD3 = pbrRdr.AddMaterial(PbrMaterial{0.8f, 0.0f, dColor});
-
-        GenKey<MeshRenderer> mr0 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, -1.0, 0.0}), sphereMeshKey, matD0);
-        GenKey<MeshRenderer> mr1 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, -1.0, 0.5}), sphereMeshKey, matD1);
-        GenKey<MeshRenderer> mr2 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, -1.0, 1.0}), sphereMeshKey, matD2);
-        GenKey<MeshRenderer> mr3 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, -1.0, 1.5}), sphereMeshKey, matD3);
-
-        // metals
-        // -------------------------------------------------------------------------------------------------------------
-        auto matM0 = pbrRdr.AddMaterial(PbrMaterial{0.05f, 1.0f, mColor});
-        auto matM1 = pbrRdr.AddMaterial(PbrMaterial{0.3f, 1.0f, mColor});
-        auto matM2 = pbrRdr.AddMaterial(PbrMaterial{0.5f, 1.0f, mColor});
-        auto matM3 = pbrRdr.AddMaterial(PbrMaterial{0.8f, 1.0f, mColor});
-
-        GenKey<MeshRenderer> mr4 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-1.5, 1.0, 0.0}), sphereMeshKey, matM0);
-        GenKey<MeshRenderer> mr5 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), {-0.5, 1.0, 0.5}), sphereMeshKey, matM1);
-        GenKey<MeshRenderer> mr6 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 0.5, 1.0, 1.0}), sphereMeshKey, matM2);
-        GenKey<MeshRenderer> mr7 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { 1.5, 1.0, 1.5}), sphereMeshKey, matM3);
-
-        GenKey<MeshRenderer> mr8 = pbrRdr.AddMeshRenderer(glm::translate(glm::mat4(1.0f), { -5.0, -5.0, -1.2}), cubeMeshKey, matD0);
-*/
         DirectionalLight dirLight0
         {
-            .transformation = glm::translate(mat4{1.0f}, vec3{-1.0f, -1.0f, 3.5f}) * glm::rotate(glm::mat4(1.0), 2.3f, vec3{1.0, 1.0, 0.0}),
+            .transformation = glm::translate(mat4{1.0f}, vec3{-1.0f, -1.0f, 3.5f}) * glm::rotate(mat4{1.0f}, pi<float>(), vec3{1.0f}),
             .intensity = vec3(0.9)
         };
 
-        auto dirLightKey = pbrRdr.AddDirectionalLight(dirLight0);
+       /* DirectionalLight dirLight1
+        {
+                .transformation = glm::translate(mat4{1.0f}, vec3{1.0f, -1.0f, 2.5f}) * glm::rotate(mat4{1.0f}, pi<float>(), vec3{1.0f}),
+                .intensity = vec3(0.7)
+        };
 
-        /*SphereLight sphereLight0
+        DirectionalLight dirLight2
+        {
+                .transformation = glm::translate(mat4{1.0f}, vec3{-1.0f, 1.0f, 4.5f}) * glm::rotate(mat4{1.0f}, pi<float>(), vec3{1.0f}),
+                .intensity = vec3(0.5)
+        };*/
+
+        auto dirLight0Key = pbrRdr.AddDirectionalLight(dirLight0);
+        //auto dirLight1Key = pbrRdr.AddDirectionalLight(dirLight1);
+        //auto dirLight2Key = pbrRdr.AddDirectionalLight(dirLight2);
+
+        /*
+        SphereLight sphereLight0
         {
             .transformation = glm::translate(glm::mat4(1.0), {1.0, 0.5, 3.0}),
-            .intensity = vec3(15.0),
+            .intensity = vec3(55.0),
             .radius = 0.5
         };
         auto sphereLight0Key = pbrRdr.AddSphereLight(sphereLight0);
@@ -4140,43 +4108,57 @@ int main()
                 .intensity = vec3(5.0),
                 .radius = 0.25
         };
-        auto sphereLight2Key = pbrRdr.AddSphereLight(sphereLight2);
-
+        auto sphereLight2Key = pbrRdr.AddSphereLight(sphereLight2);*/
 
         RectLight rectLight0 =
                 {
                         .transformation =
                         glm::translate(glm::mat4(1.0), {-3.0, 0.0, 1.6})*
                         glm::rotate(glm::mat4(1.0), 2.2f, vec3{0.0, 1.0, 0.0}),
-                        .intensity = vec3(7.0),
-                        .size = vec2{2.0, 3.0}
+                        .intensity = vec3(17.0),
+                        .size = vec2{1.0, 2.0}
+                };
+        RectLight rectLight1 =
+                {
+                        .transformation =
+                        glm::translate(glm::mat4(1.0), {3.0, 1.0, 2.6})*
+                        glm::rotate(glm::mat4(1.0), 2.2f, vec3{0.0, 1.0, 0.0}),
+                        .intensity = vec3{10.0f, 2.0f, 14.0f},
+                        .size = vec2{1.5, 1.5}
                 };
 
-        auto rectLight0Key = pbrRdr.AddRectLight(rectLight0);*/
+        auto rectLight0Key = pbrRdr.AddRectLight(rectLight0);
+        auto rectLight1Key = pbrRdr.AddRectLight(rectLight1);
 
         // light gizmos
         auto directionalLightGizmo0Key = lightGizmos.CreateDirectionalLightGizmo(dirLight0);
-        /*auto rectLightGizmo0Key   = lightGizmos.CreateRectLightGizmo(rectLight0);
-        auto sphereLightGizmo0Key = lightGizmos.CreateSphereLightGizmo(sphereLight0);
-        auto sphereLightGizmo1Key = lightGizmos.CreateSphereLightGizmo(sphereLight1);
-        auto sphereLightGizmo2Key = lightGizmos.CreateSphereLightGizmo(sphereLight2);*/
+        //auto directionalLightGizmo1Key = lightGizmos.CreateDirectionalLightGizmo(dirLight1);
+        //auto directionalLightGizmo2Key = lightGizmos.CreateDirectionalLightGizmo(dirLight2);
+        auto rectLightGizmo0Key   = lightGizmos.CreateRectLightGizmo(rectLight0);
+        auto rectLightGizmo1Key   = lightGizmos.CreateRectLightGizmo(rectLight1);
+        //auto sphereLightGizmo0Key = lightGizmos.CreateSphereLightGizmo(sphereLight0);
+        //auto sphereLightGizmo1Key = lightGizmos.CreateSphereLightGizmo(sphereLight1);
+        //auto sphereLightGizmo2Key = lightGizmos.CreateSphereLightGizmo(sphereLight2);
 
         // TODO: is it necessary to duplicate this much code???
         vector<MySphereLight> mySphereLights
         ({
-            /*MySphereLight{.light = sphereLight0, .pbrLightKey = sphereLight0Key, .gizmoLightKey = sphereLightGizmo0Key},
-            MySphereLight{.light = sphereLight1, .pbrLightKey = sphereLight1Key, .gizmoLightKey = sphereLightGizmo1Key},
-            MySphereLight{.light = sphereLight2, .pbrLightKey = sphereLight2Key, .gizmoLightKey = sphereLightGizmo2Key},*/
+            //MySphereLight{.light = sphereLight0, .pbrLightKey = sphereLight0Key, .gizmoLightKey = sphereLightGizmo0Key},
+            //MySphereLight{.light = sphereLight1, .pbrLightKey = sphereLight1Key, .gizmoLightKey = sphereLightGizmo1Key},
+            //MySphereLight{.light = sphereLight2, .pbrLightKey = sphereLight2Key, .gizmoLightKey = sphereLightGizmo2Key},
          });
 
         vector<MyDirectionalLight> myDirectionalLights
         ({
-                 MyDirectionalLight{.light = dirLight0, .pbrLightKey = dirLightKey, .gizmoLightKey = directionalLightGizmo0Key}
+                 MyDirectionalLight{.light = dirLight0, .pbrLightKey = dirLight0Key, .gizmoLightKey = directionalLightGizmo0Key},
+                 //MyDirectionalLight{.light = dirLight1, .pbrLightKey = dirLight1Key, .gizmoLightKey = directionalLightGizmo1Key},
+                 //MyDirectionalLight{.light = dirLight2, .pbrLightKey = dirLight2Key, .gizmoLightKey = directionalLightGizmo2Key},
          });
 
         vector<MyRectLight> myRectLights
         ({
-                 //MyRectLight{.light = rectLight0, .pbrLightKey = rectLight0Key, .gizmoLightKey = rectLightGizmo0Key}
+                 MyRectLight{.light = rectLight0, .pbrLightKey = rectLight0Key, .gizmoLightKey = rectLightGizmo0Key},
+                 MyRectLight{.light = rectLight1, .pbrLightKey = rectLight1Key, .gizmoLightKey = rectLightGizmo1Key},
          });
 
         variant<MyDirectionalLight*, MySphereLight*, MyRectLight*> selectedLight;

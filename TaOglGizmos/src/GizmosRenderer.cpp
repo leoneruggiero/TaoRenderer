@@ -1237,6 +1237,8 @@ namespace tao_gizmos
 
 		for (auto& pGzm : _pointGizmos)
 		{
+            if(pGzm.second._instanceCount==0) continue;
+
 			const bool hasTexture = pGzm.second._symbolAtlas.has_value();
 			if (hasTexture)
 			{
@@ -1356,6 +1358,8 @@ namespace tao_gizmos
 
 		for (auto& lGzm : _lineGizmos)
 		{
+            if(lGzm.second._instanceCount==0) continue;
+
 			bool hasTexture = lGzm.second._patternTexture.has_value();
 			if (hasTexture)
 			{
@@ -1402,6 +1406,8 @@ namespace tao_gizmos
 
 		for (auto& lGzm : _lineGizmos)
 		{
+            if(lGzm.second._instanceCount==0) continue;
+
 			bool hasTexture = lGzm.second._patternTexture.has_value();
 			if (hasTexture)
 			{
@@ -1739,6 +1745,8 @@ namespace tao_gizmos
 
 		for (auto& mGzm : _meshGizmos)
 		{
+            if(mGzm.second._instanceCount==0) continue;
+
             bool hasCustomShader = mGzm.second._shader.has_value();
 
             if(hasCustomShader)
@@ -1793,6 +1801,8 @@ namespace tao_gizmos
 		unsigned int drawnInstances = 0;
 		for (auto& mGzm : _meshGizmos)
 		{
+            if(mGzm.second._instanceCount==0) continue;
+
 			mesh_obj_data_block const objData
 			{
 				.has_texture = false,
