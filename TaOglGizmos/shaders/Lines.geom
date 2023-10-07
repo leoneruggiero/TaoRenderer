@@ -15,13 +15,13 @@ out GS_OUT
 in VS_OUT
 {
     vec4  v_color;
-    bool  v_visible;
+    uint  v_visible;
 }
 gs_in[];
 
 void main() {
        
-    if(!gs_in[0].v_visible) return;
+    if(gs_in[0].v_visible==0) return;
 
     vec4 p0_clip = gl_in[0].gl_Position;
     vec4 p1_clip = gl_in[1].gl_Position;

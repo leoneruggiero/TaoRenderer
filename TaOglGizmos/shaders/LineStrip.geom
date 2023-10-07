@@ -10,7 +10,7 @@ in VS_OUT
 {
     vec4  v_color;
     vec2  v_texCoord;
-    bool  v_visible;
+    uint  v_visible;
 }
 gs_in[];
 
@@ -37,7 +37,7 @@ void Emit(VERT v)
 
 void main() {
 
-    if(!gs_in[0].v_visible) return;
+    if(gs_in[0].v_visible==0) return;
 
     float f = o_size * gl_in[1].gl_Position.w;
      

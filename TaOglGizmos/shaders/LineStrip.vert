@@ -40,7 +40,7 @@ out VS_OUT
 {
     vec4  v_color;
     vec2  v_texCoord;
-    bool  v_visible;
+    uint  v_visible;
 }
 vs_out;
 
@@ -56,5 +56,5 @@ void main()
     #endif
     vs_out.v_texCoord   = vec2(b_screenDst[o_vertCount * gl_InstanceID + gl_VertexID]/o_patternSize, 0.0);
 
-    vs_out.v_visible    = i_visible[gl_InstanceID] > 0;
+    vs_out.v_visible    = i_visible[gl_InstanceID];
 }

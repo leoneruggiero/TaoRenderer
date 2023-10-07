@@ -36,7 +36,7 @@ out VS_OUT
 {
     vec4  v_color;
     vec4  v_texCoord;
-    bool  v_visible;
+    uint  v_visible;
 }
 vs_out;
 
@@ -53,5 +53,5 @@ void main()
 
     vs_out.v_texCoord   = v_texCoord;
 
-    vs_out.v_visible    = i_visible[gl_InstanceID]>0;
+    vs_out.v_visible    = i_visible[gl_InstanceID];
 }

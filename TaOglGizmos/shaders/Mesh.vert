@@ -65,6 +65,6 @@ void main()
     #endif
     vs_out.v_texCoord   = v_texCoord;
 
-    if(!(i_visible[gl_InstanceID]>0))
+    if(i_visible[gl_InstanceID]==0)
         gl_Position = vec4(0.0, 0.0, 0.0, 1.0); // degenerate triangles should be rejected `soon` in the pipeline
 }

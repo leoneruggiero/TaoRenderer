@@ -9,7 +9,7 @@ in VS_OUT
 {
     vec4  v_color;
     vec4  v_texCoord; // rect, .xy = bl, .zw = tr 
-    bool  v_visible;
+    uint  v_visible;
 }
 gs_in[];
 
@@ -21,7 +21,7 @@ out GS_OUT
 
 void main() {
 
-    if(!gs_in[0].v_visible) return;
+    if(gs_in[0].v_visible==0) return;
     
     vec2 f = vec2(o_size);
     f = 2.0* f * f_invViewportSize.xy * gl_in[0].gl_Position.w;        

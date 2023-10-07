@@ -33,8 +33,8 @@ layout(std430, binding = 4) buffer buff_instance_data_4
 
 out VS_OUT
 {
-    vec4  v_color;
-    bool  v_visible;
+    vec4 v_color;
+    uint v_visible;
 }
 vs_out;
 
@@ -49,5 +49,5 @@ void main()
                       i_selection_color[gl_InstanceID] * vec4(vec3(i_selectable[gl_InstanceID]), 1.0);
     #endif
 
-    vs_out.v_visible = i_visible[gl_InstanceID]>0;
+    vs_out.v_visible = i_visible[gl_InstanceID];
 }
