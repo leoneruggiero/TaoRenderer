@@ -60,6 +60,12 @@ enum key
     left_ctrl = GLFW_KEY_LEFT_CONTROL
 };
 
+struct mouse_input_modifier
+{
+    optional<mouse_button> button;
+    optional<key> key;
+};
+
 class MouseInputAgent
 {
 public:
@@ -251,7 +257,7 @@ private:
 class CameraInputAgent : public MouseInputAgent
 {
 public:
-    CameraInputAgent(vec3 initialEyePosition, vec3 initialTarget, vec3 up):
+    CameraInputAgent(vec3 initialEyePosition, vec3 initialTarget, vec3 up, mouse_input_modifier zoomInputModifier, mouse_input_modifier panInputModifier, mouse_input_modifier rotateInputModifier):
     MouseInputAgent{Camera},
     _enabled{false},
     _eyePosition{initialEyePosition},
@@ -264,6 +270,10 @@ public:
         _mouseData.insert({zoom, smooth_mouse_data()});
         _mouseData.insert({rotate, smooth_mouse_data()});
         _mouseData.insert({pan, smooth_mouse_data()});
+
+        _inputModifiers.insert({zoom, zoomInputModifier});
+        _inputModifiers.insert({pan, panInputModifier});
+        _inputModifiers.insert({rotate, rotateInputModifier});
     }
     mat4 GetViewMatrix()
     {
@@ -278,9 +288,9 @@ public:
     }
     void MouseDown(float x, float y, int w, int h) override
     {
-             if(ShouldListen(zoom))   _mode = zoom;
-        else if(ShouldListen(rotate)) _mode = rotate;
-        else if(ShouldListen(pan))    _mode = pan;
+             if(ShouldListen(zoom))     _mode = zoom;
+        else if(ShouldListen(pan))      _mode = pan;
+        else if(ShouldListen(rotate))   _mode = rotate;
 
         else return;
 
@@ -334,9 +344,11 @@ private:
         float _targetMouseY = 0.0f;
         float _latestTimeMs = 0.0f;
     };
+
     bool  _enabled = false;
     camera_mode _mode = rotate;
     map<camera_mode, smooth_mouse_data> _mouseData;
+    map<camera_mode, mouse_input_modifier> _inputModifiers;
     vec3  _eyePosition;
     vec3  _target;
     vec3  _up;
@@ -388,27 +400,11 @@ private:
 
     bool ShouldListen(camera_mode mode)
     {
-        // a masterpiece...
-        switch(mode)
-        {
-            case (zoom):
-                return
-                MouseInputAgent::_manager->IsMouseButtonPressed(middle) &&
-                MouseInputAgent::_manager->IsKeyPressed(left_shift) &&
-                !MouseInputAgent::_manager->IsKeyPressed(left_ctrl);
-
-            case (rotate):
-                return
-                MouseInputAgent::_manager->IsMouseButtonPressed(middle) &&
-                !MouseInputAgent::_manager->IsKeyPressed(left_shift)&&
-                !MouseInputAgent::_manager->IsKeyPressed(left_ctrl);
-
-            case (pan):
-                return
-                MouseInputAgent::_manager->IsMouseButtonPressed(middle) &&
-                !MouseInputAgent::_manager->IsKeyPressed(left_shift)&&
-                MouseInputAgent::_manager->IsKeyPressed(left_ctrl);
-        }
+       return
+            (!_inputModifiers[mode].button.has_value() ||
+             MouseInputAgent::_manager->IsMouseButtonPressed(_inputModifiers[mode].button.value())) &&
+            (!_inputModifiers[mode].key.has_value() ||
+             MouseInputAgent::_manager->IsKeyPressed(_inputModifiers[mode].key.value()));
     }
 
     void RotateCamera(float dx, float dy)
@@ -4162,9 +4158,6 @@ void CreateGizmoTest(GizmosRenderer& gr)
 
 }
 
-
-
-
 int main()
 {
 	try
@@ -4193,7 +4186,13 @@ int main()
         MouseInputManager inputManager{&rc};
 
         // Camera input
-        CameraInputAgent cameraInputAgent{eyePos, eyeTrg, up};
+        CameraInputAgent cameraInputAgent
+        {
+         eyePos, eyeTrg, up,
+         mouse_input_modifier{.button = mouse_button::left, .key = left_shift}, // Zoom
+         mouse_input_modifier{.button = mouse_button::left, .key = left_ctrl},  // Pan
+         mouse_input_modifier{.button = mouse_button::left, .key = nullopt   }  // Rotate
+        };
         inputManager.AddInputAgent(&cameraInputAgent);
 
         // ImGui
