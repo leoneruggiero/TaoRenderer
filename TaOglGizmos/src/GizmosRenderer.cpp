@@ -311,6 +311,11 @@ namespace tao_gizmos
 			? buf_usg_dynamic_draw
 			: buf_usg_static_draw, ResizeBufferPolicy },
 
+         _ssboScreenLength {rc, 0,
+             desc.usage_hint == gizmo_usage_hint::usage_dynamic
+             ? buf_usg_dynamic_draw
+             : buf_usg_static_draw, ResizeBufferPolicy },
+
 		 _vao					{ rc.CreateVertexAttribArray() },
 		 _lineSize				{ desc.line_size },
 		 _patternSize			{ 0 }
@@ -385,6 +390,12 @@ namespace tao_gizmos
 		 dataSize = _instanceCount * sizeof(unsigned int);
 		 _ssboInstanceSelectability.Resize(dataSize);
 		 _ssboInstanceSelectability.OglBuffer().SetSubData(0, dataSize, selectability.data());
+
+         // Set selectability data
+         dataSize = _instanceCount * sizeof(unsigned int);
+         _ssboInstanceSelectability.Resize(dataSize);
+         _ssboInstanceSelectability.OglBuffer().SetSubData(0, dataSize, selectability.data());
+
 	 }
 
     void MeshGizmo::SetGizmoVertices(const std::vector<MeshGizmoVertex> &vertices, const std::vector<int>* triangles)
@@ -650,7 +661,6 @@ namespace tao_gizmos
 		 _lineStripObjDataUbo(rc.CreateUniformBuffer()),
 		 _meshObjDataUbo     (rc.CreateUniformBuffer()),
 		 _frameDataUbo		 (rc.CreateUniformBuffer()),
-		 _lenghSumSsbo		 {rc, 0, buf_usg_dynamic_draw, ResizeBufferPolicy },
 		 _selectionColorSsbo {rc, 0, buf_usg_dynamic_draw, ResizeBufferPolicy },
 		  _selectionPBOs	 {},
 		 _nearestSampler	 (rc.CreateSampler()),
@@ -1575,15 +1585,6 @@ namespace tao_gizmos
 		/// to draw stippled lines.						  ///
 		/////////////////////////////////////////////////////
 
-		// total number of vertices considering
-		// all the instances for each linestrip gizmo.
-		unsigned int totalVerts = 0;
-		for (const auto& lGzm : _lineStripGizmos)
-			totalVerts += lGzm.second._instanceCount * lGzm.second._vertices.size();
-
-		vector<float> ssboData(totalVerts);
-		unsigned int cnt = 0;
-
 		for (auto& pair : _lineStripGizmos)
 		{
 			LineStripGizmo& lGzm = pair.second;
@@ -1604,18 +1605,15 @@ namespace tao_gizmos
 			}
 
 			// compute screen length sum for the line strip gizmo
-			auto part = PefixSumLineStrip(
+			auto ssboData = PefixSumLineStrip(
 				lGzm._vertices,
 				realTransformList,
 				viewMatrix, projectionMatrix,
 				_windowWidth, _windowHeight);
 
-			std::copy(part.begin(), part.end(), ssboData.begin() + cnt);
-			cnt += part.size();
+            lGzm._ssboScreenLength.Resize(ssboData.size() * sizeof(float));
+            lGzm._ssboScreenLength.OglBuffer().SetSubData(0, ssboData.size() * sizeof(float), ssboData.data());
 		}
-
-		_lenghSumSsbo.Resize(totalVerts * sizeof(float));
-		_lenghSumSsbo.OglBuffer().SetSubData(0, totalVerts * sizeof(float), ssboData.data());
 	}
 
 	void GizmosRenderer::RenderLineStripGizmos(const glm::mat4& viewMatrix, const glm::mat4& projectionMatrix, const RenderPass& currentPass)
@@ -1648,7 +1646,7 @@ namespace tao_gizmos
 			// Bind UBO
 			_lineStripObjDataUbo.SetSubData(0, sizeof(line_strip_obj_data_block), &objData);
 			// Bind SSBO for screen length sum
-			_lenghSumSsbo.OglBuffer().BindRange(LINE_STRIP_SCREEN_LENGTH_SSBO_BINDING, vertDrawn * sizeof(float), vertCount * instanceCount * sizeof(float));
+            lGzm.second._ssboScreenLength       .OglBuffer().Bind(LINE_STRIP_SCREEN_LENGTH_SSBO_BINDING);
 			// bind static instance data SSBO (draw instanced)
 			lGzm.second._ssboInstanceColor		.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)
@@ -1707,7 +1705,7 @@ namespace tao_gizmos
 			// Bind UBO
 			_lineStripObjDataUbo.SetSubData(0, sizeof(line_strip_obj_data_block), &objData);
 			// Bind SSBO for screen length sum
-			_lenghSumSsbo.OglBuffer().BindRange(LINE_STRIP_SCREEN_LENGTH_SSBO_BINDING, vertDrawn * sizeof(float), vertCount * instanceCount * sizeof(float));
+            lGzm.second._ssboScreenLength           .OglBuffer().Bind(LINE_STRIP_SCREEN_LENGTH_SSBO_BINDING);
 			// bind static instance data SSBO (draw instanced)
 			lGzm.second._ssboInstanceColor			.OglBuffer().Bind(INSTANCE_DATA_STATIC_SSBO_BINDING);
 			// bind dynamic instance data SSBO (draw instanced)

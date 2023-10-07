@@ -345,6 +345,7 @@ namespace tao_gizmos
 		tao_render_context::ResizableSsbo				_ssboInstanceTransform;
 		tao_render_context::ResizableSsbo			    _ssboInstanceVisibility;
 		tao_render_context::ResizableSsbo			    _ssboInstanceSelectability;
+        tao_render_context::ResizableSsbo               _ssboScreenLength;
 		tao_ogl_resources::OglVertexAttribArray			_vao;
 		std::optional<tao_ogl_resources::OglTexture2D>  _patternTexture;
 
@@ -616,7 +617,6 @@ namespace tao_gizmos
 		tao_ogl_resources::OglUniformBuffer _meshObjDataUbo;
 		tao_ogl_resources::OglUniformBuffer _frameDataUbo;
 
-		tao_render_context::ResizableSsbo _lenghSumSsbo;
 		tao_render_context::ResizableSsbo _selectionColorSsbo;
 
 		tao_ogl_resources::OglSampler _nearestSampler;
