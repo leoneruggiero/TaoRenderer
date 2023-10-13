@@ -36,5 +36,6 @@ Lorem ipsum some descpriptium Lorem ipsum some descpriptium Lorem ipsum some des
 ### Area Lights
 
 ### Contact Hardening Soft Shadows (PCSS)
+ <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd3g4OTB2NHNqZjI0d2hmOHRncWZpeDBoZDI2cWsxNm9xdjU2eGo5MiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/OrAmxgRCbX461zz8bD/giphy.gif" width="790" height="790"/>
 
 
