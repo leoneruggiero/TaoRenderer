@@ -18,7 +18,8 @@ file(GLOB_RECURSE ASSIMP_INCLUDE_FILES
 		"${ASSIMP_FOLDER}/*.hpp"
 		"${ASSIMP_FOLDER}/*.h")
 
-add_executable(${EXE_NAME} "${SRC_FOLDER}/main.cpp" ${IMGUI_SRC_FILES} ${ASSIMP_INCLUDE_FILES})
+add_executable(	${EXE_NAME} "${SRC_FOLDER}/main.cpp" "${SRC_FOLDER}/TaoScene.h" "${SRC_FOLDER}/TaoScene.cpp"
+				${IMGUI_SRC_FILES} ${ASSIMP_INCLUDE_FILES})
 
 target_include_directories(${EXE_NAME} PRIVATE ${SRC_FOLDER})
 
@@ -31,6 +32,7 @@ target_link_libraries(${EXE_NAME} PRIVATE "TaOglContext" "TaOglGizmos" "TaOglPbr
 # set a constant with the path to the assets folder
 set(ASSETS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Assets")
 set(  HDRI_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Assets/HDRI")
+set(MODELS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Assets/Models")
 configure_file("config/TaOglAppConfig.h.in" "TaOglAppConfig.h")
 target_include_directories(${EXE_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 

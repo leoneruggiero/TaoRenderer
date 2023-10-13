@@ -87,6 +87,11 @@ namespace tao_math
 
     std::optional<glm::vec3> RayPlaneIntersection(const Ray& r, const Plane& pl);
 
+    // TODO: use Ray class
+    glm::vec2 PointLineClosestPoint(const glm::vec2& pt, const glm::vec2& l0, const glm::vec2& l1);
+
+    glm::vec3 RayLineClosestPoint(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& lp, const glm::vec3& ld);
+
     template<typename T, int N>
     class BoundingBox
     {

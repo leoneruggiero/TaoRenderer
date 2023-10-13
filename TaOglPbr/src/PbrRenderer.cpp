@@ -158,6 +158,18 @@ namespace tao_pbr
             .wrap_t = sampler_wrap_clamp_to_edge,
             .wrap_r = sampler_wrap_clamp_to_edge,
         };
+        ogl_sampler_wrap_params mirror_clamp
+        {
+                .wrap_s = sampler_wrap_mirror_clamp_to_edge,
+                .wrap_t = sampler_wrap_mirror_clamp_to_edge,
+                .wrap_r = sampler_wrap_mirror_clamp_to_edge,
+        };
+        ogl_sampler_wrap_params repeat
+        {
+                .wrap_s = sampler_wrap_repeat,
+                .wrap_t = sampler_wrap_repeat,
+                .wrap_r = sampler_wrap_repeat,
+        };
         ogl_sampler_filter_params pointFilter
         {
             .min_filter = sampler_min_filter_nearest,
@@ -176,6 +188,7 @@ namespace tao_pbr
 
         _pointSampler           .SetParams(ogl_sampler_params{.filter_params = pointFilter,             .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
         _linearSampler          .SetParams(ogl_sampler_params{.filter_params = linearFilter,            .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
+        _linearSamplerRepeat    .SetParams(ogl_sampler_params{.filter_params = linearFilter,            .wrap_params = repeat,.lod_params{}, .compare_params = noCompare,});
         _linearMipLinearSampler .SetParams(ogl_sampler_params{.filter_params = linearMipLinearFilter,   .wrap_params = clamp, .lod_params{}, .compare_params = noCompare,});
         _shadowSampler          .SetParams(ogl_sampler_params{.filter_params = linearFilter,            .wrap_params = clamp, .lod_params{}, .compare_params = compareLess,});
     }
@@ -572,7 +585,7 @@ namespace tao_pbr
         WriteToCollectionSyncGpu(_directionalLights, key, _shaderBuffers.directionalLightsSsbo, value, converter);
     }
 
-    GenKey<DirectionalLight> PbrRenderer::AddDirectionalLight(const tao_pbr::DirectionalLight &directionalLight)
+    GenKey<DirectionalLight> PbrRenderer::AddLight(const DirectionalLight &directionalLight)
     {
         std::function<directional_light_gl_data_block(const DirectionalLight&)> converter =
                 static_cast<directional_light_gl_data_block(*)(const DirectionalLight&)>(ToGraphicsData);
@@ -588,7 +601,7 @@ namespace tao_pbr
         WriteToCollectionSyncGpu(_sphereLights, key, _shaderBuffers.sphereLightsSsbo, value, converter);
     }
 
-    GenKey<SphereLight> PbrRenderer::AddSphereLight(const tao_pbr::SphereLight &sphereLight)
+    GenKey<SphereLight> PbrRenderer::AddLight(const SphereLight &sphereLight)
     {
         std::function<sphere_light_gl_data_block(const SphereLight&)> converter =
                 static_cast<sphere_light_gl_data_block(*)(const SphereLight&)>(ToGraphicsData);
@@ -604,12 +617,12 @@ namespace tao_pbr
         WriteToCollectionSyncGpu(_rectLights, key, _shaderBuffers.rectLightsSsbo, value, converter);
     }
 
-    GenKey<RectLight> PbrRenderer::AddRectLight(const tao_pbr::RectLight &rectLight)
+    GenKey<RectLight> PbrRenderer::AddLight(const RectLight &rectLigth)
     {
         std::function<rect_light_gl_data_block(const RectLight&)> converter =
                 static_cast<rect_light_gl_data_block(*)(const RectLight&)>(ToGraphicsData);
 
-        return AddToCollectionSyncGpu(_rectLights, _shaderBuffers.rectLightsSsbo, rectLight, converter);
+        return AddToCollectionSyncGpu(_rectLights, _shaderBuffers.rectLightsSsbo, rectLigth, converter);
     }
 
     void PbrRenderer::ReloadShaders()
@@ -641,32 +654,32 @@ namespace tao_pbr
         if(auto tex = _materials.at(mat)._diffuseTex) // --- Diffuse
         {
             GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_DIFFUSE));
-            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_DIFFUSE));
+            _linearSamplerRepeat.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_DIFFUSE));
         }
         if(auto tex = _materials.at(mat)._normalMap) // --- Normal
         {
             GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_NORMALS));
-            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_NORMALS));
+            _linearSamplerRepeat.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_NORMALS));
         }
         if(auto tex = _materials.at(mat)._roughnessMap) // --- Roughness
         {
             GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_ROUGHNESS));
-            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_ROUGHNESS));
+            _linearSamplerRepeat.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_ROUGHNESS));
         }
         if(auto tex = _materials.at(mat)._metalnessMap) // --- Metalness
         {
             GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_METALNESS));
-            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_METALNESS));
+            _linearSamplerRepeat.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_METALNESS));
         }
         if(auto tex = _materials.at(mat)._emissionTex) // --- Emission
         {
             GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_EMISSION));
-            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_EMISSION));
+            _linearSamplerRepeat.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_EMISSION));
         }
         if(auto tex = _materials.at(mat)._occlusionMap) // --- Occlusion
         {
             GetGlTexture(tex.value()).BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_OCCLUSION));
-            _linearSampler.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_OCCLUSION));
+            _linearSamplerRepeat.BindToTextureUnit(static_cast<ogl_texture_unit>(tex_unit_0 + GPASS_TEX_BINDING_OCCLUSION));
         }
     }
 
@@ -687,8 +700,6 @@ namespace tao_pbr
                 .taaJitter          = vec2(0.0),
                 .doGamma            = 1,
                 .gamma              = 2.2,
-                .doEnvironmentIbl   = _currentEnvironment.has_value(),
-                .environmentIntensity = 3.6,
                 .radianceMinLod = PRE_CUBE_MIN_LOD,
                 .radianceMaxLod = PRE_CUBE_MAX_LOD,
                 .doTaa          = 0

@@ -333,7 +333,7 @@ void main()
     ivec2 fragCoord = ivec2(gl_FragCoord.xy-0.5);
     ReadGBuff(fragCoord, albedo, emission, posWorld, nrmWorld, roughness, metalness, occlusion);
 
-    vec4 col = vec4(0.0, 0.0, 0.0, 1.0);
+    vec4 col = vec4(emission, 1.0);
 
     if(posWorld!=vec3(0.0))
     {

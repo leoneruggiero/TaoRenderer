@@ -64,10 +64,8 @@ layout (std140, binding = 0) uniform blk_PerFrameData
     uniform vec2               f_taa_jitter;                                 // 8   byte
     uniform bool               f_doGamma;                                    // 4   byte
     uniform float              f_gamma;                                      // 4   byte
-    uniform bool               f_doEnvironmentIBL;                           // 4   byte
-    uniform float              f_environmentIntensity;                       // 4   byte
     uniform int                f_radianceMinLod;                             // 4   byte
     uniform int                f_radianceMaxLod;                             // 4   byte
     uniform bool               f_doTaa;                                      // 4   byte
-                                                                             // TOTAL => 804 byte
+                                                                             // TOTAL => 796 byte
 };

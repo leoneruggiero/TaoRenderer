@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/Admin/Documents/LearnOpenGL/TestApp_OpenGL/TaOglPbr
+# Install script for directory: C:/Users/39327/Documents/GitHub/TestApp_OpenGL/TaOglPbr
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

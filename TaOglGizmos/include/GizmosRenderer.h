@@ -652,7 +652,7 @@ namespace tao_gizmos
         tao_ogl_resources::OglFramebuffer<tao_ogl_resources::OglTexture2D>	_depthFramebuffer;
 
 		unsigned int										_latestSelectionPBOIdx = 0;
-		static constexpr unsigned int						_selectionPBOsCount = 4;
+		static constexpr unsigned int						_selectionPBOsCount = 6;
 		std::vector<tao_ogl_resources::OglPixelPackBuffer>	_selectionPBOs;
 
 

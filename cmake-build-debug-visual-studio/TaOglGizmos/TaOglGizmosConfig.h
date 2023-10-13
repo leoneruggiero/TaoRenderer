@@ -1,1 +1,1 @@
-#define SHADER_SRC_DIR "C:/Users/Admin/Documents/LearnOpenGL/TestApp_OpenGL/TaOglGizmos/shaders"
+#define SHADER_SRC_DIR "C:/Users/39327/Documents/GitHub/TestApp_OpenGL/TaOglGizmos/shaders"

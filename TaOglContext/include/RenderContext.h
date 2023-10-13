@@ -35,7 +35,7 @@ namespace tao_render_context
         GLFWwindow* _glf_window;
         //unique_ptr<MouseInput>  _mouseInput;
 
-        std::optional<std::function<void(int, int)>> _resizeFunc;
+        const std::function<void(int, int)>* _resizeFunc;
 
         int _uniformBufferOffsetAlignment;
         int _shaderStorageBufferOffsetAlignment;
@@ -79,12 +79,12 @@ namespace tao_render_context
         void SetupGl();
         void GlfwResizeCallback(GLFWwindow* , int newWidth, int newHeight)
         {
-            if(_resizeFunc.has_value())
-                _resizeFunc.value()(newWidth, newHeight);
+            if(_resizeFunc)
+                (*_resizeFunc)(newWidth, newHeight);
         }
 
     public:
-        RenderContext(int windowWidth, int windowHeight, const char* windowName = "Unnamed Window") :
+        RenderContext(int windowWidth, int windowHeight, const char* windowName) :
     	_windowWidth(windowWidth),
     	_windowHeight(windowHeight)
         {
@@ -175,8 +175,7 @@ namespace tao_render_context
         bool IsMouseButtonPressed(int glfwMouseButton)  const       {return glfwGetMouseButton(_glf_window, glfwMouseButton) == GLFW_PRESS;}
         bool IsKeyPressed        (int glfwKey)          const       {return glfwGetKey(_glf_window, glfwKey) == GLFW_PRESS;}
         double GetTime()                                const       {return glfwGetTime();}
-        void SetResizeCallback  (std::function<void(int, int)> callback) {_resizeFunc = callback;}
-        void ResetResizeCallback(std::function<void(int, int)> callback) {_resizeFunc.reset();}
+        void SetResizeCallback  (const std::function<void(int, int)>& callback) {_resizeFunc = &callback;}
 
         void ClearColor(float red, float green, float blue, float alpha = 1.0f);
         void ClearDepth(float value = 1.0f);

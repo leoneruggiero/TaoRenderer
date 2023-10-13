@@ -459,6 +459,7 @@ namespace tao_pbr
                 _currentEnvironment(),
                 _pointSampler           {_renderContext->CreateSampler()},
                 _linearSampler          {_renderContext->CreateSampler()},
+                _linearSamplerRepeat    {_renderContext->CreateSampler()},
                 _linearMipLinearSampler {_renderContext->CreateSampler()},
                 _shadowSampler          {_renderContext->CreateSampler()},
                 _materials(),
@@ -493,9 +494,9 @@ namespace tao_pbr
         [[nodiscard]] GenKey<EnvironmentLight>    AddEnvironmentTexture(const char* path);
         [[nodiscard]] GenKey<PbrMaterial>         AddMaterial(const PbrMaterial& material);
         [[nodiscard]] GenKey<MeshRenderer>        AddMeshRenderer(const Transformation& transform, const GenKey<Mesh>& mesh, const GenKey<PbrMaterial> &material);
-        [[nodiscard]] GenKey<DirectionalLight>    AddDirectionalLight(const DirectionalLight& directionalLight);
-        [[nodiscard]] GenKey<SphereLight>         AddSphereLight(const SphereLight& sphereLight);
-        [[nodiscard]] GenKey<RectLight>           AddRectLight(const RectLight& rectLigth);
+        [[nodiscard]] GenKey<DirectionalLight>    AddLight(const DirectionalLight& directionalLight);
+        [[nodiscard]] GenKey<SphereLight>         AddLight(const SphereLight& sphereLight);
+        [[nodiscard]] GenKey<RectLight>           AddLight(const RectLight& rectLigth);
 
         void UpdateDirectionalLight (GenKey<DirectionalLight>   key, const DirectionalLight& value);
         void UpdateSphereLight      (GenKey<SphereLight>        key, const SphereLight& value);
@@ -739,8 +740,6 @@ namespace tao_pbr
             glm::vec2 taaJitter;
             int doGamma;
             float gamma;
-            int doEnvironmentIbl;
-            float environmentIntensity;
             int radianceMinLod;
             int radianceMaxLod;
             int doTaa;
@@ -885,6 +884,7 @@ namespace tao_pbr
 
         tao_ogl_resources::OglSampler _pointSampler;
         tao_ogl_resources::OglSampler _linearSampler;
+        tao_ogl_resources::OglSampler _linearSamplerRepeat;
         tao_ogl_resources::OglSampler _linearMipLinearSampler;
         tao_ogl_resources::OglSampler _shadowSampler;
 
