@@ -747,14 +747,14 @@ namespace tao_scene {
                 transformZ = rotate(mat4{1.0}, 0.0f * pi<float>(), vec3{1.0, 0.0, 0.0});
 
         vector<gizmo_instance_descriptor> instances =
-                {
-                        /* X Axis */
-                        gizmo_instance_descriptor{.transform = transformX, .color = kAxisColorX, .visible = false, .selectable = false},
-                        /* Y Axis */
-                        gizmo_instance_descriptor{.transform = transformY, .color = kAxisColorY, .visible = false, .selectable = false},
-                        /* Z Axis */
-                        gizmo_instance_descriptor{.transform = transformZ, .color = kAxisColorZ, .visible = false, .selectable = false}
-                };
+            {
+                /* X Axis */
+                gizmo_instance_descriptor{.transform = transformX, .color = kAxisColorX, .visible = false, .selectable = false},
+                /* Y Axis */
+                gizmo_instance_descriptor{.transform = transformY, .color = kAxisColorY, .visible = false, .selectable = false},
+                /* Z Axis */
+                gizmo_instance_descriptor{.transform = transformZ, .color = kAxisColorZ, .visible = false, .selectable = false}
+            };
 
         auto allKeys = _gr->InstanceMeshGizmo(_gizmoId, instances);
 
@@ -889,16 +889,16 @@ namespace tao_scene {
         axisData.color = color.has_value() ? color.value() : axisData.color;
         axisData.transform = transform.has_value() ? transform.value() : axisData.transform;
 
-        _gr->SetGizmoInstances(_gizmoId,
-                               {make_pair(axisData.id,
-                                          gizmo_instance_descriptor
-                                                  {
-                                                          .transform = Tm::_transformation * axisData.transform,
-                                                          .color = axisData.color,
-                                                          .visible = visible,
-                                                          .selectable = selectable,
-                                                  })
-                               });
+        _gr->SetGizmoInstances(_gizmoId, {
+                                   make_pair(axisData.id,
+                                             gizmo_instance_descriptor{
+                                                 .transform = Tm::_transformation * axisData.transform,
+                                                 .color = axisData.color,
+                                                 .visible = visible,
+                                                 .selectable = selectable,
+                                             })
+                               }
+        );
     }
 
     float
@@ -1001,28 +1001,26 @@ namespace tao_scene {
         ///////////////////////////////////////////////////////
         _gr = &gr;
 
-        _gizmoId = _gr->CreateLineStripGizmo(line_strip_gizmo_descriptor
-                                                     {
-                                                             .vertices = circPts,
-                                                             .isLoop   = true,
-                                                             .line_size = kLineSize,
-                                                             .zoom_invariant = true,
-                                                             .zoom_invariant_scale = 0.1f,
-                                                             .pattern_texture_descriptor = nullptr,
-                                                             .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static
-                                                     });
+        _gizmoId = _gr->CreateLineStripGizmo(line_strip_gizmo_descriptor{
+            .vertices = circPts,
+            .isLoop   = true,
+            .line_size = kLineSize,
+            .zoom_invariant = true,
+            .zoom_invariant_scale = 0.1f,
+            .pattern_texture_descriptor = nullptr,
+            .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static
+        });
 
         // Create a bigger gizmo that will be used for selection
-        _gizmoIdForSelection = _gr->CreateLineStripGizmo(line_strip_gizmo_descriptor
-                                                                 {
-                                                                         .vertices = circPts,
-                                                                         .isLoop   = true,
-                                                                         .line_size = kLineSizeForSelection,
-                                                                         .zoom_invariant = true,
-                                                                         .zoom_invariant_scale = 0.1f,
-                                                                         .pattern_texture_descriptor = nullptr,
-                                                                         .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static
-                                                                 });
+        _gizmoIdForSelection = _gr->CreateLineStripGizmo(line_strip_gizmo_descriptor{
+            .vertices = circPts,
+            .isLoop   = true,
+            .line_size = kLineSizeForSelection,
+            .zoom_invariant = true,
+            .zoom_invariant_scale = 0.1f,
+            .pattern_texture_descriptor = nullptr,
+            .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static
+        });
 
         mat4
                 transformX = GetDefaultAxisTransform(TmAxis::AxisX),
@@ -1043,34 +1041,34 @@ namespace tao_scene {
         auto allKeysForSelection = _gr->InstanceLineStripGizmo(_gizmoIdForSelection, instances);
 
         _axisData.insert(make_pair(
-                TmAxis::AxisX, TmAxisData
-                        {
-                                .id             = allKeys[0],
-                                .idForSelection = allKeysForSelection[0],
-                                .transform      = transformX,
-                                .color          = kAxisColorX,
-                                .defaultColor   = kAxisColorX
-                        }));
+            TmAxis::AxisX, TmAxisData
+                {
+                    .id             = allKeys[0],
+                    .idForSelection = allKeysForSelection[0],
+                    .transform      = transformX,
+                    .color          = kAxisColorX,
+                    .defaultColor   = kAxisColorX
+                }));
 
         _axisData.insert(make_pair(
-                TmAxis::AxisY, TmAxisData
-                        {
-                                .id             = allKeys[1],
-                                .idForSelection = allKeysForSelection[1],
-                                .transform      = transformY,
-                                .color          = kAxisColorY,
-                                .defaultColor   = kAxisColorY
-                        }));
+            TmAxis::AxisY, TmAxisData
+                {
+                    .id             = allKeys[1],
+                    .idForSelection = allKeysForSelection[1],
+                    .transform      = transformY,
+                    .color          = kAxisColorY,
+                    .defaultColor   = kAxisColorY
+                }));
 
         _axisData.insert(make_pair(
-                TmAxis::AxisZ, TmAxisData
-                        {
-                                .id             = allKeys[2],
-                                .idForSelection = allKeysForSelection[2],
-                                .transform      = transformZ,
-                                .color          = kAxisColorZ,
-                                .defaultColor   = kAxisColorZ
-                        }));
+            TmAxis::AxisZ, TmAxisData
+                {
+                    .id             = allKeys[2],
+                    .idForSelection = allKeysForSelection[2],
+                    .transform      = transformZ,
+                    .color          = kAxisColorZ,
+                    .defaultColor   = kAxisColorZ
+                }));
 
         _gr->AssignGizmoToLayers(_gizmoId, {opaqueLayer});
         _gr->AssignGizmoToLayers(_gizmoIdForSelection, {transparentLayer});
@@ -1088,27 +1086,26 @@ namespace tao_scene {
         auto customShader = SGOutColor{color};
 
         vector<MeshGizmoVertex> immediateMeshVerts
-                {
-                        MeshGizmoVertex{}.Position(vec3{0.0f}).Color(vec4{1.0f}),
-                        MeshGizmoVertex{}.Position(vec3{0.0f}).Color(vec4{1.0f}),
-                };
-        _immediateMeshGizmoId = _gr->CreateMeshGizmo(mesh_gizmo_descriptor
-                                                             {
-                                                                     .vertices = immediateMeshVerts,
-                                                                     .zoom_invariant = true,
-                                                                     .zoom_invariant_scale = 0.1f,
-                                                                     .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic
-                                                             }, customShader);
+            {
+                MeshGizmoVertex{}.Position(vec3{0.0f}).Color(vec4{1.0f}),
+                MeshGizmoVertex{}.Position(vec3{0.0f}).Color(vec4{1.0f}),
+            };
+        _immediateMeshGizmoId = _gr->CreateMeshGizmo(
+            mesh_gizmo_descriptor{
+                .vertices = immediateMeshVerts,
+                .zoom_invariant = true,
+                .zoom_invariant_scale = 0.1f,
+                .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic
+            }, customShader);
+
         _immediateMeshGizmoInstanceId = _gr->InstanceMeshGizmo(_immediateMeshGizmoId,
                                                                {
-                                                                       gizmo_instance_descriptor
-                                                                               {
-                                                                                       .transform = mat4{
-                                                                                               1.0f}, // world space coords
-                                                                                       .color = vec4{1.0f},
-                                                                                       .visible = true,
-                                                                                       .selectable = false
-                                                                               }
+                                                                   gizmo_instance_descriptor{
+                                                                       .transform = mat4{1.0f}, // world space coords
+                                                                       .color = vec4{1.0f},
+                                                                       .visible = true,
+                                                                       .selectable = false
+                                                                   }
                                                                })[0];
 
         vector<LineGizmoVertex> immediateLineVerts
@@ -1117,53 +1114,55 @@ namespace tao_scene {
                         LineGizmoVertex{}.Position(vec3{0.0f}).Color(vec4{1.0f}),
                 };
 
-        _immediateLineGizmoId = _gr->CreateLineGizmo(line_list_gizmo_descriptor
-                                                             {
-                                                                     .vertices = immediateLineVerts,
-                                                                     .line_size = 2,
-                                                                     .zoom_invariant = true,
-                                                                     .zoom_invariant_scale = 0.1f,
-                                                                     .pattern_texture_descriptor = nullptr,
-                                                                     .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic
-                                                             });
+        _immediateLineGizmoId = _gr->CreateLineGizmo(
+            line_list_gizmo_descriptor{
+                .vertices = immediateLineVerts,
+                .line_size = 2,
+                .zoom_invariant = true,
+                .zoom_invariant_scale = 0.1f,
+                .pattern_texture_descriptor = nullptr,
+                .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic
+            });
+
         _immediateLineGizmoInstanceId = _gr->InstanceLineGizmo(_immediateLineGizmoId,
                                                                {
-                                                                       gizmo_instance_descriptor
-                                                                               {
-                                                                                       .transform = mat4{
-                                                                                               1.0f}, // world space coords
-                                                                                       .color = vec4{1.0f},
-                                                                                       .visible = true,
-                                                                                       .selectable = false
-                                                                               }
+                                                                   gizmo_instance_descriptor{
+                                                                       .transform = mat4{1.0f}, // world space coords
+                                                                       .color = vec4{1.0f},
+                                                                       .visible = true,
+                                                                       .selectable = false
+                                                                   }
                                                                })[0];
 
         _gr->AssignGizmoToLayers(_immediateMeshGizmoId, {transparentLayer});
         _gr->AssignGizmoToLayers(_immediateLineGizmoId, {transparentLayer});
     }
 
-    void TransformManipulator::TmRotate::HideImmediateArc() {
+    void TransformManipulator::TmRotate::HideImmediateArc()
+    {
         _gr->SetGizmoInstances(_immediateMeshGizmoId, {
-                make_pair(_immediateMeshGizmoInstanceId,
-                          gizmo_instance_descriptor
-                                  {
-                                          .transform{mat4{1.0f}},
-                                          .color{vec4{1.0f}},
-                                          .visible = false,
-                                          .selectable = false
-                                  }
-                )});
+            make_pair(_immediateMeshGizmoInstanceId,
+                      gizmo_instance_descriptor
+                          {
+                              .transform{mat4{1.0f}},
+                              .color{vec4{1.0f}},
+                              .visible = false,
+                              .selectable = false
+                          }
+            )
+        });
 
         _gr->SetGizmoInstances(_immediateLineGizmoId, {
-                make_pair(_immediateLineGizmoInstanceId,
-                          gizmo_instance_descriptor
-                                  {
-                                          .transform{mat4{1.0f}},
-                                          .color{vec4{1.0f}},
-                                          .visible = false,
-                                          .selectable = false
-                                  }
-                )});
+            make_pair(_immediateLineGizmoInstanceId,
+                      gizmo_instance_descriptor
+                          {
+                              .transform{mat4{1.0f}},
+                              .color{vec4{1.0f}},
+                              .visible = false,
+                              .selectable = false
+                          }
+            )
+        });
     }
 
     void
@@ -1402,27 +1401,28 @@ namespace tao_scene {
     }
 
     void TransformManipulator::TmRotate::SetInstancesProperties(
-            TransformManipulator::TmRotate::TmAxis axis, bool visible, bool selectable) {
+        TransformManipulator::TmRotate::TmAxis axis, bool visible, bool selectable)
+    {
         _gr->SetGizmoInstances(_gizmoId, {
-                make_pair(_axisData[axis].id,
-                          gizmo_instance_descriptor
-                                  {
-                                          .transform = Tm::_transformation * _axisData[axis].transform,
-                                          .color = _axisData[axis].color,
-                                          .visible = visible,
-                                          .selectable = selectable,
-                                  })
+            make_pair(_axisData[axis].id,
+                      gizmo_instance_descriptor
+                          {
+                              .transform = Tm::_transformation * _axisData[axis].transform,
+                              .color = _axisData[axis].color,
+                              .visible = visible,
+                              .selectable = selectable,
+                          })
         });
 
         _gr->SetGizmoInstances(_gizmoIdForSelection, {
-                make_pair(_axisData[axis].idForSelection,
-                          gizmo_instance_descriptor
-                                  {
-                                          .transform = Tm::_transformation * _axisData[axis].transform,
-                                          .color = vec4(0.0f), // always invisible, only needed for selection
-                                          .visible = visible,
-                                          .selectable = selectable,
-                                  })
+            make_pair(_axisData[axis].idForSelection,
+                      gizmo_instance_descriptor
+                          {
+                              .transform = Tm::_transformation * _axisData[axis].transform,
+                              .color = vec4(0.0f), // always invisible, only needed for selection
+                              .visible = visible,
+                              .selectable = selectable,
+                          })
         });
     }
 
@@ -1440,14 +1440,15 @@ namespace tao_scene {
         axisData.color = color.has_value() ? color.value() : axisData.defaultColor;
 
         _gr->SetGizmoInstances(_gizmoId,
-                               {make_pair(axisData.id,
-                                          gizmo_instance_descriptor
-                                                  {
-                                                          .transform = Tm::_transformation * axisData.transform,
-                                                          .color = axisData.color,
-                                                          .visible = true,
-                                                          .selectable = true,
-                                                  })
+                               {
+                                   make_pair(axisData.id,
+                                             gizmo_instance_descriptor
+                                                 {
+                                                     .transform = Tm::_transformation * axisData.transform,
+                                                     .color = axisData.color,
+                                                     .visible = true,
+                                                     .selectable = true,
+                                                 })
                                });
     }
 
@@ -1512,80 +1513,75 @@ namespace tao_scene {
         /// Instancing the Gizmos (line and mesh)
         //////////////////////////////////////////////////////////////////////////////
         vector<LineGizmoVertex> lineVertices(
-                {
-                        // start
-                        LineGizmoVertex{}
-                                .Position({0.0, 0.0, kLineStart})
-                                .Color(vec4{1.0f}),
+            {
+                // start
+                LineGizmoVertex{}
+                    .Position({0.0, 0.0, kLineStart})
+                    .Color(vec4{1.0f}),
 
-                        // end
-                        LineGizmoVertex{}
-                                .Position({0.0, 0.0, kLineStart + kLineLength})
-                                .Color(vec4{1.0f}),
-                });
+                // end
+                LineGizmoVertex{}
+                    .Position({0.0, 0.0, kLineStart + kLineLength})
+                    .Color(vec4{1.0f}),
+            });
 
         _gr = &gr;
-        auto cubeGizKey = _gr->CreateMeshGizmo(mesh_gizmo_descriptor
-                                                       {
-                                                               .vertices = cubeMeshVertices,
-                                                               .triangles = &cubeMeshTriangles,
-                                                               .zoom_invariant = true,
-                                                               .zoom_invariant_scale = 0.1f,
-                                                               .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static
-                                                       });
+        auto cubeGizKey = _gr->CreateMeshGizmo(mesh_gizmo_descriptor{
+            .vertices = cubeMeshVertices,
+            .triangles = &cubeMeshTriangles,
+            .zoom_invariant = true,
+            .zoom_invariant_scale = 0.1f,
+            .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static
+        });
 
-        auto lineGizKey = _gr->CreateLineGizmo(line_list_gizmo_descriptor
-                                                       {
-                                                               .vertices = lineVertices,
-                                                               .line_size = kLineSize,
-                                                               .zoom_invariant = true,
-                                                               .zoom_invariant_scale = 0.1f,
-                                                               .pattern_texture_descriptor = nullptr,
-                                                               .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static
-                                                       });
+        auto lineGizKey = _gr->CreateLineGizmo(line_list_gizmo_descriptor{
+            .vertices = lineVertices,
+            .line_size = kLineSize,
+            .zoom_invariant = true,
+            .zoom_invariant_scale = 0.1f,
+            .pattern_texture_descriptor = nullptr,
+            .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static
+        });
 
         // We are also creating a non zoom invariant line to be used when drawing
         // interactively during mouse drag.
         // This will be used to draw a line defined in 3D world coordinates,
         // see Drag() method.
         // ---------------------------------------------------------------------------
-        auto immediateLineGizKey = _gr->CreateLineGizmo(line_list_gizmo_descriptor
-                                                                {
-                                                                        .vertices = lineVertices,
-                                                                        .line_size = kLineSize,
-                                                                        .zoom_invariant = false,
-                                                                        .pattern_texture_descriptor = nullptr,
-                                                                        .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic
-                                                                });
+        auto immediateLineGizKey = _gr->CreateLineGizmo(line_list_gizmo_descriptor{
+            .vertices = lineVertices,
+            .line_size = kLineSize,
+            .zoom_invariant = false,
+            .pattern_texture_descriptor = nullptr,
+            .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic
+        });
 
         _immediateLineGizmoInstanceId = _gr->InstanceLineGizmo(immediateLineGizKey,
                                                                {
-                                                                       gizmo_instance_descriptor
-                                                                               {
-                                                                                       .transform = mat4{
-                                                                                               1.0f}, // world space coords
-                                                                                       .color = vec4{1.0f},
-                                                                                       .visible = false,
-                                                                                       .selectable = false
-                                                                               }
+                                                                   gizmo_instance_descriptor{
+                                                                       .transform = mat4{1.0f}, // world space coords
+                                                                       .color = vec4{1.0f},
+                                                                       .visible = false,
+                                                                       .selectable = false
+                                                                   }
                                                                })[0];
         // ---------------------------------------------------------------------------
 
 
         mat4
-                transformX = rotate(mat4{1.0}, 0.5f * pi<float>(), vec3{0.0, 1.0, 0.0}),
-                transformY = rotate(mat4{1.0}, -0.5f * pi<float>(), vec3{1.0, 0.0, 0.0}),
-                transformZ = rotate(mat4{1.0}, 0.0f * pi<float>(), vec3{1.0, 0.0, 0.0});
+            transformX = rotate(mat4{1.0}, 0.5f * pi<float>(), vec3{0.0, 1.0, 0.0}),
+            transformY = rotate(mat4{1.0}, -0.5f * pi<float>(), vec3{1.0, 0.0, 0.0}),
+            transformZ = rotate(mat4{1.0}, 0.0f * pi<float>(), vec3{1.0, 0.0, 0.0});
 
         vector<gizmo_instance_descriptor> instances =
-                {
-                        /* X Axis */
-                        gizmo_instance_descriptor{.transform = transformX, .color = kAxisColorX, .visible = false, .selectable = false},
-                        /* Y Axis */
-                        gizmo_instance_descriptor{.transform = transformY, .color = kAxisColorY, .visible = false, .selectable = false},
-                        /* Z Axis */
-                        gizmo_instance_descriptor{.transform = transformZ, .color = kAxisColorZ, .visible = false, .selectable = false}
-                };
+            {
+                /* X Axis */
+                gizmo_instance_descriptor{.transform = transformX, .color = kAxisColorX, .visible = false, .selectable = false},
+                /* Y Axis */
+                gizmo_instance_descriptor{.transform = transformY, .color = kAxisColorY, .visible = false, .selectable = false},
+                /* Z Axis */
+                gizmo_instance_descriptor{.transform = transformZ, .color = kAxisColorZ, .visible = false, .selectable = false}
+            };
 
         auto allCubeKeys = _gr->InstanceMeshGizmo(cubeGizKey, instances);
         auto allLineKeys = _gr->InstanceLineGizmo(lineGizKey, instances);
@@ -1595,39 +1591,39 @@ namespace tao_scene {
         _immediateLineGizmoId = immediateLineGizKey;
 
         TmAxisData axisDataX
-                {
-                        .meshInstanceId = allCubeKeys[0],
-                        .lineInstanceId = allLineKeys[0],
-                        .defaultTransform = instances[0].transform,
-                        .meshTransform = instances[0].transform,
-                        .lineTransform = instances[0].transform,
-                        .color = instances[0].color,
-                        .defaultColor = instances[0].color,
-                };
+            {
+                .meshInstanceId = allCubeKeys[0],
+                .lineInstanceId = allLineKeys[0],
+                .defaultTransform = instances[0].transform,
+                .meshTransform = instances[0].transform,
+                .lineTransform = instances[0].transform,
+                .color = instances[0].color,
+                .defaultColor = instances[0].color,
+            };
         _axisData.insert(make_pair(AxisX, axisDataX));
 
         TmAxisData axisDataY
-                {
-                        .meshInstanceId = allCubeKeys[1],
-                        .lineInstanceId = allLineKeys[1],
-                        .defaultTransform = instances[1].transform,
-                        .meshTransform = instances[1].transform,
-                        .lineTransform = instances[1].transform,
-                        .color = instances[1].color,
-                        .defaultColor = instances[1].color,
-                };
+            {
+                .meshInstanceId = allCubeKeys[1],
+                .lineInstanceId = allLineKeys[1],
+                .defaultTransform = instances[1].transform,
+                .meshTransform = instances[1].transform,
+                .lineTransform = instances[1].transform,
+                .color = instances[1].color,
+                .defaultColor = instances[1].color,
+            };
         _axisData.insert(make_pair(AxisY, axisDataY));
 
         TmAxisData axisDataZ
-                {
-                        .meshInstanceId = allCubeKeys[2],
-                        .lineInstanceId = allLineKeys[2],
-                        .defaultTransform = instances[2].transform,
-                        .meshTransform = instances[2].transform,
-                        .lineTransform = instances[2].transform,
-                        .color = instances[2].color,
-                        .defaultColor = instances[2].color,
-                };
+            {
+                .meshInstanceId = allCubeKeys[2],
+                .lineInstanceId = allLineKeys[2],
+                .defaultTransform = instances[2].transform,
+                .meshTransform = instances[2].transform,
+                .lineTransform = instances[2].transform,
+                .color = instances[2].color,
+                .defaultColor = instances[2].color,
+            };
         _axisData.insert(make_pair(AxisZ, axisDataZ));
 
         _gr->AssignGizmoToLayers(_meshGizmoId, {opaqueLayer});
@@ -1763,15 +1759,15 @@ namespace tao_scene {
     void TransformManipulator::TmScale::SetImmediateLineVisibility(bool visible) {
         _gr->SetGizmoInstances(_immediateLineGizmoId,
                                {
-                                       make_pair(
-                                               _immediateLineGizmoInstanceId,
-                                               gizmo_instance_descriptor
-                                                       {
-                                                               .transform = mat4{1.0f},
-                                                               .color = vec4{1.0f},
-                                                               .visible = visible,
-                                                               .selectable = false
-                                                       })
+                                   make_pair(
+                                       _immediateLineGizmoInstanceId,
+                                       gizmo_instance_descriptor
+                                           {
+                                               .transform = mat4{1.0f},
+                                               .color = vec4{1.0f},
+                                               .visible = visible,
+                                               .selectable = false
+                                           })
                                });
     }
 
@@ -1779,8 +1775,8 @@ namespace tao_scene {
                                                                             const vec4 &color) {
         _gr->SetLineGizmoVertices(_immediateLineGizmoId,
                                   {
-                                          LineGizmoVertex{}.Position(start).Color(color),
-                                          LineGizmoVertex{}.Position(end).Color(color),
+                                      LineGizmoVertex{}.Position(start).Color(color),
+                                      LineGizmoVertex{}.Position(end).Color(color),
                                   }
         );
     }
@@ -1801,31 +1797,31 @@ namespace tao_scene {
         /// Mesh gizmo properties (cube)
         ///////////////////////////////////////
         _gr->SetGizmoInstances(_meshGizmoId,
-                               {make_pair(axisData.meshInstanceId,
-                                          gizmo_instance_descriptor
-                                                  {
-                                                          .transform    = Tm::_transformation * axisData.meshTransform,
-                                                          .color        = axisData.color,
-                                                          .visible      = meshVisible.has_value() &&
-                                                                          meshVisible.value(),
-                                                          .selectable   = meshSelectable.has_value() &&
-                                                                          meshVisible.value(),
-                                                  })
+                               {
+                                   make_pair(axisData.meshInstanceId,
+                                             gizmo_instance_descriptor{
+                                                 .transform    = Tm::_transformation * axisData.meshTransform,
+                                                 .color        = axisData.color,
+                                                 .visible      = meshVisible.has_value() &&
+                                                                 meshVisible.value(),
+                                                 .selectable   = meshSelectable.has_value() &&
+                                                                 meshVisible.value(),
+                                             })
                                });
 
         /// Line gizmo properties
         ///////////////////////////////////////
         _gr->SetGizmoInstances(_lineGizmoId,
-                               {make_pair(axisData.lineInstanceId,
-                                          gizmo_instance_descriptor
-                                                  {
-                                                          .transform = Tm::_transformation * axisData.lineTransform,
-                                                          .color = axisData.color,
-                                                          .visible      = lineVisible.has_value() &&
-                                                                          lineVisible.value(),
-                                                          .selectable   = lineSelectable.has_value() &&
-                                                                          lineSelectable.value(),
-                                                  })
+                               {
+                                   make_pair(axisData.lineInstanceId,
+                                             gizmo_instance_descriptor{
+                                                 .transform     = Tm::_transformation * axisData.lineTransform,
+                                                 .color         = axisData.color,
+                                                 .visible       = lineVisible.has_value() &&
+                                                                  lineVisible.value(),
+                                                 .selectable    = lineSelectable.has_value() &&
+                                                                  lineSelectable.value(),
+                                             })
                                });
     }
 
@@ -1927,18 +1923,18 @@ namespace tao_scene {
         gizmo_instance_descriptor lightInstanceDescriptor = GetSphereLightInstanceDesc(light.transformation.matrix(),
                                                                                        light.radius, vec4{1.0f});
 
-        _sphereLightGizmoData._sphereLightsProperties.push_back(SphereLightGizmoProperties
-                                                                        {
-                                                                                .transformation = light.transformation.matrix(),
-                                                                                .radius = light.radius,
-                                                                                .color = vec4{1.0f}
-                                                                        });
+        _sphereLightGizmoData._sphereLightsProperties.push_back(SphereLightGizmoProperties{
+            .transformation = light.transformation.matrix(),
+            .radius = light.radius,
+            .color = vec4{1.0f}
+        });
 
         _sphereLightGizmoData._iconInstances.push_back(lightInstanceDescriptor);
         _sphereLightGizmoData._lightInstances.push_back(lightInstanceDescriptor);
 
         _sphereLightGizmoData._iconInstanceIds = _renderer->InstancePointGizmo(_sphereLightGizmoData._iconGizmoId,
                                                                                _sphereLightGizmoData._iconInstances);
+
         _sphereLightGizmoData._lightInstanceIds = _renderer->InstanceLineStripGizmo(_sphereLightGizmoData._lightGizmoId,
                                                                                     _sphereLightGizmoData._lightInstances);
 
@@ -2000,11 +1996,10 @@ namespace tao_scene {
         gizmo_instance_descriptor lightInstanceDescriptor = GetDirectionalLightInstanceDesc(
                 light.transformation.matrix(), vec4{1.0f});
 
-        _directionalLightGizmoData._directionalLightsProperties.push_back(DirectionalLightGizmoProperties
-                                                                                  {
-                                                                                          .transformation = light.transformation.matrix(),
-                                                                                          .color = vec4{1.0f}
-                                                                                  });
+        _directionalLightGizmoData._directionalLightsProperties.push_back(DirectionalLightGizmoProperties{
+            .transformation = light.transformation.matrix(),
+            .color = vec4{1.0f}
+        });
 
         _directionalLightGizmoData._iconInstances.push_back(lightInstanceDescriptor);
         _directionalLightGizmoData._lightInstances.push_back(lightInstanceDescriptor);
@@ -2042,12 +2037,11 @@ namespace tao_scene {
         gizmo_instance_descriptor lightInstanceDescriptor = GetRectLightInstanceDesc(light.transformation.matrix(),
                                                                                      light.size, vec4{1.0f});
 
-        _rectLightGizmoData._rectLightsProperties.push_back(RectLightGizmoProperties
-                                                                    {
-                                                                            .transformation = light.transformation.matrix(),
-                                                                            .size = light.size,
-                                                                            .color = vec4{1.0f}
-                                                                    });
+        _rectLightGizmoData._rectLightsProperties.push_back(RectLightGizmoProperties{
+            .transformation = light.transformation.matrix(),
+            .size = light.size,
+            .color = vec4{1.0f}
+        });
 
         _rectLightGizmoData._iconInstances.push_back(lightInstanceDescriptor);
         _rectLightGizmoData._lightInstances.push_back(lightInstanceDescriptor);
@@ -2088,39 +2082,39 @@ namespace tao_scene {
     }
 
     gizmo_instance_descriptor
-    LightGizmos::GetSphereLightInstanceDesc(const mat4 &transform, float radius, const vec4 &color) {
+    LightGizmos::GetSphereLightInstanceDesc(const mat4 &transform, float radius, const vec4 &color)
+    {
         return
-                gizmo_instance_descriptor
-                        {
-                                .transform = transform * scale(mat4{1.0f}, vec3{radius}),
-                                .color     = color,
-                                .visible   = true,
-                                .selectable= true
-                        };
+            gizmo_instance_descriptor{
+                .transform = transform * scale(mat4{1.0f}, vec3{radius}),
+                .color     = color,
+                .visible   = true,
+                .selectable= true
+            };
     }
 
     gizmo_instance_descriptor
-    LightGizmos::GetDirectionalLightInstanceDesc(const mat4 &transform, const vec4 &color) {
+    LightGizmos::GetDirectionalLightInstanceDesc(const mat4 &transform, const vec4 &color)
+    {
         return
-                gizmo_instance_descriptor
-                        {
-                                .transform = transform,
-                                .color     = color,
-                                .visible   = true,
-                                .selectable= true
-                        };
+            gizmo_instance_descriptor{
+                .transform = transform,
+                .color     = color,
+                .visible   = true,
+                .selectable= true
+            };
     }
 
     gizmo_instance_descriptor
-    LightGizmos::GetRectLightInstanceDesc(const mat4 &transform, const vec2 &size, const vec4 &color) {
+    LightGizmos::GetRectLightInstanceDesc(const mat4 &transform, const vec2 &size, const vec4 &color)
+    {
         return
-                gizmo_instance_descriptor
-                        {
-                                .transform = transform * glm::scale(mat4{1.0f}, vec3{size, 1.0f}),
-                                .color     = color,
-                                .visible   = true,
-                                .selectable= true
-                        };
+            gizmo_instance_descriptor{
+                .transform = transform * glm::scale(mat4{1.0f}, vec3{size, 1.0f}),
+                .color     = color,
+                .visible   = true,
+                .selectable= true
+            };
     }
 
     gizmo_id LightGizmos::CreateSphereLightIconGizmo(GizmosRenderer *gr) {
@@ -2143,29 +2137,29 @@ namespace tao_scene {
         float h_9 = kGizmoSize * 0.11f;
 
         auto bodyLow =
-                SdfTrapezoid{h_5, h_4, h_3}
-                        .Translate(glm::vec2{0.0, -0.5 * h_3});
+            SdfTrapezoid{h_5, h_4, h_3}
+                .Translate(glm::vec2{0.0, -0.5 * h_3});
 
         auto body =
-                SdfCircle<float>{vec3{0.0f}, h_4}
-                        .Add(bodyLow)
-                        .Translate(glm::vec2{h_2, h_2});
+            SdfCircle<float>{vec3{0.0f}, h_4}
+                .Add(bodyLow)
+                .Translate(glm::vec2{h_2, h_2});
 
         auto base0 =
-                SdfSegment{vec2{-h_5 * 0.5, 0.0}, vec2{h_5 * 0.5, 0.0}}
-                        .Translate(vec2{0.0, -h_3 - 3.0f})
-                        .Inflate(1.0f);
+            SdfSegment{vec2{-h_5 * 0.5, 0.0}, vec2{h_5 * 0.5, 0.0}}
+                .Translate(vec2{0.0, -h_3 - 3.0f})
+                .Inflate(1.0f);
 
         auto base =
-                SdfCircle{vec2{0.0, 0.0}, 0.0f}
-                        .Translate(vec2{0.0, -h_3 - 3.0f})
-                        .Inflate(h_5 * 0.5f)
-                        .Translate(glm::vec2{h_2, h_2})
-                        .Subtract(body.Translate(vec2{0.0f, -3.0f}));
+            SdfCircle{vec2{0.0, 0.0}, 0.0f}
+                .Translate(vec2{0.0, -h_3 - 3.0f})
+                .Inflate(h_5 * 0.5f)
+                .Translate(glm::vec2{h_2, h_2})
+                .Subtract(body.Translate(vec2{0.0f, -3.0f}));
 
         auto contour = body
-                .Shell(0.75f)
-                .Add(base);
+            .Shell(0.75f)
+            .Add(base);
 
         tao_gizmos_procedural::TextureDataRgbaUnsignedByte tex{kGizmoSize, kGizmoSize, {0, 0, 0, 0}};
 
@@ -2182,23 +2176,23 @@ namespace tao_scene {
         });
 
         symbol_atlas_descriptor texDesc
-                {
-                        .data=tex.DataPtr(),
-                        .data_format = tex_for_rgba,
-                        .data_type = tex_typ_unsigned_byte,
-                        .width = kGizmoSize,
-                        .height = kGizmoSize,
-                        .filter_smooth = true,
-                };
+            {
+                .data=tex.DataPtr(),
+                .data_format = tex_for_rgba,
+                .data_type = tex_typ_unsigned_byte,
+                .width = kGizmoSize,
+                .height = kGizmoSize,
+                .filter_smooth = true,
+            };
         point_gizmo_descriptor descriptor
-                {
-                        .point_half_size=kGizmoSize / 2,
-                        .snap_to_pixel = false,
-                        .vertices = vertices,
-                        .zoom_invariant = false,
-                        .symbol_atlas_descriptor = &texDesc,
-                        .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
-                };
+            {
+                .point_half_size=kGizmoSize / 2,
+                .snap_to_pixel = false,
+                .vertices = vertices,
+                .zoom_invariant = false,
+                .symbol_atlas_descriptor = &texDesc,
+                .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
+            };
 
         return gr->CreatePointGizmo(descriptor);
     }
@@ -2221,14 +2215,14 @@ namespace tao_scene {
         }
 
         line_strip_gizmo_descriptor descriptor
-                {
-                        .vertices = vertices,
-                        .isLoop = true,
-                        .line_size = kLineWidth,
-                        .zoom_invariant = false,
-                        .pattern_texture_descriptor = nullptr,
-                        .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic,
-                };
+            {
+                .vertices = vertices,
+                .isLoop = true,
+                .line_size = kLineWidth,
+                .zoom_invariant = false,
+                .pattern_texture_descriptor = nullptr,
+                .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic,
+            };
 
         return gr->CreateLineStripGizmo(descriptor);
     }
@@ -2276,23 +2270,23 @@ namespace tao_scene {
         });
 
         symbol_atlas_descriptor texDesc
-                {
-                        .data=tex.DataPtr(),
-                        .data_format = tex_for_rgba,
-                        .data_type = tex_typ_unsigned_byte,
-                        .width = kGizmoSize,
-                        .height = kGizmoSize,
-                        .filter_smooth = true,
-                };
+            {
+                .data=tex.DataPtr(),
+                .data_format = tex_for_rgba,
+                .data_type = tex_typ_unsigned_byte,
+                .width = kGizmoSize,
+                .height = kGizmoSize,
+                .filter_smooth = true,
+            };
         point_gizmo_descriptor descriptor
-                {
-                        .point_half_size=kGizmoSize / 2,
-                        .snap_to_pixel = false,
-                        .vertices = vertices,
-                        .zoom_invariant = false,
-                        .symbol_atlas_descriptor = &texDesc,
-                        .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
-                };
+            {
+                .point_half_size=kGizmoSize / 2,
+                .snap_to_pixel = false,
+                .vertices = vertices,
+                .zoom_invariant = false,
+                .symbol_atlas_descriptor = &texDesc,
+                .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
+            };
 
         return gr->CreatePointGizmo(descriptor);
     }
@@ -2304,50 +2298,52 @@ namespace tao_scene {
         // Geometry - line
         // ----------------------------------------------------------------------------------
         vector<LineGizmoVertex> vertices
-                ({
-                         LineGizmoVertex{}.Position(vec3{0.0f, 0.0f, 0.2f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
-                         LineGizmoVertex{}.Position(vec3{0.0f, 0.0f, 1.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity})
-                 });
+            ({
+                 LineGizmoVertex{}.Position(vec3{0.0f, 0.0f, 0.2f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
+                 LineGizmoVertex{}.Position(vec3{0.0f, 0.0f, 1.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity})
+             });
 
         /// Dashed line pattern texture
         ///////////////////////////////////////////////////////////////////////////////////////////////
         const int kPatternLen = 16;
 
         auto sdfPattern =
-                SdfSegment{vec2{kPatternLen * 0.33333f, 0.0f}, vec2{kPatternLen * 0.66666f, 0.0f}}
-                        .Inflate(kLineWidth * 0.40f)
-                        .Translate(vec2{0.0f, kLineWidth * 0.5f});
+            SdfSegment{vec2{kPatternLen * 0.33333f, 0.0f}, vec2{kPatternLen * 0.66666f, 0.0f}}
+                .Inflate(kLineWidth * 0.40f)
+                .Translate(vec2{0.0f, kLineWidth * 0.5f});
 
         tao_gizmos_procedural::TextureDataRgbaUnsignedByte tex{kPatternLen, kLineWidth, {0, 0, 0, 0}};
-        tex.FillWithFunction([&sdfPattern](unsigned int x, unsigned int y) {
-            float u = static_cast<float>(x);
-            float v = static_cast<float>(y);
-            vec2 uv{u, v};
+        tex.FillWithFunction([&sdfPattern](unsigned int x, unsigned int y)
+                             {
+                                 float u = static_cast<float>(x);
+                                 float v = static_cast<float>(y);
+                                 vec2 uv{u, v};
 
-            float val = glm::clamp(glm::mix(1.0f, 0.0f, sdfPattern.Evaluate(uv) * 2.0f), 0.0f, 1.0f);
+                                 float val = glm::clamp(glm::mix(1.0f, 0.0f, sdfPattern.Evaluate(uv) * 2.0f), 0.0f,
+                                                        1.0f);
 
-            return vec<4, unsigned char>{255, 255, 255, val * 255};
-        });
+                                 return vec<4, unsigned char>{255, 255, 255, val * 255};
+                             });
 
         pattern_texture_descriptor texDesc
-                {
-                        .data = tex.DataPtr(),
-                        .data_format = tex_for_rgba,
-                        .data_type = tex_typ_unsigned_byte,
-                        .width = kPatternLen,
-                        .height = kLineWidth,
-                        .pattern_length = kPatternLen,
-                };
+            {
+                .data = tex.DataPtr(),
+                .data_format = tex_for_rgba,
+                .data_type = tex_typ_unsigned_byte,
+                .width = kPatternLen,
+                .height = kLineWidth,
+                .pattern_length = kPatternLen,
+            };
 
         line_list_gizmo_descriptor descriptor
-                {
-                        .vertices = vertices,
-                        .line_size = kLineWidth,
-                        .zoom_invariant = true,
-                        .zoom_invariant_scale = 0.30f,
-                        .pattern_texture_descriptor = &texDesc,
-                        .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
-                };
+            {
+                .vertices = vertices,
+                .line_size = kLineWidth,
+                .zoom_invariant = true,
+                .zoom_invariant_scale = 0.30f,
+                .pattern_texture_descriptor = &texDesc,
+                .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
+            };
 
         return gr->CreateLineGizmo(descriptor);
     }
@@ -2376,32 +2372,32 @@ namespace tao_scene {
         float radius = kGizmoSize * 0.1f;
 
         auto sdfBody =
-                SdfRoundedRect{vec2{rw, rh}, vec4{radius, 0.0f, radius, 0.0f}}
-                        .Translate(vec2{0.0f, (rw - rh) * 0.5f});
+            SdfRoundedRect{vec2{rw, rh}, vec4{radius, 0.0f, radius, 0.0f}}
+                .Translate(vec2{0.0f, (rw - rh) * 0.5f});
 
         auto sdfMask =
-                SdfRoundedRect{vec2{rw, rh}, vec4{radius, 0.0f, radius, 0.0f}}
-                        .Scale(vec2{0.8f})
-                        .Translate(vec2{0.0f, (rw - rh) * 0.5f});
+            SdfRoundedRect{vec2{rw, rh}, vec4{radius, 0.0f, radius, 0.0f}}
+                .Scale(vec2{0.8f})
+                .Translate(vec2{0.0f, (rw - rh) * 0.5f});
 
         auto sdfBase =
-                SdfRoundedRect{vec2{rw, rw}, vec4{radius}}
-                        .Subtract(sdfBody)
-                        .Subtract(sdfBody.Scale(vec2{2.0f, 1.0f}).Translate(vec2{0.0f, -h_10}));
+            SdfRoundedRect{vec2{rw, rw}, vec4{radius}}
+                .Subtract(sdfBody)
+                .Subtract(sdfBody.Scale(vec2{2.0f, 1.0f}).Translate(vec2{0.0f, -h_10}));
 
         auto sdfLEDs =
-                SdfRect{vec2(h_20)}
-                        .Translate(vec2{h_5 * 0.5f})
-                        .RepeatGrid(vec2{h_5})
-                        .Translate(vec2{h_5 * 0.5f})
-                        .Intersect(sdfMask);
+            SdfRect{vec2(h_20)}
+                .Translate(vec2{h_5 * 0.5f})
+                .RepeatGrid(vec2{h_5})
+                .Translate(vec2{h_5 * 0.5f})
+                .Intersect(sdfMask);
 
         auto sdf =
-                sdfBody
-                        .Shell(0.6f)
-                        .Add(sdfLEDs)
-                        .Add(sdfBase)
-                        .Translate(vec2{h_2});
+            sdfBody
+                .Shell(0.6f)
+                .Add(sdfLEDs)
+                .Add(sdfBase)
+                .Translate(vec2{h_2});
 
         auto sdfBodyTr = sdfBody.Translate(vec2{h_2});
 
@@ -2419,23 +2415,23 @@ namespace tao_scene {
         });
 
         symbol_atlas_descriptor texDesc
-                {
-                        .data=tex.DataPtr(),
-                        .data_format = tex_for_rgba,
-                        .data_type = tex_typ_unsigned_byte,
-                        .width = kGizmoSize,
-                        .height = kGizmoSize,
-                        .filter_smooth = true,
-                };
+            {
+                .data=tex.DataPtr(),
+                .data_format = tex_for_rgba,
+                .data_type = tex_typ_unsigned_byte,
+                .width = kGizmoSize,
+                .height = kGizmoSize,
+                .filter_smooth = true,
+            };
         point_gizmo_descriptor descriptor
-                {
-                        .point_half_size=kGizmoSize / 2,
-                        .snap_to_pixel = false,
-                        .vertices = vertices,
-                        .zoom_invariant = false,
-                        .symbol_atlas_descriptor = &texDesc,
-                        .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
-                };
+            {
+                .point_half_size=kGizmoSize / 2,
+                .snap_to_pixel = false,
+                .vertices = vertices,
+                .zoom_invariant = false,
+                .symbol_atlas_descriptor = &texDesc,
+                .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
+            };
 
         return gr->CreatePointGizmo(descriptor);
     }
@@ -2447,23 +2443,23 @@ namespace tao_scene {
         // Geometry - line strip
         // ----------------------------------------------------------------------------------
         vector<LineGizmoVertex> vertices
-                ({
-                         LineGizmoVertex{}.Position(vec3{-0.5f, -0.5f, 0.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
-                         LineGizmoVertex{}.Position(vec3{-0.5f, 0.5f, 0.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
-                         LineGizmoVertex{}.Position(vec3{0.5f, 0.5f, 0.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
-                         LineGizmoVertex{}.Position(vec3{0.5f, -0.5f, 0.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
-                         LineGizmoVertex{}.Position(vec3{-0.5f, -0.5f, 0.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity})
-                 });
+            ({
+                 LineGizmoVertex{}.Position(vec3{-0.5f, -0.5f, 0.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
+                 LineGizmoVertex{}.Position(vec3{-0.5f, 0.5f, 0.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
+                 LineGizmoVertex{}.Position(vec3{0.5f, 0.5f, 0.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
+                 LineGizmoVertex{}.Position(vec3{0.5f, -0.5f, 0.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity}),
+                 LineGizmoVertex{}.Position(vec3{-0.5f, -0.5f, 0.0f}).Color(vec4{1.0f, 1.0f, 1.0f, kOpacity})
+             });
 
         line_strip_gizmo_descriptor descriptor
-                {
-                        .vertices = vertices,
-                        .isLoop = true,
-                        .line_size = kLineWidth,
-                        .zoom_invariant = false,
-                        .pattern_texture_descriptor = nullptr,
-                        .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
-                };
+            {
+                .vertices = vertices,
+                .isLoop = true,
+                .line_size = kLineWidth,
+                .zoom_invariant = false,
+                .pattern_texture_descriptor = nullptr,
+                .usage_hint = tao_gizmos::gizmo_usage_hint::usage_static,
+            };
 
         return gr->CreateLineStripGizmo(descriptor);
     }
@@ -2574,41 +2570,47 @@ namespace tao_scene {
         /// Creating the Mesh gizmo (custom shader)
         vector<MeshGizmoVertex> dummyVerts{MeshGizmoVertex().Position(vec3(0.0f))};
         mesh_gizmo_descriptor descriptor
-                {
-                        .vertices =dummyVerts,
-                        .triangles = nullptr,
-                        .zoom_invariant = false,
-                        .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic
-                };
+            {
+                .vertices =dummyVerts,
+                .triangles = nullptr,
+                .zoom_invariant = false,
+                .usage_hint = tao_gizmos::gizmo_usage_hint::usage_dynamic
+            };
 
         auto customShader = CreateGridShader();
         _gizmoId = _gr->CreateMeshGizmo(descriptor, customShader);
-        _instanceId = _gr->InstanceMeshGizmo(_gizmoId, {{.transform = mat4{1.0f}, .color = vec4{
-                1.0f}, .visible = true, .selectable = false}})[0];
+        _instanceId = _gr->InstanceMeshGizmo(_gizmoId, {
+            {
+                .transform = mat4{1.0f},
+                .color = vec4{1.0f},
+                .visible = true,
+                .selectable = false
+            }
+        })[0];
 
         /// Creating the rendering layer and pass
         const ogl_depth_state kOglDepthState
-                {
-                        .depth_test_enable = true,
-                        .depth_write_enable = false,
-                        .depth_func = depth_func_less_equal,
-                        .depth_range_near = 0.0f,
-                        .depth_range_far = 1.0f,
-                };
+            {
+                .depth_test_enable = true,
+                .depth_write_enable = false,
+                .depth_func = depth_func_less_equal,
+                .depth_range_near = 0.0f,
+                .depth_range_far = 1.0f,
+            };
         const ogl_blend_state kOglBlendState
-                {
-                        .blend_enable = true,
-                        .blend_equation_rgb = ogl_blend_equation{.blend_factor_src = blend_fac_src_alpha, .blend_factor_dst = blend_fac_one_minus_src_alpha},
-                        .blend_equation_alpha = ogl_blend_equation{.blend_factor_src = blend_fac_one, .blend_factor_dst = blend_fac_one_minus_src_alpha},
-                        .color_mask = mask_all
-                };
+            {
+                .blend_enable = true,
+                .blend_equation_rgb = ogl_blend_equation{.blend_factor_src = blend_fac_src_alpha, .blend_factor_dst = blend_fac_one_minus_src_alpha},
+                .blend_equation_alpha = ogl_blend_equation{.blend_factor_src = blend_fac_one, .blend_factor_dst = blend_fac_one_minus_src_alpha},
+                .color_mask = mask_all
+            };
         const ogl_rasterizer_state kOglRasterizerState
-                {
-                        .culling_enable = false,
-                        .polygon_mode = polygon_mode_fill,
-                        .multisample_enable = false,
-                        .alpha_to_coverage_enable = false,
-                };
+            {
+                .culling_enable = false,
+                .polygon_mode = polygon_mode_fill,
+                .multisample_enable = false,
+                .alpha_to_coverage_enable = false,
+            };
 
         auto layer = _gr->CreateRenderLayer(kOglDepthState, kOglBlendState, kOglRasterizerState);
         _gr->AddRenderPass({_gr->CreateRenderPass({layer})});
@@ -2798,12 +2800,12 @@ namespace tao_scene {
 
     glm::mat4 TaoScene::GetMat4(const aiMatrix4x4 &aiMat) {
         return mat4
-                {
-                        aiMat.a1, aiMat.b1, aiMat.c1, aiMat.d1,
-                        aiMat.a2, aiMat.b2, aiMat.c2, aiMat.d2,
-                        aiMat.a3, aiMat.b3, aiMat.c3, aiMat.d3,
-                        aiMat.a4, aiMat.b4, aiMat.c4, aiMat.d4
-                };
+            {
+                aiMat.a1, aiMat.b1, aiMat.c1, aiMat.d1,
+                aiMat.a2, aiMat.b2, aiMat.c2, aiMat.d2,
+                aiMat.a3, aiMat.b3, aiMat.c3, aiMat.d3,
+                aiMat.a4, aiMat.b4, aiMat.c4, aiMat.d4
+            };
     }
 
     void TaoScene::LoadAiNode(PbrRenderer &renderer, const aiScene *scene, const vector <GenKey<Mesh>> &pbrMeshes,
@@ -3117,14 +3119,13 @@ namespace tao_scene {
         }
 
         unsigned int edgeWidth = 3;
-        auto edgesKey = gizRdr.CreateLineGizmo(line_list_gizmo_descriptor
-                                                   {
-                                                       .vertices = edgeVertices,
-                                                       .line_size = edgeWidth,
-                                                       .zoom_invariant = false,
-                                                       .zoom_invariant_scale = zoomInvariantScale,
-                                                       .pattern_texture_descriptor = nullptr
-                                                   });
+        auto edgesKey = gizRdr.CreateLineGizmo(line_list_gizmo_descriptor{
+            .vertices = edgeVertices,
+            .line_size = edgeWidth,
+            .zoom_invariant = false,
+            .zoom_invariant_scale = zoomInvariantScale,
+            .pattern_texture_descriptor = nullptr
+        });
 
         tao_gizmos_procedural::TextureDataRgbaUnsignedByte dashTex{ 16, 2, {0} };
         CreateDashedPatternVC(16, 2, dashTex);
@@ -3138,14 +3139,13 @@ namespace tao_scene {
                 .pattern_length = 16
             };
 
-        auto dashedEdgesKey = gizRdr.CreateLineGizmo(line_list_gizmo_descriptor
-                                                             {
-                                                                     .vertices = edgeVertices,
-                                                                     .line_size = 2,
-                                                                     .zoom_invariant = false,
-                                                                     .zoom_invariant_scale = zoomInvariantScale ,
-                                                                     .pattern_texture_descriptor = &dashPattern
-                                                             });
+        auto dashedEdgesKey = gizRdr.CreateLineGizmo(line_list_gizmo_descriptor{
+            .vertices = edgeVertices,
+            .line_size = 2,
+            .zoom_invariant = false,
+            .zoom_invariant_scale = zoomInvariantScale,
+            .pattern_texture_descriptor = &dashPattern
+        });
 
         gizRdr.InstanceLineGizmo(edgesKey,
                                  {
