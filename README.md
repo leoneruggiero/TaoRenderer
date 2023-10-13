@@ -16,6 +16,7 @@ Lorem ipsum some descpriptium Lorem ipsum some descpriptium Lorem ipsum some des
 ![ZoomInvariance](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/5cf16902-38ee-4225-acbc-a2e5a7613f84)
 
 ### Constant Screen-Lenght Texture Mapping
+![ConstantScreenLength](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/01c662d4-a050-41fe-9bb3-176ca4d3a9e9)
 
 ### Shader Graph
 
@@ -36,6 +37,4 @@ Lorem ipsum some descpriptium Lorem ipsum some descpriptium Lorem ipsum some des
 ### Area Lights
 
 ### Contact Hardening Soft Shadows (PCSS)
- <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExd3g4OTB2NHNqZjI0d2hmOHRncWZpeDBoZDI2cWsxNm9xdjU2eGo5MiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/OrAmxgRCbX461zz8bD/giphy.gif" width="790" height="790"/>
-
-
+![PCSS](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/e3fdc63b-f7c1-4063-92c7-fe263cdce9a0)
