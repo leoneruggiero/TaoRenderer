@@ -1,42 +1,65 @@
 # Tao Renderer
-
 ![Screenshot 2023-10-14 181635](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/8e63b128-2edb-429d-8bd3-d8de6a5c23a2)
 
+**Tao** is an OpenGL renderer meant to be a playground to experiment with modern OpenGL concepts, computer graphics techniques and learn a bit of C++. 
+The renderer is made of different components:
+* **RenderContext**: creates a window, an OpenGL context, and provides abstractions for OpenGL.
+* **PbrRenderer**: draws a 3D scene using physically-based rendering techniques.
+* **GizmosRenderer**: draws all the useful _extras_ in a 3D application, such as debug visualization, lines, overlays, ...
 
-# Features
-## Pbr
+The different components can communicate since they share the same underlying OpenGL abstraction provided by RenderContex.
 
+## Pbr Renderer Features
+### Pbr materials
 ![Screenshot 2023-10-14 184257](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/efc992a1-0b08-408a-bced-5eb8f33ac794)
+**Cook-Torrance** has been chosen as the specular BRDF of choice for this renderer since it is considered the standard in a number of articles and technical publications.<br>
+**Lambertian** diffuse has been used for the diffuse term.
 
 ### Deferred Shading
 
-### Advanced materials
-
 ### Environment IBL
 
-![IBLDemo](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/99e88b33-7deb-483f-9007-7f35d397a0bd)
+![IBLDemo](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/7841c4ee-90c0-4aa9-a875-d3993cf7becd)
+
+To address environment lights, the split-sum approximation as described by Karis in [TODO] has been used.<br>
+Loading an environment for a 3D scene using **Tao** is as simple as providing the renderer with a valid path to a .hdr image which contains an equirectangular projected environment capture.
+The renderer takes care of processing the image, without the need to use specialized software.
 
 ### Area Lights
+In addition to directional lights, **Tao** features spherical and rectangular lights:
+* Sphere lights are rendered by using the _Most representative point_ technique as described by Karis in [TODO].
+* Rectangular lights are achieved using a technique known as _Linearly transformed cosine_ (Article[TODO], Implementation[TODO]).
 
-### Contact Hardening Soft Shadows (PCSS)
-
+### Contact Hardening Soft Shadows
 ![PCSS](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/a65aa6d0-853b-4bd0-892c-42270b1b067d)
 
-## Gizmos
+CHSS for directional and area lights implementation is based on the concepts presented in the article "Percentage-Closer Soft Shadows"[TODO]. 
 
+## Gizmos Rendere Features
 ![GizmoDemo](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/48a36730-dd48-4079-8a03-4b461706fb3b)
 
-Lorem ipsum some descpriptium Lorem ipsum some descpriptium Lorem ipsum some descpriptium
-Lorem ipsum some descpriptium Lorem ipsum some descpriptium Lorem ipsum some descpriptium 
-Lorem ipsum some descpriptium
+**GizmosRenderer** is a flexible component that can be used to draw meshes, lines, line-strips and points which has been developed with overlay-drawing and debug visualization in mind.<br>
+
+The GIF shows all the different elements drawn using this component:
+* The XY-plane grid
+* The small view-oriented cube on the top left corner
+* The light icons
+* The handles used to manipulate a light's transformation (the arrow triad for example).  
 
 ### Zoom Invariance
-Lorem ipsum some descpriptium Lorem ipsum some descpriptium Lorem ipsum some descpriptium
 ![ZoomInvariance](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/e91d6ecc-acd0-4942-b89f-01e9d2387950)
 
+Gizmos can optionally be drawn in the 3D scene so that they always cover the same area on the screen. 
 
 ### Constant Screen-Lenght Texture Mapping
 ![ConstantScreenLength](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/428af1d6-b9ae-4838-989d-563ade5e7450)
+
+For lines and line-strip gizmos, an option is available that maps textures that that...that what? eh?
+
+### Mouse Pick
+
+Gizmos selection/picking has been achieved with an off-screen drawing where entity IDs have been color encoded.<br>
+By using a stack of [Pixel Buffer Objects](https://www.khronos.org/opengl/wiki/Pixel_Buffer_Object) and [Fences](https://www.khronos.org/opengl/wiki/Sync_Object), reading the result of the off-screen drawing doesn't stall the pipeline.
 
 
 ### Shader Graph
@@ -78,8 +101,6 @@ void main()
 }
 ```
 
-### Mouse Pick
-
 ### Programmatic textures
 
 _Example:_ rect light gizmo icon (upscaled)
@@ -113,3 +134,5 @@ auto sdfLEDs =
 
 
 ### Configurable pipeline
+
+## References
