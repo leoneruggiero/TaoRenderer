@@ -114,7 +114,7 @@ namespace tao_gizmos_shader_graph
 
     };
 
-    class SGInVertNormal : public SGVec4
+    class SGInVertNormal : public SGVec3
     {
     public:
         int ChildrenCount()             const override {return 0;}
@@ -177,6 +177,11 @@ namespace tao_gizmos_shader_graph
         }
 
     };
+
+    std::shared_ptr<SGVec4> inline SGInputVertexColor() {return std::make_shared<SGInVertColor>();}
+    std::shared_ptr<SGVec3> inline SGInputVertexPosition() {return std::make_shared<SGInVertPosition>();}
+    std::shared_ptr<SGVec3> inline SGInputVertexNormal() {return std::make_shared<SGInVertNormal>();}
+    std::shared_ptr<SGVec3> inline SGInputEyePosition() {return std::make_shared<SGInEyePosition>();}
 }
 
 
