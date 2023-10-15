@@ -738,7 +738,7 @@ namespace tao_pbr
         lights_gl_data_block lightsGlDataBlock
         {
             .doEnvironment= _currentEnvironment.has_value(),
-            .environmentIntensity = 0.1f,
+            .environmentIntensity = 0.25f,
             .directionalLightsCnt = static_cast<int>(_directionalLights.vector().size()),
             .sphereLightsCnt      = static_cast<int>(_sphereLights.vector().size()),
             .rectLightsCnt        = static_cast<int>(_rectLights.vector().size())

@@ -367,5 +367,9 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/Design/Sketch.drawio
+
+/cmake-build-release-visual-studio/
 /cmake-build-debug-visual-studio/
+/Design/
+/Legacy/Assets/
+/Legacy/ImGui/

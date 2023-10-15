@@ -313,7 +313,7 @@ int main()
 
     //CreateGizmoTest(scene.GetGizmosRenderer());
 
-    scene.LoadGltf(format("{}/{}/scene.gltf", MODELS_DIR, "DamagedHelmet").c_str());
+    scene.LoadGltf(format("{}/{}/scene.gltf", MODELS_DIR, "ApolloAndDaphne").c_str());
 
     scene.AddLight(RectLight{
         .transformation =
