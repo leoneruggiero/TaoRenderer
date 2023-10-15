@@ -1,19 +1,18 @@
 # Tao Renderer
 ![Screenshot 2023-10-14 181635](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/8e63b128-2edb-429d-8bd3-d8de6a5c23a2)
 
-**Tao** is an OpenGL renderer meant to be a playground to experiment with modern OpenGL concepts, computer-graphics techniques and learn a bit of C++. 
-The renderer is made of different components:
-* **RenderContext**: creates a window, an OpenGL context, and provides abstractions for OpenGL.
-* **PbrRenderer**: draws a 3D scene using physically-based rendering techniques.
-* **GizmosRenderer**: draws all the useful _extras_ in a 3D application, such as debug visualization, lines, overlays, ...
+**Tao** is an OpenGL renderer designed as a playground for experimenting with modern OpenGL concepts, computer graphics techniques, and learning a bit of C++ along the way. The renderer comprises several key components:
+* **RenderContext:** This component creates a window, an OpenGL context, and offers abstractions for OpenGL.
+* **PbrRenderer:** It is responsible for rendering 3D scenes using physically-based rendering techniques.
+* **GizmosRenderer:** This component handles the rendering of various useful extras in a 3D application, including debug visualizations and overlays.
 
-The different components can communicate since they share the same underlying OpenGL abstraction provided by RenderContex.
+The different components can communicate since they share the same underlying OpenGL abstraction provided by **RenderContex**.
 
 ## Pbr Renderer Features
 ### Pbr materials
 ![Screenshot 2023-10-14 184257](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/efc992a1-0b08-408a-bced-5eb8f33ac794)
-**Cook-Torrance** has been chosen as the specular BRDF of choice for this renderer since it is considered the standard in a number of articles and technical publications.<br>
-**Lambertian** diffuse has been used for the diffuse term.
+**Cook-Torrance** has been chosen as the specular BRDF of choice for this renderer. It is considered the standard in a number of articles and technical publications.
+For the diffuse term, the renderer employs the **Lambertian** model.
 
 ### Deferred Shading
 
@@ -21,14 +20,14 @@ The different components can communicate since they share the same underlying Op
 
 ![IBLDemo](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/7841c4ee-90c0-4aa9-a875-d3993cf7becd)
 
-To address environment lights, the split-sum approximation as described by Karis in his 2013 Siggraph presentation notes [[1]](#1) has been used.<br>
+To address environment image-based lighting, the split-sum approximation as described by Karis in his 2013 Siggraph presentation notes [[1]](#1) has been used.<br>
 Loading an environment for a 3D scene using **Tao** is as simple as providing the renderer with a valid path to a .hdr image which contains an equirectangular projected environment capture.
 The renderer takes care of processing the image, without the need to use specialized software.
 
 ### Area Lights
 In addition to directional lights, **Tao** features spherical and rectangular lights:
-* Sphere lights are rendered by using the _Representative point_ method as described by Karis [[1]](#1).
-* Rectangular lights are achieved using a technique known as _Linearly transformed cosine_ (Article[[2]](#2), [Implementation](https://github.com/selfshadow/ltc_code/tree/master#webgl-demos)).
+* **Sphere lights** are rendered by using the _Representative point_ method, as described by Karis [[1]](#1).
+* **Rectangular lights** are implemented using a technique known as _Linearly transformed cosine_ (Article[[2]](#2), [Implementation](https://github.com/selfshadow/ltc_code/tree/master#webgl-demos)).
 
 ### Contact Hardening Soft Shadows
 ![PCSS](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/a65aa6d0-853b-4bd0-892c-42270b1b067d)
@@ -38,7 +37,7 @@ CHSS for directional and area light implementation is based on the concepts pres
 ## Gizmos Renderer Features
 ![GizmoDemo](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/48a36730-dd48-4079-8a03-4b461706fb3b)
 
-**GizmosRenderer** is a flexible component that can be used to draw meshes, lines, line-strips and points which has been developed with overlay-drawing and debug visualization in mind.<br>
+**GizmosRenderer** is a versatile component designed for drawing meshes, lines, line-strips, and points. It has been developed with a focus on overlay drawing and facilitating debug visualization.<br>
 
 The GIF shows all the different elements drawn using this component:
 * The XY-plane grid
@@ -49,40 +48,37 @@ The GIF shows all the different elements drawn using this component:
 ### Zoom Invariance
 ![ZoomInvariance](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/e91d6ecc-acd0-4942-b89f-01e9d2387950)
 
-Gizmos can optionally be drawn in the 3D scene so that they always cover the same area on the screen. 
+Gizmos can be drawn in the 3D scene with the option to maintain a consistent screen space coverage regardless of zoom level.
 
 ### Constant Screen-Lenght Texture Mapping
 ![ConstantScreenLength](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/428af1d6-b9ae-4838-989d-563ade5e7450)
 
-For lines and line-strip gizmos, an option is available that maps texture coordinates so they match the primitive screen length.
-This allows for effects similar to the ones achieved with [glLineStipple](https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glLineStipple.xml) while being a much more powerful tool.
+For lines and line-strip gizmos, there is an option available that maps texture coordinates to match the primitive's screen length. This feature enables effects similar to those achieved with [glLineStipple](https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glLineStipple.xml) while offering greater versatility and control.
 
 ### Mouse Pick
 
-Gizmos selection/picking has been achieved with an off-screen drawing where entity IDs have been color encoded.<br>
-By using a stack of [Pixel Buffer Objects](https://www.khronos.org/opengl/wiki/Pixel_Buffer_Object) and [Fences](https://www.khronos.org/opengl/wiki/Sync_Object), reading the result of the off-screen drawing doesn't stall the pipeline.
+Gizmos selection and picking are accomplished through an off-screen drawing where entity IDs are encoded using color. This approach leverages a queue of [Pixel Buffer Objects](https://www.khronos.org/opengl/wiki/Pixel_Buffer_Object) and [Fences](https://www.khronos.org/opengl/wiki/Sync_Object) to ensure that reading the results of the off-screen drawing operation does not stall the pipeline.
 
 
 ### Configurable Pipeline
 
-**Gizmos** are assigned to render layers. A render layer contains a set of pipeline state configurations (depth-stencil/rasterizer/blend). 
-These layers can be configured at will by the user, allowing for a variety of effects. The view-aligned cube on the top-right corner of the screen, for example,  which is shown in some of the GIFs and images, is drawn by using multiple layers (to mask visible and hidden edges).
+**Gizmos** are associated with specific render layers. Each render layer encompasses a collection of pipeline state configurations, such as depth-stencil, rasterizer, and blend settings. Users have the freedom to configure these layers as needed, enabling a wide range of visual effects. For instance, the view-aligned cube featured in several GIFs and images on the top-right corner of the screen is drawn using multiple layers to manage visible and hidden edges.
 
 ### Shader Graph
 
-To allow for custom shaders, a _shader-graph-like_ mechanism has been developed to write and pass shaders to **GizmosRenderer**.
+To enable the creation of custom shaders, a _shader-graph-like_ mechanism has been developed to write and pass shaders to **GizmosRenderer**.
 The idea is to let the user write some normal-looking C++ code while building a graph under the hood. The graph is then converted to GLSL code, pasted onto an existing template, and compiled as an OpenGL shader.
-This approach is an alternative to the simpler "pass the shader to the renderer as a string".<br>
+This approach offers an alternative to the simpler method of passing a shader as a string to the renderer.<br>
 
 Some key advantages of this approach
 * **Shader details are hidden:** for example which inputs/outputs are available to a shader stage and what are their names
-* **Decoupling of logic and implementation:** the same graph could be turned into HLSL code for example
-* **Type checking:** the IDE will highlight C++ errors which would be, in turn, GLSL errors
-* **Easily convertible to a visual shader editor:** similar to Blender's node editor and Unity's shader graph
+* **Decoupling of logic and implementation:** the same graph could be turned into GLSL or HLSL code for example
+* **Error checking:** GLSL errors corresponds to C++ errors
+* **Easily convertible to a visual shader editor:** this approach sets the stage for creating a visual shader editor similar to Blender's node editor and Unity's shader graph
 
 The infinite grid on the XY plane is drawn using a fragment shader generated using this shader-graph mechanism. 
 
-The following is an example of a shader written using this method (_this shader is meant to be just an example, not sure if it actually accomplishes anything useful_):<br>
+Below is an illustrative example of a shader created using this method (_please note that this shader serves as an example and may not have a practical purpose_):
 
 **C++ code**
 
@@ -123,11 +119,11 @@ void main()
 
 ### Procedural Textures
 
-All the icons for the different light gizmos, as well as the line patterns, have been generated programmatically by using a number of useful utilities provided by **GizmosRenderer**.<br>
+All the icons for the different light gizmos, as well as the line patterns,have been generated programmatically using a range of convenient utilities provided by **GizmosRenderer**.<br>
 
-Most notably, it provides a mechanism to create complex [SDFs](https://iquilezles.org/articles/distfunctions2d/) by intuitively chaining different operations, such as transformations, domain repetition, and more.<br>
+Notably, it provides a mechanism for creating complex [SDFs](https://iquilezles.org/articles/distfunctions2d/) by intuitively chaining different operations including transformations and domain repetitions.<br>
 
-The following code section shows what this SDF-manipulation API looks like from the user's perspective.
+The following code section demonstrates how this SDF manipulation API appears from the user's perspective:
 
 **Example: Rect light gizmo icon** (upscaled)
 
