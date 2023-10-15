@@ -1,0 +1,220 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Textures">
+      <UniqueIdentifier>{7527207a-3343-4076-a5df-4fd12e090ea0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Imgui">
+      <UniqueIdentifier>{d67f5378-b542-4622-a1bc-e8140fef5195}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{efa9beae-1195-4e91-831f-ae511cf7e675}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Deferred">
+      <UniqueIdentifier>{8c756942-fde8-4b49-8bf7-116afb0859ad}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Forward">
+      <UniqueIdentifier>{201e0400-7b73-45a9-a266-4e6156cd55b6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\Include">
+      <UniqueIdentifier>{d64d77e0-be5e-47b7-817f-c47d0239dda7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders\PostProcessing">
+      <UniqueIdentifier>{97cb4c0f-adcf-449c-adfe-de5a887ecbbf}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="glad.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Windowcpp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Camera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_demo.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_draw.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_impl_glfw.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_impl_opengl3.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_tables.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="ImGui\imgui_widgets.cpp">
+      <Filter>Imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="stb_image_cpp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Camera.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SceneUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Mesh.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GeometryHelper.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imconfig.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui_impl_glfw.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui_impl_opengl3.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui_impl_opengl3_loader.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imgui_internal.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imstb_rectpack.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imstb_textedit.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="ImGui\imstb_truetype.h">
+      <Filter>Imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FileUtils.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="stb_image.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Diagnostics.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Timer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ImGui\imgui.ini">
+      <Filter>Imgui</Filter>
+    </None>
+    <None Include="Shaders\Include\UboDefs.glsl">
+      <Filter>Shaders\Include</Filter>
+    </None>
+    <None Include="Shaders\Deferred\LightPassHelper.glsl">
+      <Filter>Shaders\Deferred</Filter>
+    </None>
+    <None Include="Shaders\Include\DebugViz.glsl">
+      <Filter>Shaders\Include</Filter>
+    </None>
+    <None Include="Shaders\Deferred\GPass.frag">
+      <Filter>Shaders\Deferred</Filter>
+    </None>
+    <None Include="Shaders\Deferred\LightPass.vert">
+      <Filter>Shaders\Deferred</Filter>
+    </None>
+    <None Include="Shaders\Deferred\LightPass.frag">
+      <Filter>Shaders\Deferred</Filter>
+    </None>
+    <None Include="Shaders\Deferred\GPass.vert">
+      <Filter>Shaders\Deferred</Filter>
+    </None>
+    <None Include="Shaders\Forward\MeshUnlit.vert">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\MeshUnlit.frag">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\ThickPoints.geom">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\ThickLines.geom">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\ThickLineStrip.geom">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\OmniDirShadow.geom">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\OmniDirShadow.frag">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\PassThrough.vert">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\Skybox.frag">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\Skybox.vert">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\Forward\Velocity.frag">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+    <None Include="Shaders\PostProcessing\PostProcessing.vert">
+      <Filter>Shaders\PostProcessing</Filter>
+    </None>
+    <None Include="Shaders\PostProcessing\TAA.frag">
+      <Filter>Shaders\PostProcessing</Filter>
+    </None>
+    <None Include="Shaders\Forward\Velocity.vert">
+      <Filter>Shaders\Forward</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="container.jpg">
+      <Filter>Textures</Filter>
+    </Image>
+    <Image Include="awesomeface.png">
+      <Filter>Textures</Filter>
+    </Image>
+    <Image Include="green-shower-tile1_albedo.png">
+      <Filter>Textures</Filter>
+    </Image>
+    <Image Include="green-shower-tile1_ao.png">
+      <Filter>Textures</Filter>
+    </Image>
+    <Image Include="space-cruiser-panels2_albedo.png">
+      <Filter>Textures</Filter>
+    </Image>
+    <Image Include="space-cruiser-panels2_metallic.png">
+      <Filter>Textures</Filter>
+    </Image>
+  </ItemGroup>
+</Project>
