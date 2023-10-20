@@ -1,5 +1,5 @@
 # Tao Renderer
-![Screenshot 2023-10-14 181635](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/8e63b128-2edb-429d-8bd3-d8de6a5c23a2)
+![TaoRendererCover](https://github.com/leoneruggiero/TaoRenderer/assets/55357743/c0aa429e-233f-4130-8e50-b468a4e5d98d)
 
 **Tao** is an OpenGL renderer designed as a playground for experimenting with modern OpenGL concepts, computer graphics techniques, and learning a bit of C++ along the way. The renderer comprises several key components:
 * **RenderContext:** This component creates a window, an OpenGL context, and offers abstractions for OpenGL.
@@ -10,7 +10,8 @@ The different components can communicate since they share the same underlying Op
 
 ## Pbr Renderer Features
 ### Pbr materials
-![Screenshot 2023-10-14 184257](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/efc992a1-0b08-408a-bced-5eb8f33ac794)
+![TaoRendererPbrMaterials](https://github.com/leoneruggiero/TaoRenderer/assets/55357743/f5c07302-ea08-42db-b49f-d5b87cd35085)
+
 **Cook-Torrance** has been chosen as the specular BRDF of choice for this renderer. It is considered the standard in a number of articles and technical publications.
 For the diffuse term, the renderer employs the **Lambertian** model.
 
@@ -18,7 +19,7 @@ For the diffuse term, the renderer employs the **Lambertian** model.
 
 ### Environment IBL
 
-![IBLDemo](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/7841c4ee-90c0-4aa9-a875-d3993cf7becd)
+![IBLDemo](https://github.com/leoneruggiero/TaoRenderer/assets/55357743/4aa29199-2e47-423b-b425-f030482a3434)
 
 To address environment image-based lighting, the split-sum approximation as described by Karis in his 2013 Siggraph presentation notes [[1]](#1) has been used.<br>
 Loading an environment for a 3D scene using **Tao** is as simple as providing the renderer with a valid path to a .hdr image which contains an equirectangular projected environment capture.
@@ -30,12 +31,12 @@ In addition to directional lights, **Tao** features spherical and rectangular li
 * **Rectangular lights** are implemented using a technique known as _Linearly transformed cosine_ (Article[[2]](#2), [Implementation](https://github.com/selfshadow/ltc_code/tree/master#webgl-demos)).
 
 ### Contact Hardening Soft Shadows
-![PCSS](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/a65aa6d0-853b-4bd0-892c-42270b1b067d)
+![PCSS](https://github.com/leoneruggiero/TaoRenderer/assets/55357743/9b1e5259-67bd-4033-8416-abc7c71d8cee)
 
 CHSS for directional and area light implementation is based on the concepts presented in the article "Percentage-Closer Soft Shadows"[[3]](#3). 
 
 ## Gizmos Renderer Features
-![GizmoDemo](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/48a36730-dd48-4079-8a03-4b461706fb3b)
+![GizmoDemo](https://github.com/leoneruggiero/TaoRenderer/assets/55357743/3b514f33-9859-439d-b63b-fd26689d7b17)
 
 **GizmosRenderer** is a versatile component designed for drawing meshes, lines, line-strips, and points. It has been developed with a focus on overlay drawing and facilitating debug visualization.<br>
 
@@ -46,18 +47,18 @@ The GIF shows all the different elements drawn using this component:
 * The handles used to manipulate a light's transformation (the arrow triad for example).  
 
 ### Zoom Invariance
-![ZoomInvariance](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/e91d6ecc-acd0-4942-b89f-01e9d2387950)
+![ZoomInvariance](https://github.com/leoneruggiero/TaoRenderer/assets/55357743/3708a8cf-55e5-4e6c-aec4-9f810c2030d1)
 
 Gizmos can be drawn in the 3D scene with the option to maintain a consistent screen space coverage regardless of zoom level.
 
 ### Constant Screen-Lenght Texture Mapping
-![ConstantScreenLength](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/428af1d6-b9ae-4838-989d-563ade5e7450)
+![ConstantScreenLength](https://github.com/leoneruggiero/TaoRenderer/assets/55357743/3fdb2f8e-eae9-49d5-9155-4215b540da15)
 
 For lines and line-strip gizmos, there is an option available that maps texture coordinates to match the primitive's screen length. This feature enables effects similar to those achieved with [glLineStipple](https://registry.khronos.org/OpenGL-Refpages/gl2.1/xhtml/glLineStipple.xml) while offering greater versatility and control.
 
 ### Mouse Pick
 
-Gizmos selection and picking are accomplished through an off-screen drawing where entity IDs are encoded using color. This approach leverages a queue of [Pixel Buffer Objects](https://www.khronos.org/opengl/wiki/Pixel_Buffer_Object) and [Fences](https://www.khronos.org/opengl/wiki/Sync_Object) to ensure that reading the results of the off-screen drawing operation does not stall the pipeline.
+Gizmos selection and picking are accomplished through an off-screen drawing where entity IDs are encoded using color. This approach leverages [Pixel Buffer Objects](https://www.khronos.org/opengl/wiki/Pixel_Buffer_Object) and [Fences](https://www.khronos.org/opengl/wiki/Sync_Object) to ensure that reading the results of the off-screen drawing operation does not stall the pipeline.
 
 
 ### Configurable Pipeline
@@ -102,8 +103,7 @@ auto out = SGOutColor(SGVec(SGSwizzleX(color), SGSwizzleY(color), SGSwizzleZ(col
 
 **Graph** (exported as .tgf and visualized using [yEd](https://www.yworks.com/products/yed))
 
-![shaderGraph](https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/a614a43b-d054-4119-b622-534eb6a0f33b)
-
+![shaderGraph](https://github.com/leoneruggiero/TaoRenderer/assets/55357743/c3949e53-99b3-43f7-8ba5-33d7e1005bce)
 
 **Auto-generated GLSL code**
 
@@ -127,7 +127,7 @@ The following code section demonstrates how this SDF manipulation API appears fr
 
 **Example: Rect light gizmo icon** (upscaled)
 
-<img src="https://github.com/leoneruggiero/TestApp_OpenGL/assets/55357743/f9113d30-ec26-4c54-aa99-596b876b98a1" width="256" height="256"/>
+<img src="https://github.com/leoneruggiero/TaoRenderer/assets/55357743/19d45e8a-955f-4c91-ba06-17339bcb5772" width="256" height="256"/>
 
 ```cpp
 auto sdfBody =
