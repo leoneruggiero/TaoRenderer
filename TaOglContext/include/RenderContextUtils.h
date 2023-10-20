@@ -126,7 +126,7 @@ namespace tao_render_context
             return *this;
         }
 
-        [[nodiscard]] std::vector<unsigned char> InterleavedBuffer(int alignment  = 1) const
+        [[nodiscard]] std::vector<unsigned char> InterleavedBuffer(unsigned int alignment  = 1) const
         {
             // early exit if empty
             if (_dataArrays.empty()) return std::vector<unsigned char>{};
@@ -145,7 +145,7 @@ namespace tao_render_context
 
             if(alignment>1)
             {
-                cumulatedElementSize = cumulatedElementSize/alignment + (cumulatedElementSize % alignment) ? alignment : 0;
+                cumulatedElementSize = (cumulatedElementSize/alignment)*alignment + ((cumulatedElementSize % alignment) ? alignment : 0);
             }
 
             std::vector<unsigned char> interleaved(elementCount * cumulatedElementSize);
@@ -155,11 +155,10 @@ namespace tao_render_context
                 unsigned int accum = 0;
                 for (int j = 0; j < _dataArrays.size(); j++)
                 {
-                    memcpy(interleaved.data() + cumulatedElementSize * i + accum,
-                           _dataArrays[j].dataPtr + i * _dataArrays[j].elementSize,
+                    memcpy(interleaved.data() + (cumulatedElementSize * i + accum),
+                           _dataArrays[j].dataPtr + (i * _dataArrays[j].elementSize),
                            _dataArrays[j].elementSize
                            );
-
                     accum += _dataArrays[j].elementSize;
                 }
             }

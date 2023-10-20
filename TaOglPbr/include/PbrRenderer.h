@@ -485,8 +485,8 @@ namespace tao_pbr
             int glOffAlignment = _renderContext->UniformBufferOffsetAlignment();
             int trBlkSize = sizeof(transform_gl_data_block);
             int mtBlkSize = sizeof(material_gl_data_block);
-            _transformDataBlockAlignment = trBlkSize/glOffAlignment + (trBlkSize%glOffAlignment) ? glOffAlignment : 0;
-            _materialDataBlockAlignment = mtBlkSize/glOffAlignment + (mtBlkSize%glOffAlignment) ? glOffAlignment : 0;
+            _transformDataBlockAlignment = (trBlkSize/glOffAlignment)*glOffAlignment + ((trBlkSize%glOffAlignment) ? glOffAlignment : 0);
+            _materialDataBlockAlignment  = (mtBlkSize/glOffAlignment)*glOffAlignment + ((mtBlkSize%glOffAlignment) ? glOffAlignment : 0);
         }
 
         [[nodiscard]] GenKey<Mesh>                AddMesh(Mesh& mesh);

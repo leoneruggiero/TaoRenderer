@@ -217,12 +217,14 @@ namespace tao_gizmos
 		 std::vector<glm::mat4> transformations(_instanceCount);
 		std::vector<glm::vec4> colors		   (_instanceCount);
 		std::vector<unsigned int> visibility   (_instanceCount);
+        std::vector<unsigned int> selectability(_instanceCount);
 
 		for(int i=0;i<_instanceCount; i++)
 		{
 			transformations[i] = _instanceData[i].transform;
 			colors	       [i] = _instanceData[i].color;
 			visibility	   [i] = _instanceData[i].visible;
+            selectability  [i] = _instanceData[i].selectable;
 		}
 
 		 // Set instance transformation data
@@ -239,6 +241,11 @@ namespace tao_gizmos
 		 dataSize = _instanceCount * sizeof(unsigned int);
 		 _ssboInstanceVisibility.Resize(dataSize);
 		 _ssboInstanceVisibility.OglBuffer().SetSubData(0, dataSize, visibility.data());
+
+         // Set selectability data
+         dataSize = _instanceCount * sizeof(unsigned int);
+         _ssboInstanceSelectability.Resize(dataSize);
+         _ssboInstanceSelectability.OglBuffer().SetSubData(0, dataSize, selectability.data());
 	 }
 
     void LineStripGizmo::SetGizmoVertices(const std::vector<LineGizmoVertex> &vertices, bool isLoop)
@@ -390,12 +397,6 @@ namespace tao_gizmos
 		 dataSize = _instanceCount * sizeof(unsigned int);
 		 _ssboInstanceSelectability.Resize(dataSize);
 		 _ssboInstanceSelectability.OglBuffer().SetSubData(0, dataSize, selectability.data());
-
-         // Set selectability data
-         dataSize = _instanceCount * sizeof(unsigned int);
-         _ssboInstanceSelectability.Resize(dataSize);
-         _ssboInstanceSelectability.OglBuffer().SetSubData(0, dataSize, selectability.data());
-
 	 }
 
     void MeshGizmo::SetGizmoVertices(const std::vector<MeshGizmoVertex> &vertices, const std::vector<int>* triangles)
