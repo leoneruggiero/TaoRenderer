@@ -8,9 +8,10 @@
 #include <algorithm>
 #include <optional>
 
+#define TAO_MATH_DEFAULT_TOL 1e-12f
+
 namespace tao_math
 {
-
     class Ray
     {
     public:
@@ -22,6 +23,7 @@ namespace tao_math
 
         const glm::vec3& Origin() const {return _origin;}
         const glm::vec3& Direction() const {return _direction;}
+        glm::vec3 PointAt(float t) const {return _origin + t*_direction; }
 
     private:
         glm::vec3 _origin;
@@ -85,11 +87,17 @@ namespace tao_math
         glm::vec3 _axisZ;
     };
 
-    std::optional<glm::vec3> RayPlaneIntersection(const Ray& r, const Plane& pl);
+    // Intersections ------
+    // --------------------
+    std::optional<glm::vec3> RayPlaneIntersection(const Ray& r, const Plane& pl,                                                    float tol=TAO_MATH_DEFAULT_TOL);
+    std::optional<glm::vec3> RayTriangleIntersection(const Ray& r, const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2,   float tol=TAO_MATH_DEFAULT_TOL);
+    void RaySphereIntersection(const Ray& r, const glm::vec3& center,float radius, std::optional<glm::vec3>& intersection0, std::optional<glm::vec3>& intersection1, float tol = TAO_MATH_DEFAULT_TOL);
 
+
+    // Closest point ------
+    // --------------------
     // TODO: use Ray class
     glm::vec2 PointLineClosestPoint(const glm::vec2& pt, const glm::vec2& l0, const glm::vec2& l1);
-
     glm::vec3 RayLineClosestPoint(const glm::vec3& ro, const glm::vec3& rd, const glm::vec3& lp, const glm::vec3& ld);
 
     template<typename T, int N>
